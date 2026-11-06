@@ -419,7 +419,7 @@ A.toggleTask = d => { const t = S.tasks.find(x => x.id === d.id); t.done = !t.do
 A.exportIcs = () => {
   const dt = (d, t) => d.replace(/-/g, '') + 'T' + (t || '09:00').replace(':', '') + '00';
   const BY = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
-  let s = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//ManoGyvenimas//LT\r\nCALSCALE:GREGORIAN\r\n';
+  let s = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//LifeSchedule//LT\r\nCALSCALE:GREGORIAN\r\n';
   const stamp = dt(today(), nowHM());
   for (const t of S.tasks.filter(t => !t.done && t.due)) {
     s += `BEGIN:VEVENT\r\nUID:task-${t.id}@manogyv\r\nDTSTAMP:${stamp}\r\nDTSTART:${dt(t.due, t.dueTime)}\r\nDURATION:PT30M\r\nSUMMARY:📌 ${t.title.replace(/[,;]/g, ' ')}\r\nBEGIN:VALARM\r\nTRIGGER:-P1D\r\nACTION:DISPLAY\r\nDESCRIPTION:Rytoj terminas\r\nEND:VALARM\r\nBEGIN:VALARM\r\nTRIGGER:-PT2H\r\nACTION:DISPLAY\r\nDESCRIPTION:Terminas po 2 val.\r\nEND:VALARM\r\nEND:VEVENT\r\n`;
@@ -984,7 +984,7 @@ function vSettings() {
 A.addCat = () => { S.categories.push({id: 'c_' + uid(), name: 'Nauja', emoji: '⭐', color: '#888888', type: 0}); commit(); };
 A.delCat = d => { if (!confirm('Ištrinti kategoriją? Seni įrašai liks, bet be spalvos.')) return; S.categories.splice(+d.i, 1); commit(); };
 A.enableNotif = async () => { if (!('Notification' in window)) return toast('Ši naršyklė nepalaiko pranešimų'); const r = await Notification.requestPermission(); toast(r === 'granted' ? 'Pranešimai įjungti 🔔' : 'Pranešimai neleisti'); render(); };
-A.exportData = () => download(`mano-gyvenimas-${today()}.json`, JSON.stringify(S, null, 1), 'application/json');
+A.exportData = () => download(`life-schedule-${today()}.json`, JSON.stringify(S, null, 1), 'application/json');
 A.theme = () => { S.settings.theme = S.settings.theme === 'dark' ? 'light' : 'dark'; applyTheme(); commit(); };
 function applyTheme() { document.documentElement.dataset.theme = S?.settings?.theme || 'dark'; }
 function openProfileModal(first) {
@@ -1054,7 +1054,7 @@ function loginScreen(msg = '') {
   document.body.classList.add('login');
   $('#main').innerHTML = '';
   $('#modal').classList.remove('open');
-  document.querySelector('.app').innerHTML = `<div class="loginbox"><div class="logo big">🌱</div><h1>Mano gyvenimas</h1><p class="hint">Prisijunk – duomenys sinchronizuosis tarp telefono ir kompiuterio.</p>
+  document.querySelector('.app').innerHTML = `<div class="loginbox"><div class="logo big">🌱</div><h1>Life Schedule</h1><p class="hint">Prisijunk – duomenys sinchronizuosis tarp telefono ir kompiuterio.</p>
     <form id="lform"><label class="fld"><span>El. paštas</span><input name="email" type="email" required autocomplete="email"></label>
     <label class="fld"><span>Slaptažodis</span><input name="password" type="password" required minlength="6" autocomplete="current-password"></label>
     ${msg ? `<p class="lmsg">${msg}</p>` : ''}

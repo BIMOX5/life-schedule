@@ -1,6 +1,6 @@
 {
-  "name": "Mano gyvenimas",
-  "short_name": "Mano gyv.",
+  "name": "Life Schedule",
+  "short_name": "Life Schedule",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#0f1220",
