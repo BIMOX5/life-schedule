@@ -299,6 +299,7 @@ input[type=range] { width:100%; accent-color:var(--accent); }
 .rcp { flex:0 0 74px; text-align:right; font-weight:700; font-size:13px; } .rcp small { font-weight:400; color:var(--muted); }
 .impl input[type=checkbox] { flex:0 0 auto; width:18px; height:18px; }
 .center-btn { justify-content:center; margin:10px 0; }
+h4 .btn { text-transform:none; letter-spacing:0; margin-left:6px; vertical-align:middle; }
 .impl.nef { opacity:.55; } .impl.doubt { border-color:rgba(245,158,11,.8); border-style:dashed; }
 .okbox { background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.4); border-radius:14px; padding:10px 14px; margin:10px 0; font-size:14px; }
 .badbox { background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.45); border-radius:14px; padding:10px 14px; margin:10px 0; font-size:14px; }

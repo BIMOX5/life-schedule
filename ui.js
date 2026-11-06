@@ -706,7 +706,9 @@ A.viewRecipe = d => {
     <div class="rate">${btn(rt === 1 ? '❤️ Patinka' : '🤍 Patinka', 'rate', {id: r.id, v: 1}, 'sm ' + (rt === 1 ? 'on' : ''))}${btn('👎 Nepatinka', 'rate', {id: r.id, v: -1}, 'sm ' + (rt === -1 ? 'on' : ''))}${r.source ? `<a class="btn sm" href="${esc(r.source)}" target="_blank" rel="noopener">🔗 Originalas</a>` : ''}</div>
     <div class="grid2"><div><h4>Ko reikia</h4><ul class="ing">${r.ing.map(([fid, g]) => { const f = food(fid); return `<li><span>${esc(f?.name || fid)}</span><b>${g >= 1000 ? round(g / 1000, 2) + ' kg' : g + ' g'}</b></li>`; }).join('')}</ul>
       <h4>Maistinė vertė porcijai ${st.fromSite ? '<small>(iš svetainės)</small>' : ''}</h4><table class="tbl nutri">${NUTR_LABELS.map(([k, l, u]) => `<tr><td>${l}</td><td><b>${st[k] ?? '–'}</b> ${u}</td></tr>`).join('')}</table></div>
-    <div><h4>Kaip gaminti</h4><ol class="steps">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+    <div><h4>Kaip gaminti ${r.stepsOrig ? btn(UI.showOrig?.[r.id] ? '🌐 Rodyti vertimą' : `🌐 Originalas (${LANG_NAMES[r.lang] || r.lang || 'kita kalba'})`, 'toggleOrig', {id: r.id}, 'sm ghost') : !isLithuanian(r.steps.join(' ')) ? btn('🌐 Išversti į lietuvių', 'translateRecipe', {id: r.id}, 'sm') : ''}</h4>
+      ${UI.showOrig?.[r.id] && r.nameOrig ? `<p class="hint">Originalus pavadinimas: ${esc(r.nameOrig)}</p>` : ''}
+      <ol class="steps">${(UI.showOrig?.[r.id] && r.stepsOrig ? r.stepsOrig : r.steps).map(s => `<li>${esc(s)}</li>`).join('')}</ol>
       ${sim.length ? `<h4>Panašūs (įvairovei)</h4>${sim.map(x => `<div class="li click" data-a="viewRecipe" data-id="${x.id}">${x.emoji} ${esc(x.name)}</div>`).join('')}` : ''}</div></div>
     <div class="choice row">${btn('✅ Pagaminau → į šaldiklį', 'cook', {id: r.id}, 'primary')}${btn('🛒 Į pirkinių sąrašą', 'planAdd', {id: r.id})}${btn('🍽️ Valgau dabar', 'eatRecipe', {id: r.id})}${btn('✏️ Redaguoti', 'editRecipe', {id: r.id})}</div>`, null, {wide: true});
 };
@@ -821,8 +823,58 @@ function impOpen(j) {
   const equip = [['orkait', 'orkaitė'], ['oven', 'orkaitė'], ['air fryer', 'airfryer'], ['airfryer', 'airfryer'], ['gruzdintuv', 'airfryer'], ['slow cooker', 'lėtpuodis'], ['letpuod', 'lėtpuodis'], ['blender', 'blenderis'], ['blenderi', 'blenderis'], ['trintuv', 'blenderis'], ['keptuv', 'keptuvė'], ['pan ', 'keptuvė'], ['skillet', 'keptuvė'], ['puod', 'puodas'], ['boil', 'puodas'], ['virk', 'puodas'], ['pot ', 'puodas']].filter(([k]) => text.includes(k)).map(([, v]) => v);
   UI.imp = {name: j.name || 'Receptas', portions: j.portions || 4, time: j.time || 30, lines, steps: j.steps || [], nutri: j.nutrition, useSite: !!j.nutrition, source: j.source || '',
     equip: [...new Set(equip)], skill: (j.steps || []).length > 8 || (j.time || 0) > 75 ? 2 : 1, emoji: '🍲'};
-  impModal();
+  // kita kalba → verčiam į lietuvių (originalas išsaugomas)
+  if (!isLithuanian([UI.imp.name, ...UI.imp.steps].join(' '))) { UI.imp.tr = {state: 'busy'}; impModal(); translateImp(); }
+  else impModal();
 }
+// ===== Vertimas į lietuvių (DeepL per Supabase funkciją) =====
+function isLithuanian(t) {
+  const s = ' ' + String(t).toLowerCase() + ' ', lt = (s.match(/[ąčęėįšųūž]/g) || []).length;
+  const words = (s.match(/ (ir|su|kol|iki|į|po|ant|pagal|minučių|min\.|keptuvėje|orkaitėje|supjaustyk\w*|išvirk\w*|kepk\w*|sumaišyk\w*|įdėk\w*) /g) || []).length;
+  return lt >= 3 || words >= 2 || String(t).trim().length < 15;
+}
+async function cloudFn(payload) {
+  if (!cloudOn()) throw new Error('Vertimas veikia tik tikroje programėlėje (debesyje), ne testavimo versijoje.');
+  const tok = await Auth.token(); let r;
+  for (const fn of [...new Set([CLOUD.importFn, 'recipe-import'].filter(Boolean))]) {
+    r = await fetch(`${CLOUD.url}/functions/v1/${fn}`, {method: 'POST', headers: {apikey: CLOUD.key, Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+    if (r.status !== 404) break;
+  }
+  if (!r.ok) throw new Error('Supabase funkcija atsakė ' + r.status);
+  return r.json();
+}
+const LANG_NAMES = {EN: 'anglų', SV: 'švedų', DE: 'vokiečių', PL: 'lenkų', RU: 'rusų', FR: 'prancūzų', ES: 'ispanų', IT: 'italų', LV: 'latvių', ET: 'estų', NB: 'norvegų', DA: 'danų', FI: 'suomių'};
+async function translateTexts(texts) {
+  const j = await cloudFn({action: 'translate', texts, target: 'LT'});
+  if (!j.ok) throw new Error(j.error || 'Vertimas nepavyko');
+  return j;
+}
+async function translateImp() {
+  const I = UI.imp; if (!I) return;
+  try {
+    const src = [I.name, ...I.steps], j = await translateTexts(src);
+    if (UI.imp !== I) return;
+    if ($('#modal.open')) impSync(); // išsaugom, ką spėjai pakeisti formoje
+    I.nameOrig = I.name; I.stepsOrig = I.steps; I.name = j.texts[0]; I.steps = j.texts.slice(1); I.lang = j.from; I.tr = {state: 'done', from: j.from};
+  } catch (e) { if (UI.imp === I) I.tr = {state: 'err', msg: e.message}; }
+  if (UI.imp === I && $('#modal.open')) impModal();
+}
+A.retryTr = () => { if (!UI.imp) return; impSync(); UI.imp.tr = {state: 'busy'}; impModal(); translateImp(); };
+A.toggleOrigImp = () => { impSync(); UI.imp.showOrig = !UI.imp.showOrig; impModal(); };
+function trBox(I) {
+  const t = I.tr; if (!t) return '';
+  if (t.state === 'busy') return `<div class="okbox">🌐 Verčiu į lietuvių kalbą…</div>`;
+  if (t.state === 'err') return `<div class="warnbox">🌐 Nepavyko išversti: ${esc(t.msg)} ${btn('Bandyti dar kartą', 'retryTr', {}, 'sm')}</div>`;
+  return `<div class="okbox">🌐 Išversta iš ${LANG_NAMES[t.from] || t.from} kalbos (DeepL). Kiekiai ir produktai paimti iš originalo. ${btn(I.showOrig ? 'Rodyti vertimą' : 'Rodyti originalą', 'toggleOrigImp', {}, 'sm ghost')}</div>`;
+}
+// Jau išsaugoto recepto vertimas / originalas
+A.translateRecipe = async d => {
+  const r = recipe(d.id); if (!r) return;
+  toast('🌐 Verčiu…');
+  try { const j = await translateTexts([r.name, ...r.steps]); r.nameOrig = r.name; r.stepsOrig = r.steps; r.name = j.texts[0]; r.steps = j.texts.slice(1); r.lang = j.from; commit({noRender: true}); A.viewRecipe({id: r.id}); toast('🌐 Išversta', 'good'); }
+  catch (e) { toast('⚠️ ' + esc(e.message)); }
+};
+A.toggleOrig = d => { UI.showOrig = UI.showOrig || {}; UI.showOrig[d.id] = !UI.showOrig[d.id]; A.viewRecipe({id: d.id}); };
 function impCalc() {
   const I = UI.imp, r = {ing: I.lines.filter(l => l.foodId && l.grams > 0).map(l => [l.foodId, l.grams]), portions: I.portions};
   if (I.useSite && I.nutri) r.nutri = I.nutri;
@@ -836,12 +888,14 @@ function impModal() {
     <h4>Ingredientai ${unk ? `<small class="red">· ${unk} neatpažinti – pasirink arba palik (bus praleisti)</small>` : '<small class="green">· visi atpažinti ✓</small>'}</h4>
     <div class="implines">${I.lines.map((l, i) => `<div class="impl ${l.foodId ? '' : 'unk'}"><small>${esc(l.raw)}</small><div class="row"><input list="foodlist" data-impf="${i}" value="${esc(food(l.foodId)?.name || '')}" placeholder="— neatpažinta —"><input type="number" min="0" data-impg="${i}" value="${l.grams}"><span class="u">g</span><button type="button" class="x" data-a="impDel" data-i="${i}">✕</button></div></div>`).join('') || empty('Ingredientų nerasta')}</div>
     <h4>Porcijai: ${st.kcal} kcal · ${st.p} g baltymų · ~${st.cost.toFixed(2)} € ${I.nutri ? `<label class="cb inl"><input type="checkbox" data-imp="useSite" ${I.useSite ? 'checked' : ''}> naudoti svetainės maistinę vertę</label>` : ''}</h4>
-    <h4>Žingsniai (${I.steps.length})</h4><ol class="steps small">${I.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>`,
+    ${trBox(I)}
+    <h4>Žingsniai (${I.steps.length})</h4><ol class="steps small">${(I.showOrig && I.stepsOrig ? I.stepsOrig : I.steps).map(s => `<li>${esc(s)}</li>`).join('')}</ol>`,
     () => { impSync(); const I = UI.imp; const ing = I.lines.filter(l => l.foodId && l.grams > 0).map(l => [l.foodId, l.grams]);
       if (!ing.length && !(I.useSite && I.nutri)) { alert('Bent vienas ingredientas turi būti atpažintas'); return false; }
       const flags = new Set(); ing.forEach(([f]) => (FOOD_FLAGS[f] || []).forEach(x => flags.add(x)));
       const tags = [...new Set([...['paukštiena', 'kiauliena', 'jautiena', 'žuvis', 'ankštiniai'].filter(x => flags.has(x)).map(x => x === 'paukštiena' ? 'vištiena' : x), ...(norm(I.name).includes('wrap') ? ['wrap'] : []), ...(norm(I.name).includes('sriub') || norm(I.name).includes('soup') ? ['sriuba'] : [])])];
       const r = {id: 'r_' + uid(), name: I.name, emoji: I.emoji || '🍲', portions: +I.portions || 1, time: +I.time || 30, freezable: true, skill: I.skill, equip: I.equip, tags, ing, steps: I.steps, source: I.source};
+      if (I.stepsOrig) { r.stepsOrig = I.stepsOrig; r.nameOrig = I.nameOrig; r.lang = I.lang; }
       if (I.useSite && I.nutri) r.nutri = I.nutri;
       S.recipes.push(r); UI.imp = null; commit(); toast('📗 Receptas pridėtas!', 'good'); setTimeout(() => A.viewRecipe({id: r.id}), 100); },
     {wide: true, submit: '✓ Išsaugoti receptą', noFocus: true});
