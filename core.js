@@ -61,6 +61,8 @@ const defaultData = () => ({
   foods: [], recipes: BUILTIN_RECIPES.map(r => JSON.parse(JSON.stringify(r))),
   freezer: [], cooks: [], meals: [], workouts: [], checkins: [], notes: [], shopping: [], plan: [],
   plans: [], active: null, sportPrefs: {}, sportReviews: [],
+  foodPrefs: {done: false, mealSuggest: false, cookTimes: 2, cookMax: 60, budget: 40, cookDays: [7], mealsPerDay: 3, skill: 2, equip: ['puodas', 'keptuvė', 'orkaitė', 'mikrobangė'], dislikes: [], allergies: [], dislikeText: ''},
+  ratings: {}, priceOverrides: {}, priceMeta: {}, deletedRecipes: [], spend: [], mealPlans: [], receiptFoods: [],
   settings: { theme:'dark' },
 });
 
@@ -75,6 +77,16 @@ function migrate(d) {
   for (const k in def) if (d[k] === undefined) d[k] = def[k];
   d.profile = {...def.profile, ...d.profile};
   d.settings = {...def.settings, ...d.settings};
+  if (d.foodPrefs && !d.foodPrefs.done && d.profile.budgetWeek && d.foodPrefs.budget === def.foodPrefs.budget) d.foodPrefs.budget = +d.profile.budgetWeek;
+  d.foodPrefs = {...def.foodPrefs, ...d.foodPrefs};
+  // nauji įdėti receptai atsiranda ir seniems naudotojams; seniems užpildom lygį/techniką
+  for (const b of BUILTIN_RECIPES) {
+    const r = d.recipes.find(x => x.id === b.id);
+    if (!r && !d.deletedRecipes.includes(b.id)) d.recipes.push(JSON.parse(JSON.stringify(b)));
+    else if (r) { if (r.skill == null) r.skill = b.skill; if (!r.equip) r.equip = [...b.equip]; }
+  }
+  for (const r of d.recipes) { r.skill = r.skill || 1; r.equip = r.equip || []; r.tags = r.tags || []; }
+  for (const f of d.freezer) { if (!f.place) f.place = 'freezer'; if (!f.until) f.until = addDays(f.date || today(), 90); }
   delete d.rev;
   return d;
 }
@@ -214,7 +226,17 @@ function updateSyncBadge() {
 
 // ===== Prieigos funkcijos =====
 const cat = id => S.categories.find(c => c.id === id) || {id, name: id || 'Kita', emoji:'•', color:'#888', type:0};
-const allFoods = () => [...BUILTIN_FOODS, ...S.foods];
+// Tavo kaina (iš čekio ar įrašyta) laikoma tikra 31 d., po to – vėl „~“ (pasenusi)
+const PRICE_FRESH_DAYS = 31;
+const priceAge = id => { const m = (S.priceMeta || {})[id]; return m ? diffDays(m.date, today()) : 0; };
+const allFoods = () => { const po = S.priceOverrides || {}; return [...BUILTIN_FOODS, ...S.foods].map(f => po[f.id] != null ? {...f, price: po[f.id], priceMine: priceAge(f.id) <= PRICE_FRESH_DAYS, priceStale: priceAge(f.id) > PRICE_FRESH_DAYS} : f); };
+// Produktai, kurių kaina pasenusi ir kuriuos realiai naudoji (gaminai per 45 d. ar yra pirkinių sąraše)
+function stalePrices() {
+  const used = new Set(), from = addDays(today(), -45);
+  for (const c of S.cooks) if (c.date >= from) for (const [fid] of recipe(c.recipeId)?.ing || []) used.add(fid);
+  for (const p of S.plan) for (const [fid] of recipe(p.rid)?.ing || []) used.add(fid);
+  return allFoods().filter(f => f.priceStale && used.has(f.id) && f.id !== 'prieskoniai');
+}
 const food = id => allFoods().find(f => f.id === id);
 const recipe = id => S.recipes.find(r => r.id === id);
 const exercise = id => EXERCISES.find(e => e.id === id);
@@ -240,19 +262,26 @@ function targets() {
 }
 
 // ===== Receptų maistinė vertė =====
+// Grąžina maistinę vertę porcijai: kcal, p (baltymai), c (angliav.), s (cukrūs), f (riebalai), sat (sotieji), fi (skaidulos), salt (druska)
+const NUTR_KEYS = ['kcal', 'p', 'c', 's', 'f', 'sat', 'fi', 'salt'];
 function recipeStats(r) {
-  let kcal = 0, p = 0, c = 0, f = 0, cost = 0, missing = [];
+  const t = Object.fromEntries(NUTR_KEYS.map(k => [k, 0])); let cost = 0, mine = 0; const missing = [];
   for (const [fid, g] of r.ing) {
     const fd = food(fid); if (!fd) { missing.push(fid); continue; }
-    kcal += fd.kcal * g / 100; p += fd.p * g / 100; c += fd.c * g / 100; f += fd.f * g / 100; cost += (fd.price || 0) * g / 1000;
+    for (const k of NUTR_KEYS) t[k] += (+fd[k] || 0) * g / 100;
+    const c = (fd.price || 0) * g / 1000; cost += c; if (fd.priceMine) mine += c;
   }
-  const n = r.portions || 1;
-  return {kcal: Math.round(kcal / n), p: round(p / n, 1), c: round(c / n, 1), f: round(f / n, 1), cost: round(cost / n, 2), total: round(cost, 2), missing};
+  const n = r.portions || 1, out = {};
+  for (const k of NUTR_KEYS) out[k] = k === 'kcal' ? Math.round(t[k] / n) : round(t[k] / n, 1);
+  if (r.nutri) for (const k of NUTR_KEYS) if (r.nutri[k] != null) out[k] = k === 'kcal' ? Math.round(r.nutri[k]) : round(r.nutri[k], 1); // iš svetainės
+  return {...out, cost: round(cost / n, 2), total: round(cost, 2), missing, fromSite: !!r.nutri, priceReal: cost ? Math.round(mine / cost * 100) : 0};
 }
 
 // ===== Dienos duomenys =====
 const mealsOn = d => S.meals.filter(m => m.date === d);
-const dayNutrition = d => { const ms = mealsOn(d); return {kcal: Math.round(sum(ms.map(m => m.kcal))), p: round(sum(ms.map(m => m.p)), 1), n: ms.length}; };
+const dayNutrition = d => { const ms = mealsOn(d), o = {n: ms.length}; for (const k of NUTR_KEYS) o[k] = k === 'kcal' ? Math.round(sum(ms.map(m => m[k]))) : round(sum(ms.map(m => m[k])), 1); return o; };
+// Maistinė vertė valgiui (iš recepto ar produkto)
+const nutrOf = (st, mult) => Object.fromEntries(NUTR_KEYS.map(k => [k, (+st[k] || 0) * mult]));
 const workoutsOn = d => S.workouts.filter(w => w.date === d);
 const sleepOn = d => S.sleep.find(s => s.date === d);
 const sleepMinutes = s => { if (!s) return 0; let m = toMin(s.wake) - toMin(s.bed); if (m <= 0) m += 1440; return m; };
@@ -409,49 +438,190 @@ function recipeUsage(days = 14) {
   for (const c of S.cooks) if (c.date >= from) u[c.recipeId] = (u[c.recipeId] || 0) + 1;
   return u;
 }
-function freezerPortions(rid) { return sum(S.freezer.filter(f => !rid || f.recipeId === rid).map(f => f.portions)); }
+function freezerPortions(rid, place) { return sum(S.freezer.filter(f => (!rid || f.recipeId === rid) && (!place || (f.place || 'freezer') === place)).map(f => f.portions)); }
+// ===== Laikymas: šaldytuvas / šaldiklis =====
+// Kiek dienų laikosi pagaminto patiekalo porcija (maisto saugos rekomendacijos)
+function shelfDays(r, place) {
+  if (!r) return place === 'fridge' ? 3 : 90;
+  const fl = recipeFlags(r), fish = fl.has('žuvis') || fl.has('jūros gėrybės'), rice = r.ing.some(([f]) => f === 'ryziai' || f === 'ryziai_rudi');
+  if (place === 'fridge') return fish ? 2 : rice ? 3 : 4;
+  return fish ? 60 : 90;
+}
+function addStorage(recipeId, place, portions, date = today()) {
+  if (!(portions > 0)) return;
+  const ex = S.freezer.find(f => f.recipeId === recipeId && (f.place || 'freezer') === place && f.date === date);
+  if (ex) ex.portions += portions;
+  else S.freezer.push({id: uid(), recipeId, place, portions, date, until: addDays(date, shelfDays(recipe(recipeId), place))});
+}
+// Visos porcijos, pirmiausia tos, kurios greičiau genda
+const storageItems = () => S.freezer.filter(f => f.portions > 0).map(f => ({...f, place: f.place || 'freezer', r: recipe(f.recipeId), left: diffDays(today(), f.until || addDays(f.date, 90))})).sort((a, b) => a.left - b.left);
+function takePortion(id, n = 1) { const f = S.freezer.find(x => x.id === id); if (!f) return; f.portions = round(f.portions - n, 2); if (f.portions <= 0) S.freezer = S.freezer.filter(x => x !== f); }
+const leftText = x => x.left < 0 ? `<b class="red">pasibaigė prieš ${-x.left} d.</b>` : x.left === 0 ? '<b class="red">suvalgyk šiandien</b>' : x.left === 1 ? '<b class="warnc">iki rytojaus</b>' : x.place === 'fridge' ? `dar ${x.left} d.` : `iki ${fmtDate(x.until)}`;
+// ===== Kainos: kiek jų „tikros“ (iš tavo čekių) =====
+const priceIsMine = id => (S.priceOverrides || {})[id] != null;
 function budgetWeek(d = today()) {
   const ws = weekStart(d), we = addDays(ws, 6);
-  const spent = round(sum(S.cooks.filter(c => c.date >= ws && c.date <= we).map(c => c.cost)), 2);
-  const budget = +S.profile.budgetWeek || 0;
-  return {spent, budget, left: round(budget - spent, 2)};
+  // jei šią savaitę nuskaitei čekių – skaičiuojam tikras išlaidas, kitaip – pagal pagamintus receptus
+  const receipts = sum((S.spend || []).filter(c => c.date >= ws && c.date <= we).map(c => c.amount));
+  const spent = round(receipts || sum(S.cooks.filter(c => c.date >= ws && c.date <= we).map(c => c.cost)), 2);
+  const budget = +S.foodPrefs?.budget || +S.profile.budgetWeek || 0;
+  return {spent, budget, left: round(budget - spent, 2), fromReceipts: receipts > 0};
 }
+// ===== Mitybos pageidavimai: ką receptas turi ir ar jis tinka =====
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+function recipeFlags(r) {
+  const f = new Set(r.tags || []);
+  for (const [fid] of r.ing) for (const x of FOOD_FLAGS[fid] || []) f.add(x);
+  return f;
+}
+// Grąžina null, jei tinka, arba priežastį, kodėl ne
+function recipeBlock(r) {
+  const fp = S.foodPrefs || {}, flags = recipeFlags(r);
+  if ((S.ratings || {})[r.id] === -1) return '👎 pažymėjai, kad nepatinka';
+  const al = (fp.allergies || []).find(a => flags.has(a)); if (al) return `alergija: ${al}`;
+  const dl = (fp.dislikes || []).find(a => flags.has(a)); if (dl) return `nevalgai: ${dl}`;
+  const words = (fp.dislikeText || '').split(',').map(w => norm(w).trim()).filter(w => w.length >= 3);
+  if (words.length) { const hay = norm([r.name, ...r.tags, ...r.ing.map(([fid]) => food(fid)?.name || '')].join(' ')); const w = words.find(w => hay.includes(w.slice(0, Math.max(3, w.length - 2)))); if (w) return `nevalgai: ${w}`; }
+  if (fp.equip && fp.equip.length) { const miss = (r.equip || []).filter(e => !fp.equip.includes(e)); if (miss.length) return `reikia: ${miss.join(', ')}`; }
+  if (fp.skill && (r.skill || 1) > fp.skill) return 'sudėtingesnis nei pasirinkai';
+  if (fp.cookMax && r.time > fp.cookMax && r.time > 20) return `užtrunka ${r.time} min`;
+  return null;
+}
+// Kokie skoniai tau patinka: iš to, ką gamini, valgai ir pažymi ❤️
+function tagAffinity() {
+  const a = {}, add = (r, w) => { if (r) for (const t of r.tags) a[t] = (a[t] || 0) + w; };
+  for (const c of S.cooks) add(recipe(c.recipeId), 1);
+  for (const m of S.meals) if (m.recipeId) add(recipe(m.recipeId), 0.3);
+  for (const [rid, v] of Object.entries(S.ratings || {})) add(recipe(rid), v * 3);
+  return a;
+}
+const jaccard = (a, b) => { const A = new Set(a), B = new Set(b); const i = [...A].filter(x => B.has(x)).length; return i / (new Set([...A, ...B]).size || 1); };
 function suggestRecipes(opts = {}) {
-  const u = recipeUsage(), maxTime = opts.maxTime || 999, bw = budgetWeek();
-  const tagFreq = {};
-  for (const [rid, n] of Object.entries(u)) { const r = recipe(rid); if (r) for (const t of r.tags) tagFreq[t] = (tagFreq[t] || 0) + n; }
-  return S.recipes.filter(r => (opts.freezableOnly ? r.freezable : true) && r.time <= maxTime)
+  const u = recipeUsage(), maxTime = opts.maxTime || 999, bw = budgetWeek(), aff = tagAffinity();
+  const top = Object.entries(u).sort((a, b) => b[1] - a[1])[0];
+  const tired = top && top[1] >= 5 ? recipe(top[0]) : null; // tai, ko jau per daug
+  return S.recipes.filter(r => (opts.freezableOnly ? r.freezable : true) && r.time <= maxTime && (opts.all || !recipeBlock(r)))
     .map(r => {
-      const st = recipeStats(r);
+      const st = recipeStats(r), why = [];
       let score = 0;
-      score -= (u[r.id] || 0) * 3;                       // dažnai valgai – mažiau rekomenduoja
-      score -= sum(r.tags.map(t => tagFreq[t] || 0)) * 0.3; // panašių skonių daug – irgi mažiau
-      score -= freezerPortions(r.id) * 2;                 // jau yra šaldiklyje
-      score += st.p / 10;                                 // daugiau baltymų – geriau
-      if (bw.budget && st.total > bw.left && bw.left > 0) score -= 6; // netelpa į biudžetą
-      score += (r.id.charCodeAt(r.id.length - 1) + new Date().getDate()) % 3 * 0.2; // šiek tiek įvairovės
-      return {r, st, score, used: u[r.id] || 0};
+      score -= (u[r.id] || 0) * 3;
+      score -= freezerPortions(r.id) * 2;
+      score += st.p / 10;
+      const af = sum(r.tags.map(t => aff[t] || 0)); score += Math.min(af, 8) * 0.4;
+      if ((S.ratings || {})[r.id] === 1) { score += 4; why.push('❤️ patinka'); }
+      if (tired && r.id !== tired.id && jaccard(r.tags, tired.tags) >= 0.2) { score += 3; why.push(`panašu į ${tired.name}, bet kitaip`); }
+      else if (af > 2) why.push('pagal tavo skonį');
+      if (bw.budget && st.total > bw.left && bw.left > 0) { score -= 6; why.push('⚠️ viršys biudžetą'); }
+      else if (st.cost && st.cost < 1.5) why.push('pigu');
+      if (!u[r.id]) why.push('seniai valgei'); else why.push(`valgyta ${u[r.id]}× per 14 d.`);
+      if (S.foodPrefs?.equip?.includes('airfryer') && r.equip?.includes('airfryer')) why.push('🌀 air fryer');
+      score += (r.id.charCodeAt(r.id.length - 1) + new Date().getDate()) % 3 * 0.2;
+      return {r, st, score, used: u[r.id] || 0, why: why.slice(0, 3), block: recipeBlock(r)};
     }).sort((a, b) => b.score - a.score);
+}
+// Panašūs receptai (įvairovei)
+function similarRecipes(r, n = 3) {
+  return S.recipes.filter(x => x.id !== r.id && !recipeBlock(x)).map(x => ({x, s: jaccard(x.tags, r.tags)})).filter(o => o.s > 0).sort((a, b) => b.s - a.s).slice(0, n).map(o => o.x);
+}
+
+// ===== Ingredientų atpažinimas iš teksto =====
+const FRACT = {'½':'.5','¼':'.25','¾':'.75','⅓':'.33','⅔':'.67','⅛':'.125'};
+const UNIT_RULES = [
+  [/^(kg|kilogram\w*)$/, 1000], [/^(g|gr|g\.|gram\w*)$/, 1], [/^(mg)$/, 0.001], [/^(ml|mililitr\w*)$/, 1], [/^(l|litr\w*|liter\w*|litre\w*)$/, 1000], [/^(dl)$/, 100], [/^(cl)$/, 10],
+  [/^(saukstel\w*|arb\w*|tsp|teaspoon\w*|a\.s\.?)$/, 5], [/^(sauks\w*|valg\w*|tbsp|tablespoon\w*|v\.s\.?)$/, 15],
+  [/^(stiklin\w*|puodel\w*|cups?)$/, 240], [/^(skiltel\w*|cloves?)$/, 5], [/^(ziupsn\w*|pinch\w*)$/, 1], [/^(oz|ounces?)$/, 28], [/^(lbs?|pounds?)$/, 454],
+  [/^(skardin\w*|cans?|tins?)$/, 400], [/^(pakel\w*|pak\.?|packs?|packages?)$/, 200], [/^(vnt\.?|vienet\w*|pcs|pieces?|whole|gabal\w*)$/, 'pc'], [/^(rieke\w*|slices?)$/, 'pc'],
+];
+function matchFood(text) {
+  const t = norm(text).replace(/\(.*?\)/g, ' ').replace(/[^a-z0-9 ]/g, ' ');
+  const toks = t.split(/\s+/).filter(w => w.length >= 3);
+  const hit = (stem) => toks.some(w => w.startsWith(stem) || (stem.startsWith(w) && w.length >= 4));
+  let best = null, bestS = 0;
+  for (const f of allFoods()) {
+    const phrases = [f.name.replace(/\(.*?\)/g, ''), ...(FOOD_SYN[f.id] || [])];
+    for (const ph of phrases) {
+      const words = norm(ph).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length >= 3), stems = words.map(w => w.slice(0, 5));
+      if (!stems.length || !stems.every(hit)) continue;
+      // premija už ilgesnį sutapimą (grietinėlė ≠ grietinė)
+      const bonus = sum(words.map(w => { const b = w.slice(0, Math.max(3, w.length - 1)); return toks.some(t => t.startsWith(b)) ? b.length : 0; }));
+      // pagrindinis žodis dažniausiai paskutinis („avokadų ALIEJUS“, „olive OIL“)
+      const last = toks[toks.length - 1] || '', head = stems.some(st => last.startsWith(st) || (st.startsWith(last) && last.length >= 4)) ? 4 : 0;
+      const s = sum(stems.map(x => x.length)) + stems.length * 3 + bonus + head;
+      if (s > bestS) { bestS = s; best = f; }
+    }
+  }
+  return bestS >= 4 ? best : null;
+}
+function parseIngredient(line) {
+  let s = String(line); for (const [k, v] of Object.entries(FRACT)) s = s.replaceAll(k, ' ' + v);
+  s = s.trim().replace(/^[-•*·▪]\s*/, '').replace(/(\d)\s+\.(\d)/, '$1.$2').replace(/^\.(\d)/, '0.$1');
+  let qty = null, unitF = null, rest = s;
+  const m = s.match(/^(\d+(?:[.,]\d+)?(?:\s+\.?\d+)?|\d+\/\d+|\.\d+)(?:\s*[-–]\s*(\d+(?:[.,]\d+)?))?\s*(.*)$/);
+  if (m) {
+    const toNum = x => { x = x.replace(',', '.').trim(); if (x.includes('/')) { const [a, b] = x.split('/'); return +a / +b; } return x.split(/\s+/).reduce((acc, v) => acc + +v, 0); };
+    qty = toNum(m[1]); if (m[2]) qty = (qty + toNum(m[2])) / 2; rest = m[3];
+    rest = rest.replace(/^((heaped|level|large|small|medium|big|rounded|scant|generous|good|apie|about|approx\w*|didel\w*|maz\w*|maž\w*|vidutin\w*|nedidel\w*|pilnas|pilno|kupin\w*)\s+)+/i, '');
+    const w = norm(rest).match(/^([a-z.]+)\s*(.*)$/);
+    if (w) for (const [re, f] of UNIT_RULES) if (re.test(w[1].replace(/\.$/, '') ) || re.test(w[1])) { unitF = f; rest = rest.slice(w[1].length).trim(); break; }
+  } else {
+    // „Druska – 1 šaukštelis“ / „Vištiena 500 g“ – kiekis gale
+    const e = s.match(/^(.*?)[\s:–-]+(\d+(?:[.,]\d+)?)\s*([a-ząčęėįšųūž.]+)?\s*$/i);
+    if (e) { rest = e[1]; qty = +e[2].replace(',', '.'); if (e[3]) for (const [re, f] of UNIT_RULES) if (re.test(norm(e[3]))) { unitF = f; break; } }
+  }
+  rest = rest.replace(/^(of|su)\s+/i, '');
+  const f = matchFood(rest || s);
+  let grams = 0;
+  if (qty != null) {
+    if (unitF === 'pc' || unitF == null) grams = f ? qty * (PIECE_G[f.id] || 100) : 0;
+    else grams = qty * unitF;
+  } else if (f && f.id === 'prieskoniai') grams = 3;
+  if (f && f.id === 'prieskoniai') grams = Math.min(grams, 15);
+  // „virtų ryžių“ – bazėje sausi, todėl ~÷3
+  if (f && /cooked|boiled|virt/.test(norm(s)) && ['ryziai', 'ryziai_rudi', 'grikiai', 'makaronai', 'makaronai_pg', 'kuskusas', 'bulguras', 'kinva', 'perlines', 'lesiai'].includes(f.id)) grams /= 3;
+  return {raw: line, foodId: f ? f.id : '', grams: Math.round(grams), qtyKnown: qty != null};
 }
 
 // ===== Dienos įvertinimas =====
+// Principai: (1) ateities dienos nevertinamos; (2) šiandiena vertinama tik pagal tai, kas JAU įvyko;
+// (3) neišvengiami dalykai (darbas, paskaitos, naktinė pamaina) nebaudžiami; (4) poilsio diena – ne nuodėmė, žiūrim savaitę.
 function dayScore(d) {
-  const p = S.profile, parts = [];
+  const td = today();
+  if (d > td) return null;
+  const p = S.profile, parts = [], live = d === td;
   const t = dayTime(d);
-  if (t.logged) parts.push({k:'Produktyvus laikas', w:30, v: clamp(t.prod / ((+p.prodGoalH || 6) * 60), 0, 1), txt: fmtH(t.prod)});
+  // kokia dalis „budraus“ laiko jau praėjo (šiandien)
+  const wake = toMin(p.wake), bed = toMin(p.bed) > wake ? toMin(p.bed) : 1440;
+  const frac = live ? clamp((nowMin() - wake) / (bed - wake), 0.05, 1) : 1;
+  const goal = (+p.prodGoalH || 6) * 60 * frac;
+  if (t.logged) parts.push({k:'Produktyvus laikas', w:25, v: clamp(t.prod / goal, 0, 1), txt: fmtH(t.prod) + (live ? ` (iki dabar tikėtina ~${fmtH(goal)})` : ''),
+    why: 'Darbas, paskaitos, mokslai ir kt. „produktyvios“ kategorijos – ir iš kalendoriaus, ir laikmačio.'});
   const tasksDone = S.tasks.filter(x => x.done && x.doneAt === d).length;
-  const tasksMissed = S.tasks.filter(x => !x.done && x.due === d && d < today()).length;
-  if (tasksDone + tasksMissed) parts.push({k:'Užduotys', w:15, v: tasksDone / (tasksDone + tasksMissed), txt: `${tasksDone} atlikta`});
+  const tasksMissed = S.tasks.filter(x => !x.done && x.due === d && d < td).length;
+  if (tasksDone + tasksMissed) parts.push({k:'Užduotys', w:15, v: tasksDone / (tasksDone + tasksMissed), txt: `${tasksDone} atlikta${tasksMissed ? `, ${tasksMissed} praleista` : ''}`, why: 'Tik tos, kurių terminas buvo tą dieną.'});
   const sl = sleepOn(d);
-  if (sl) { const h = sleepMinutes(sl) / 60; parts.push({k:'Miegas', w:20, v: clamp(1 - Math.abs(h - (+p.sleepGoal || 8)) / 3, 0, 1), txt: `${round(h, 1)} val`}); }
-  const w = workoutsOn(d).length, wy = workoutsOn(addDays(d, -1)).length;
-  if (t.logged || w || sl) parts.push({k:'Judėjimas', w:15, v: w ? 1 : (wy ? 0.6 : 0.25), txt: w ? 'treniruotė ✓' : (wy ? 'poilsio diena' : 'be treniruotės')});
+  if (sl) {
+    const h = sleepMinutes(sl) / 60, g = +p.sleepGoal || 8;
+    let v = h >= g - 0.5 ? 1 : clamp(0.3 + 0.7 * (h - (g - 3)) / 2.5, 0.3, 1);
+    // jei vakar vakare/naktį buvo įvykis (darbas, paskaitos), trumpesnis miegas – aplinkybės, ne kaltė
+    const forced = eventSegs(d).some(x => x.tail) || eventsOn(addDays(d, -1)).some(e => toMin(e.end) > toMin(p.bed) || overnight(e));
+    if (forced && v < 0.8) v = 0.8;
+    parts.push({k:'Miegas', w:20, v, txt: `${round(h, 1)} val${forced && h < g - 0.5 ? ' (dėl įsipareigojimų – nebaudžiama)' : ''}`, why: 'Iki 30 min mažiau nei tikslas – vis tiek pilnas balas. Trumpa naktis dėl darbo nebaudžiama.'});
+  }
+  // judėjimas vertinamas per paskutines 7 d., todėl poilsio diena nemažina balo, jei savaitė gera
+  const w7 = S.workouts.filter(x => x.date <= d && x.date > addDays(d, -7)).length, wGoal = +p.workoutsPerWeek || 3, wToday = workoutsOn(d).length;
+  if (t.logged || wToday || sl) parts.push({k:'Judėjimas', w:15, v: wToday ? 1 : clamp(w7 / wGoal, 0, 1), txt: wToday ? 'treniruotė ✓' : `${w7}/${wGoal} treniruotės per 7 d.`, why: 'Poilsio diena nebaudžiama, jei per savaitę treniruočių pakanka.'});
   const n = dayNutrition(d), tg = targets();
-  if (n.n) { const dev = Math.abs(n.kcal - tg.kcal) / tg.kcal; parts.push({k:'Mityba', w:15, v: clamp(1 - Math.max(0, dev - 0.08) * 3, 0, 1) * 0.7 + clamp(n.p / tg.protein, 0, 1) * 0.3, txt: `${n.kcal} kcal, ${Math.round(n.p)} g B`}); }
-  if (t.logged) { const lim = +p.screenLimitMin || 90; parts.push({k:'Ekrano laikas', w:10, v: t.screen <= lim ? 1 : clamp(1 - (t.screen - lim) / lim, 0, 1), txt: fmtDur(t.screen)}); }
+  if (n.n) {
+    const over = (n.kcal - tg.kcal) / tg.kcal;
+    let v;
+    if (live) v = (over > 0.08 ? clamp(1 - (over - 0.08) * 3, 0, 1) : 1); // šiandien „per mažai“ nebaudžiama – diena dar nesibaigė
+    else v = clamp(1 - Math.max(0, Math.abs(over) - 0.1) * 2.5, 0, 1) * 0.7 + clamp(n.p / tg.protein, 0, 1) * 0.3;
+    parts.push({k:'Mityba', w:15, v, txt: `${n.kcal} kcal, ${Math.round(n.p)} g B`, why: live ? 'Šiandien baudžiama tik už viršijimą – likusius valgius dar suvalgysi.' : '±10% nuo tikslo – pilnas balas, plius baltymai.'});
+  }
+  if (t.logged) { const lim = +p.screenLimitMin || 90; parts.push({k:'Ekrano laikas', w:10, v: t.screen <= lim ? 1 : clamp(1 - (t.screen - lim) / lim, 0, 1), txt: fmtDur(t.screen), why: 'Tik tai, ką pats pažymėjai kaip Netflix / telefoną / žaidimus.'}); }
   if (!parts.length) return null;
   const score = Math.round(sum(parts.map(x => x.w * x.v)) / sum(parts.map(x => x.w)) * 100);
-  return {score, parts};
+  return {score, parts, live};
 }
 const scoreColor = s => s == null ? 'var(--muted2)' : s >= 75 ? '#22c55e' : s >= 50 ? '#facc15' : s >= 30 ? '#f97316' : '#ef4444';
 
@@ -471,6 +641,8 @@ function periodStats(from, n) {
   st.avgSleep = avg(st.sleep); st.avgKcal = avg(st.kcal); st.avgProtein = avg(st.protein); st.avgScore = avg(st.scores);
   const ws = S.weights.filter(w => w.date >= from && w.date <= addDays(from, n - 1)).sort((a, b) => a.date < b.date ? -1 : 1);
   st.weightStart = ws.length ? +ws[0].kg : null; st.weightEnd = ws.length ? +ws[ws.length - 1].kg : null;
+  const sp = (S.spend || []).filter(x => x.date >= from && x.date <= addDays(from, n - 1));
+  st.spendTotal = round(sum(sp.map(x => x.amount)), 2); st.snackSpend = round(sum(sp.map(x => x.snack || 0)), 2);
   return st;
 }
 
