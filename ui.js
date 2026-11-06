@@ -1052,8 +1052,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') A.closeModal
 // ================= PALEIDIMAS =================
 function loginScreen(msg = '') {
   document.body.classList.add('login');
-  $('#main').innerHTML = '';
-  $('#modal').classList.remove('open');
+  $('#modal')?.classList.remove('open');
   document.querySelector('.app').innerHTML = `<div class="loginbox"><div class="logo big">🌱</div><h1>Life Schedule</h1><p class="hint">Prisijunk – duomenys sinchronizuosis tarp telefono ir kompiuterio.</p>
     <form id="lform"><label class="fld"><span>El. paštas</span><input name="email" type="email" required autocomplete="email"></label>
     <label class="fld"><span>Slaptažodis</span><input name="password" type="password" required minlength="6" autocomplete="current-password"></label>
@@ -1071,7 +1070,7 @@ document.addEventListener('submit', async e => {
     location.reload();
   } catch (err) {
     const m = String(err.message || err);
-    loginScreen('⚠️ ' + (m.includes('Invalid login') ? 'Neteisingas el. paštas arba slaptažodis' : m.includes('not confirmed') ? 'El. paštas dar nepatvirtintas – paspausk nuorodą laiške' : esc(m)));
+    loginScreen('⚠️ ' + (m.includes('Invalid login') ? 'Neteisingas el. paštas arba slaptažodis' : m.includes('not confirmed') ? 'El. paštas dar nepatvirtintas – paspausk nuorodą laiške (pažiūrėk ir Spam)' : m.includes('already registered') ? 'Tokia paskyra jau yra – spausk „Prisijungti“' : m.includes('rate limit') ? 'Per daug bandymų – palauk valandą ir bandyk vėl (arba prisijunk, jei paskyra jau sukurta)' : esc(m)));
   }
 });
 A.logout = () => { if (!confirm('Atsijungti šiame įrenginyje?')) return; Auth.logout(); location.reload(); };
