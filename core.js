@@ -1,0 +1,600 @@
+// ===== Pagalbinės funkcijos, būsena, sinchronizacija, skaičiavimai, grafikai =====
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad = n => String(n).padStart(2, '0');
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const round = (v, d = 0) => { const m = 10 ** d; return Math.round(v * m) / m; };
+const sum = a => a.reduce((x, y) => x + (+y || 0), 0);
+const pick = (arr, seed) => arr[Math.abs(seed ?? Math.floor(Math.random() * 1e6)) % arr.length];
+const fill = (t, x) => t.replace('{x}', x);
+
+// Datos (vietinis laikas, formatas YYYY-MM-DD)
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const today = () => ymd(new Date());
+const addDays = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return ymd(d); };
+const dow = s => ((parseD(s).getDay() + 6) % 7) + 1; // 1=Pr ... 7=Sk
+const weekStart = s => addDays(s, 1 - dow(s));
+const monthStart = s => s.slice(0, 8) + '01';
+const daysInMonth = s => { const d = parseD(s); return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); };
+const diffDays = (a, b) => Math.round((parseD(b) - parseD(a)) / 864e5);
+const range = (from, n) => Array.from({length: n}, (_, i) => addDays(from, i));
+const toMin = t => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + (m || 0); };
+const fromMin = m => { m = Math.round(m); m = ((m % 1440) + 1440) % 1440; return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`; };
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const nowHM = () => fromMin(nowMin());
+const fmtDur = m => { m = Math.round(m); if (m < 60) return `${m} min`; const h = Math.floor(m / 60), r = m % 60; return r ? `${h} val ${r} min` : `${h} val`; };
+const fmtH = m => `${round(m / 60, 1)} val`;
+const DOW = ['Pr','An','Tr','Kt','Pn','Št','Sk'];
+const DOW_LONG = ['Pirmadienis','Antradienis','Trečiadienis','Ketvirtadienis','Penktadienis','Šeštadienis','Sekmadienis'];
+const MONTHS = ['sausis','vasaris','kovas','balandis','gegužė','birželis','liepa','rugpjūtis','rugsėjis','spalis','lapkritis','gruodis'];
+const MONTHS_G = ['sausio','vasario','kovo','balandžio','gegužės','birželio','liepos','rugpjūčio','rugsėjo','spalio','lapkričio','gruodžio'];
+const fmtDate = s => { const d = parseD(s); return `${MONTHS_G[d.getMonth()]} ${d.getDate()} d.`; };
+const fmtDateDow = s => `${DOW_LONG[dow(s) - 1]}, ${fmtDate(s)}`;
+const relDay = s => { const n = diffDays(today(), s); if (n === 0) return 'šiandien'; if (n === 1) return 'rytoj'; if (n === -1) return 'vakar'; if (n > 1 && n < 7) return `po ${n} d.`; if (n < 0) return `prieš ${-n} d.`; return fmtDate(s); };
+
+// ===== Numatyti duomenys =====
+const DEFAULT_CATS = [
+  {id:'darbas', name:'Darbas', emoji:'💼', color:'#4f8cff', type:1},
+  {id:'paskaitos', name:'Paskaitos', emoji:'🎓', color:'#8b6cff', type:1},
+  {id:'mokslai', name:'Mokslai / namų darbai', emoji:'📚', color:'#a78bfa', type:1},
+  {id:'svedu', name:'Švedų kalba', emoji:'🗣️', color:'#facc15', type:1},
+  {id:'sportas', name:'Sportas', emoji:'💪', color:'#22c55e', type:1},
+  {id:'projektai', name:'Asmeniniai projektai', emoji:'🚀', color:'#06b6d4', type:1},
+  {id:'gaminimas', name:'Gaminimas', emoji:'🍳', color:'#f97316', type:0},
+  {id:'buitis', name:'Buitis / pirkiniai', emoji:'🧺', color:'#94a3b8', type:0},
+  {id:'kelione', name:'Kelionė', emoji:'🚌', color:'#64748b', type:0},
+  {id:'draugai', name:'Draugai / šeima', emoji:'🫶', color:'#ec4899', type:0},
+  {id:'poilsis', name:'Poilsis', emoji:'🌿', color:'#10b981', type:0},
+  {id:'netflix', name:'Netflix / serialai', emoji:'📺', color:'#ef4444', type:-1},
+  {id:'telefonas', name:'Telefonas / soc. tinklai', emoji:'📱', color:'#f43f5e', type:-1},
+  {id:'zaidimai', name:'Žaidimai', emoji:'🎮', color:'#e11d48', type:-1},
+];
+const defaultData = () => ({
+  ver: 1,
+  profile: { name:'', sex:'m', birthYear:'', height:'', startWeight:'', targetWeight:'', activity:1.375, goalRate:0.5,
+    wake:'07:30', bed:'23:30', sleepGoal:8, workoutMin:40, showerMin:20, travelMin:0, workoutsPerWeek:3,
+    prodGoalH:6, screenLimitMin:90, budgetWeek:40, cookDay:7 },
+  categories: DEFAULT_CATS.map(c => ({...c})),
+  events: [], skips: {}, tasks: [], timelog: [], timer: null, sleep: [], weights: [],
+  foods: [], recipes: BUILTIN_RECIPES.map(r => JSON.parse(JSON.stringify(r))),
+  freezer: [], cooks: [], meals: [], workouts: [], checkins: [], notes: [], shopping: [], plan: [],
+  plans: [], active: null, sportPrefs: {}, sportReviews: [],
+  settings: { theme:'dark' },
+});
+
+// ===== Būsena ir sinchronizacija su serveriu =====
+let S = null, REV = 0, ONLINE = false, DIRTY = false, saveTimer = null, PUSHING = false;
+const cloudOn = () => !!(window.CLOUD && CLOUD.url && CLOUD.key);
+const lsKey = () => cloudOn() ? 'manogyv_cloud_' + (Auth.user()?.id || 'x') : 'manogyv_v1';
+
+function storeLocal() { try { localStorage.setItem(lsKey(), JSON.stringify({S, REV, DIRTY})); } catch (e) {} }
+function migrate(d) {
+  const def = defaultData();
+  for (const k in def) if (d[k] === undefined) d[k] = def[k];
+  d.profile = {...def.profile, ...d.profile};
+  d.settings = {...def.settings, ...d.settings};
+  delete d.rev;
+  return d;
+}
+async function api(method, path, body) {
+  return fetch(path, {method, headers: {'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : undefined, cache:'no-store'});
+}
+
+// ----- Prisijungimas (Supabase Auth per paprastą REST) -----
+const Auth = {
+  KEY: 'manogyv_auth',
+  get() { try { return JSON.parse(localStorage.getItem(this.KEY)); } catch (e) { return null; } },
+  user() { return this.get()?.user || null; },
+  save(j) { localStorage.setItem(this.KEY, JSON.stringify({access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Date.now() + (j.expires_in || 3600) * 1000, user: {id: j.user.id, email: j.user.email}})); },
+  logout() { localStorage.removeItem(this.KEY); },
+  async call(path, body) {
+    const r = await fetch(CLOUD.url + '/auth/v1/' + path, {method: 'POST', headers: {apikey: CLOUD.key, 'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error_description || j.msg || j.message || ('Klaida ' + r.status));
+    return j;
+  },
+  async login(email, password) { const j = await this.call('token?grant_type=password', {email, password}); this.save(j); },
+  async signup(email, password) { const j = await this.call('signup', {email, password}); if (j.access_token) { this.save(j); return true; } return false; },
+  async token() {
+    const s = this.get(); if (!s) throw new Error('nėra sesijos');
+    if (s.expires_at - Date.now() > 60000) return s.access_token;
+    try { const j = await this.call('token?grant_type=refresh_token', {refresh_token: s.refresh_token}); this.save(j); return j.access_token; }
+    catch (e) { if (navigator.onLine) { this.logout(); location.reload(); } throw e; }
+  },
+};
+
+// ----- Saugyklos: vietinis serveris arba debesis -----
+const LocalBK = {
+  async get() { const srv = await (await api('GET', '/api/data')).json(); return {rev: srv.rev || 0, data: srv.profile ? srv : null}; },
+  async rev() { return (await (await api('GET', '/api/rev')).json()).rev; },
+  async put(data, baseRev, force) {
+    const r = await api('PUT', '/api/data', {baseRev, data, force: !!force});
+    if (r.status === 409) return {conflict: true};
+    if (!r.ok) throw new Error('save ' + r.status);
+    return {rev: (await r.json()).rev};
+  },
+};
+const CloudBK = {
+  async req(method, q, body, prefer) {
+    const h = {apikey: CLOUD.key, Authorization: 'Bearer ' + await Auth.token(), 'Content-Type': 'application/json'};
+    if (prefer) h.Prefer = prefer;
+    const r = await fetch(`${CLOUD.url}/rest/v1/user_data${q}`, {method, headers: h, body: body ? JSON.stringify(body) : undefined, cache: 'no-store'});
+    if (!r.ok) throw new Error('cloud ' + r.status + ' ' + await r.text());
+    return r.status === 204 ? null : r.json();
+  },
+  uid() { return Auth.user().id; },
+  async get() { const rows = await this.req('GET', `?select=data,rev&user_id=eq.${this.uid()}`); return rows.length ? {rev: rows[0].rev, data: rows[0].data} : {rev: 0, data: null}; },
+  async rev() { const rows = await this.req('GET', `?select=rev&user_id=eq.${this.uid()}`); return rows.length ? rows[0].rev : 0; },
+  async put(data, baseRev, force) {
+    if (!baseRev) {
+      const exists = (await this.req('GET', `?select=rev&user_id=eq.${this.uid()}`)).length;
+      if (!exists) { await this.req('POST', '', {user_id: this.uid(), data, rev: 1}, 'return=minimal'); return {rev: 1}; }
+      if (!force) return {conflict: true};
+    }
+    const cur = force ? await this.rev() : baseRev;
+    const rows = await this.req('PATCH', `?user_id=eq.${this.uid()}&rev=eq.${cur}`, {data, rev: cur + 1, updated_at: new Date().toISOString()}, 'return=representation');
+    if (!rows.length) return {conflict: true};
+    return {rev: cur + 1};
+  },
+};
+const BK = () => cloudOn() ? CloudBK : LocalBK;
+
+// Grąžina false, jei reikia prisijungti
+async function loadData() {
+  if (cloudOn() && !Auth.get()) return false;
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(lsKey())); } catch (e) {}
+  try {
+    const srv = await BK().get();
+    ONLINE = true;
+    if (cached && cached.DIRTY && cached.S && srv.data) {
+      if (srv.rev === cached.REV) { S = migrate(cached.S); REV = srv.rev; DIRTY = true; await push(); return true; }
+      const useLocal = confirm('Šiame įrenginyje yra neišsaugotų pakeitimų, bet kitas įrenginys jau pakeitė duomenis.\n\nOK = palikti ŠIO įrenginio versiją\nAtšaukti = paimti naujausią versiją');
+      if (useLocal) { S = migrate(cached.S); REV = srv.rev; DIRTY = true; await push(true); return true; }
+    }
+    if (srv.data) { S = migrate(srv.data); REV = srv.rev; DIRTY = false; storeLocal(); return true; }
+    // Debesyje dar nieko nėra – perkeliam esamus duomenis (iš kompiuterio serverio arba šios naršyklės)
+    let found = cached && cached.S ? cached.S : null;
+    if (cloudOn() && !found) {
+      try { const loc = await (await api('GET', '/api/data')).json(); if (loc && loc.profile) found = loc; } catch (e) {}
+      if (!found) try { const old = JSON.parse(localStorage.getItem('manogyv_v1')); if (old && old.S) found = old.S; } catch (e) {}
+      if (found && !confirm('Radau šiame įrenginyje esančius duomenis. Perkelti juos į debesį?\n\nOK = perkelti\nAtšaukti = pradėti iš naujo')) found = null;
+    }
+    S = found ? migrate(JSON.parse(JSON.stringify(found))) : defaultData(); REV = srv.rev; DIRTY = true; await push();
+  } catch (e) {
+    console.warn('loadData', e);
+    ONLINE = false;
+    S = cached && cached.S ? migrate(cached.S) : defaultData();
+    REV = cached ? cached.REV : 0; DIRTY = cached ? cached.DIRTY : false;
+  }
+  return true;
+}
+function commit(opts = {}) {
+  DIRTY = true; storeLocal();
+  clearTimeout(saveTimer); saveTimer = setTimeout(push, 400);
+  if (!opts.noRender) render();
+}
+async function push(force) {
+  if (!DIRTY || PUSHING) return;
+  PUSHING = true;
+  try {
+    const snapshot = JSON.stringify(S);
+    const res = await BK().put(JSON.parse(snapshot), REV, force);
+    if (res.conflict) {
+      PUSHING = false;
+      const useLocal = confirm('Duomenys buvo pakeisti kitame įrenginyje.\n\nOK = perrašyti ŠIO įrenginio versija\nAtšaukti = įkelti naujausią (šio įrenginio paskutinis pakeitimas bus prarastas)');
+      if (useLocal) return push(true);
+      const srv = await BK().get(); S = migrate(srv.data || defaultData()); REV = srv.rev; DIRTY = false; storeLocal(); render(); return;
+    }
+    REV = res.rev; ONLINE = true;
+    if (JSON.stringify(S) === snapshot) DIRTY = false; else setTimeout(push, 100);
+    storeLocal();
+  } catch (e) { console.warn('push', e); ONLINE = false; }
+  PUSHING = false; updateSyncBadge();
+}
+async function pullIfChanged() {
+  if (!S) return;
+  if (DIRTY) { push(); return; }
+  try {
+    const rev = await BK().rev();
+    ONLINE = true;
+    if (rev !== REV) { const srv = await BK().get(); if (srv.data) { S = migrate(srv.data); REV = srv.rev; storeLocal(); if (!$('#modal.open') && document.activeElement?.tagName !== 'TEXTAREA') render(); } }
+  } catch (e) { ONLINE = false; }
+  updateSyncBadge();
+}
+function updateSyncBadge() {
+  const el = $('#sync'); if (!el) return;
+  const where = cloudOn() ? 'debesyje' : 'kompiuteryje';
+  el.className = 'sync ' + (ONLINE ? (DIRTY ? 'pending' : 'ok') : 'off');
+  el.title = ONLINE ? (DIRTY ? 'Saugoma…' : 'Išsaugota ' + where) : 'Nėra interneto – rodoma paskutinė versija, pakeitimai bus išsiųsti vėliau';
+  el.textContent = ONLINE ? (DIRTY ? '⏳' : '☁️') : '📴';
+}
+
+// ===== Prieigos funkcijos =====
+const cat = id => S.categories.find(c => c.id === id) || {id, name: id || 'Kita', emoji:'•', color:'#888', type:0};
+const allFoods = () => [...BUILTIN_FOODS, ...S.foods];
+const food = id => allFoods().find(f => f.id === id);
+const recipe = id => S.recipes.find(r => r.id === id);
+const exercise = id => EXERCISES.find(e => e.id === id);
+
+// ===== Profilis ir kalorijos =====
+function currentWeight() {
+  const w = [...S.weights].sort((a, b) => a.date < b.date ? -1 : 1);
+  return w.length ? +w[w.length - 1].kg : (+S.profile.startWeight || 0);
+}
+function age() { const y = +S.profile.birthYear; return y ? new Date().getFullYear() - y : 25; }
+function targets() {
+  const p = S.profile, kg = currentWeight(), h = +p.height || 175;
+  if (!kg) return {kcal: 2000, protein: 140, bmr: 0, tdee: 0, water: 2.5, bmi: 0};
+  const bmr = 10 * kg + 6.25 * h - 5 * age() + (p.sex === 'f' ? -161 : 5);
+  const tdee = bmr * (+p.activity || 1.375);
+  const deficit = (+p.goalRate || 0) * 7700 / 7;
+  const minK = p.sex === 'f' ? 1300 : 1600;
+  const kcal = Math.round(Math.max(minK, tdee - deficit) / 10) * 10;
+  const refKg = +p.targetWeight && +p.targetWeight < kg ? (+p.targetWeight + kg) / 2 : kg;
+  const protein = Math.round(refKg * 2.0);
+  const bmi = kg / ((h / 100) ** 2);
+  return {kcal, protein, bmr: Math.round(bmr), tdee: Math.round(tdee), water: round(kg * 0.035, 1), bmi: round(bmi, 1), deficit: Math.round(tdee - kcal)};
+}
+
+// ===== Receptų maistinė vertė =====
+function recipeStats(r) {
+  let kcal = 0, p = 0, c = 0, f = 0, cost = 0, missing = [];
+  for (const [fid, g] of r.ing) {
+    const fd = food(fid); if (!fd) { missing.push(fid); continue; }
+    kcal += fd.kcal * g / 100; p += fd.p * g / 100; c += fd.c * g / 100; f += fd.f * g / 100; cost += (fd.price || 0) * g / 1000;
+  }
+  const n = r.portions || 1;
+  return {kcal: Math.round(kcal / n), p: round(p / n, 1), c: round(c / n, 1), f: round(f / n, 1), cost: round(cost / n, 2), total: round(cost, 2), missing};
+}
+
+// ===== Dienos duomenys =====
+const mealsOn = d => S.meals.filter(m => m.date === d);
+const dayNutrition = d => { const ms = mealsOn(d); return {kcal: Math.round(sum(ms.map(m => m.kcal))), p: round(sum(ms.map(m => m.p)), 1), n: ms.length}; };
+const workoutsOn = d => S.workouts.filter(w => w.date === d);
+const sleepOn = d => S.sleep.find(s => s.date === d);
+const sleepMinutes = s => { if (!s) return 0; let m = toMin(s.wake) - toMin(s.bed); if (m <= 0) m += 1440; return m; };
+// Ar įvykis vyksta (prasideda) dieną d. Tipai: once, weekly, biweekly, monthly
+function eventOccurs(e, d) {
+  if (S.skips[e.id + '|' + d]) return false;
+  if (e.type === 'once') return e.date === d;
+  if (e.from && d < e.from) return false;
+  if (e.until && d > e.until) return false;
+  if (e.type === 'monthly') { const md = +e.mday || 1, dd = parseD(d).getDate(); return dd === Math.min(md, daysInMonth(d)); }
+  if (!(e.days || []).includes(dow(d))) return false;
+  if (e.type === 'biweekly') return (Math.round(diffDays(weekStart(e.from || d), weekStart(d)) / 7) % 2 + 2) % 2 === 0;
+  return true;
+}
+const eventsOn = d => S.events.filter(e => eventOccurs(e, d)).sort((a, b) => toMin(a.start) - toMin(b.start));
+const overnight = e => toMin(e.end) <= toMin(e.start);
+// Įvykių atkarpos dienoje d (įskaitant naktinių įvykių „uodegas“ iš vakar)
+function eventSegs(d) {
+  const out = [];
+  for (const e of eventsOn(d)) out.push({e, s: toMin(e.start), en: overnight(e) ? 1440 : toMin(e.end), head: overnight(e)});
+  for (const e of eventsOn(addDays(d, -1))) if (overnight(e) && toMin(e.end) > 0) out.push({e, s: 0, en: toMin(e.end), tail: true});
+  return out.sort((a, b) => a.s - b.s);
+}
+const timelogOn = d => S.timelog.filter(t => t.date === d).sort((a, b) => toMin(a.start) - toMin(b.start));
+const plansOn = d => (S.plans || []).filter(p => p.date === d && p.status === 'planned');
+
+// Laikas pagal kategorijas per dieną (įvykiai + laiko įrašai, be dubliavimo)
+function dayTime(d) {
+  const isToday = d === today(), cut = isToday ? nowMin() : 1440;
+  const ivs = [];
+  for (const g of eventSegs(d)) { const en = Math.min(g.en, cut); if (en > g.s) ivs.push({s: g.s, e: en, cat: g.e.cat, src: 'ev'}); }
+  for (const t of timelogOn(d)) { const s = toMin(t.start); let en = toMin(t.end); if (en <= s) en = 1440; ivs.push({s, e: en, cat: t.cat, src: 'log'}); }
+  for (const w of workoutsOn(d)) if (w.start) ivs.push({s: toMin(w.start), e: Math.min(1440, toMin(w.start) + (+w.duration || 30)), cat: 'sportas', src: 'log'});
+  if (S.active && S.active.date === d) ivs.push({s: toMin(S.active.start), e: Math.max(toMin(S.active.start) + 1, nowMin()), cat: 'sportas', src: 'log'});
+  if (S.timer && S.timer.date === d) ivs.push({s: toMin(S.timer.start), e: Math.max(toMin(S.timer.start) + 1, nowMin()), cat: S.timer.cat, src: 'log'});
+  // laiko įrašai turi pirmenybę prieš suplanuotus įvykius toje pačioje vietoje
+  const per = {};
+  const minuteCat = new Array(1440).fill(null);
+  for (const iv of ivs.filter(i => i.src === 'ev')) for (let m = iv.s; m < iv.e && m < 1440; m++) minuteCat[m] = iv.cat;
+  for (const iv of ivs.filter(i => i.src === 'log')) for (let m = iv.s; m < iv.e && m < 1440; m++) minuteCat[m] = iv.cat;
+  for (const c of minuteCat) if (c) per[c] = (per[c] || 0) + 1;
+  let prod = 0, screen = 0, neutral = 0;
+  for (const [c, m] of Object.entries(per)) { const t = cat(c).type; if (t === 1) prod += m; else if (t === -1) screen += m; else neutral += m; }
+  return {per, prod, screen, neutral, logged: ivs.length > 0};
+}
+
+// Laisvi langai
+function busyBlocks(d) {
+  const b = [];
+  for (const g of eventSegs(d)) b.push([g.tail ? 0 : g.s - (+g.e.travel || 0), g.head ? 1440 : g.en + (+g.e.travel || 0)]);
+  for (const t of timelogOn(d)) { let en = toMin(t.end); if (en <= toMin(t.start)) en = 1440; b.push([toMin(t.start), en]); }
+  for (const w of workoutsOn(d)) if (w.start) b.push([toMin(w.start), toMin(w.start) + (+w.duration || 30) + (+S.profile.showerMin || 0)]);
+  for (const p of plansOn(d)) b.push([toMin(p.start), toMin(p.start) + (+p.duration || 40) + (+S.profile.showerMin || 0)]);
+  return b.sort((x, y) => x[0] - y[0]);
+}
+function freeSlots(d, fromM) {
+  const p = S.profile;
+  let start = toMin(p.wake), end = toMin(p.bed); if (end <= start) end = 1440;
+  if (fromM != null) start = Math.max(start, fromM);
+  const slots = []; let cur = start;
+  for (const [s, e] of busyBlocks(d)) {
+    if (e <= cur) continue;
+    if (s > cur) slots.push([cur, Math.min(s, end)]);
+    cur = Math.max(cur, e);
+    if (cur >= end) break;
+  }
+  if (cur < end) slots.push([cur, end]);
+  return slots.filter(([s, e]) => e - s >= 15);
+}
+
+// Kada paskutinį kartą treniruota kiekviena grupė
+function muscleLastTrained() {
+  const last = {};
+  for (const w of S.workouts) for (const ex of w.exercises || []) {
+    const e = exercise(ex.id); if (!e) continue;
+    for (const g of e.g) if (!last[g] || last[g] < w.date) last[g] = w.date;
+  }
+  return last;
+}
+
+// ===== Treniruotės: pratimų parinkimas, progresija, balansas =====
+const MAJOR = ['kru','nug','pec','ket','sed','uzp','pre','bic','tri'];
+const prefOf = g => { const p = (S.sportPrefs || {})[g]; return p && diffDays(p.date, today()) <= 28 ? p : null; };
+const injured = g => { const p = prefOf(g); return p && p.reason === 'skauda' && diffDays(p.date, today()) < 14; };
+function lastPerf(exId) {
+  const ws = [...S.workouts].sort((a, b) => a.date < b.date ? 1 : -1);
+  for (const w of ws) { const ex = (w.exercises || []).find(x => x.id === exId); if (ex && ex.sets && ex.sets.length) return {date: w.date, sets: ex.sets, max: Math.max(...ex.sets)}; }
+  return null;
+}
+function pickExercise(g, chosen = []) {
+  const pr = prefOf(g) || {};
+  let opts = EXERCISES.filter(e => e.g.includes(g) && !chosen.some(c => c && c.id === e.id));
+  if (pr.reason === 'iranga') { const f = opts.filter(e => !e.eq); if (f.length) opts = f; }
+  if (pr.reason === 'nepatinka' && pr.used) { const f = opts.filter(e => !pr.used.includes(e.id)); if (f.length) opts = f; }
+  if (!opts.length) return null;
+  opts.sort((a, b) => (a.g[0] === g ? 0 : 1) - (b.g[0] === g ? 0 : 1) || a.lvl - b.lvl);
+  if (pr.reason === 'sunku') return opts.find(e => e.lvl === 1) || opts[0];
+  let best = opts.find(e => e.g[0] === g && lastPerf(e.id)) || opts.find(e => e.lvl === 1) || opts[0];
+  const lp = lastPerf(best.id);
+  if (lp && best.next && lp.max >= (best.sec ? 60 : 15)) { const n = exercise(best.next); if (n && !chosen.some(c => c && c.id === n.id)) best = n; }
+  return best;
+}
+function targetSets(e, mini) {
+  const lp = lastPerf(e.id), easy = prefOf(e.g[0])?.reason === 'sunku';
+  let reps = lp ? lp.max + (e.sec ? 5 : 1) : (e.sec ? 30 : e.lvl === 1 ? 10 : 8);
+  if (easy && !lp) reps = e.sec ? 20 : 6;
+  if (e.id === 'kaklas_izo') reps = 10;
+  return Array(mini ? 2 : 3).fill(reps);
+}
+function buildWorkout(groups, minutes) {
+  groups = (groups || []).filter(g => !injured(g));
+  const count = clamp(Math.round((minutes || +S.profile.workoutMin || 40) / 7), 3, 8), chosen = [];
+  for (let i = 0; chosen.length < count && i < count * 3 && groups.length; i++) { const ex = pickExercise(groups[i % groups.length], chosen); if (ex) chosen.push(ex); }
+  // praleistos grupės, kurias žadėjai įtraukti ("pamiršau"/"nėra noro" – mini)
+  const last = muscleLastTrained();
+  for (const g of Object.keys(S.sportPrefs || {})) {
+    const p = prefOf(g); if (!p || groups.includes(g) || injured(g)) continue;
+    if ((p.reason === 'pamirsau' || p.reason === 'noro') && (!last[g] || diffDays(last[g], today()) >= 7)) { const ex = pickExercise(g, chosen); if (ex) chosen.push({...ex, mini: p.reason === 'noro'}); }
+  }
+  return chosen.map(e => ({id: e.id, sets: targetSets(e, e.mini), mini: !!e.mini}));
+}
+function suggestWorkout(minutes) {
+  const last = muscleLastTrained(), t = today();
+  const focus = Object.keys(MUSCLES).filter(g => MAJOR.includes(g) && !injured(g))
+    .map(g => ({g, days: last[g] ? diffDays(last[g], t) : 99})).sort((a, b) => b.days - a.days).slice(0, 3).map(x => x.g);
+  const list = buildWorkout(focus, minutes).map(x => ({...x, target: `${x.sets.length} × ${x.sets[0]}`}));
+  return {focus, list};
+}
+function targetFor(e) { const s = targetSets(e); return `${s.length} × ${s[0]}${e.sec ? ' s' : ''}`; }
+// Serijos pagal raumenų grupes per laikotarpį (pagrindinė grupė 1, kitos 0,5)
+function muscleVolume(from, to) {
+  const v = {};
+  for (const w of S.workouts) if (w.date >= from && w.date <= to) for (const x of w.exercises || []) {
+    const e = exercise(x.id); if (!e) continue; const n = (x.sets || []).length || 1;
+    e.g.forEach((g, i) => v[g] = (v[g] || 0) + n * (i ? 0.5 : 1));
+  }
+  return v;
+}
+// Apleistos grupės per 14 d.: nedarytos arba < pusės vidurkio
+function neglected(days = 14) {
+  const t = today(), from = addDays(t, -days + 1);
+  if (!S.workouts.some(w => w.date >= from)) return [];
+  const v = muscleVolume(from, t), last = muscleLastTrained();
+  const gs = Object.keys(MUSCLES).filter(g => g !== 'kar' && (MAJOR.includes(g) || last[g]));
+  const avg = sum(gs.map(g => v[g] || 0)) / gs.length;
+  return gs.filter(g => !injured(g) && (!last[g] || diffDays(last[g], t) >= days || (v[g] || 0) < avg * 0.5))
+    .map(g => ({g, sets: round(v[g] || 0, 1), days: last[g] ? diffDays(last[g], t) : null}));
+}
+
+// Receptų įvairovė
+function recipeUsage(days = 14) {
+  const from = addDays(today(), -days), u = {};
+  for (const m of S.meals) if (m.recipeId && m.date >= from) u[m.recipeId] = (u[m.recipeId] || 0) + (m.portions || 1);
+  for (const c of S.cooks) if (c.date >= from) u[c.recipeId] = (u[c.recipeId] || 0) + 1;
+  return u;
+}
+function freezerPortions(rid) { return sum(S.freezer.filter(f => !rid || f.recipeId === rid).map(f => f.portions)); }
+function budgetWeek(d = today()) {
+  const ws = weekStart(d), we = addDays(ws, 6);
+  const spent = round(sum(S.cooks.filter(c => c.date >= ws && c.date <= we).map(c => c.cost)), 2);
+  const budget = +S.profile.budgetWeek || 0;
+  return {spent, budget, left: round(budget - spent, 2)};
+}
+function suggestRecipes(opts = {}) {
+  const u = recipeUsage(), maxTime = opts.maxTime || 999, bw = budgetWeek();
+  const tagFreq = {};
+  for (const [rid, n] of Object.entries(u)) { const r = recipe(rid); if (r) for (const t of r.tags) tagFreq[t] = (tagFreq[t] || 0) + n; }
+  return S.recipes.filter(r => (opts.freezableOnly ? r.freezable : true) && r.time <= maxTime)
+    .map(r => {
+      const st = recipeStats(r);
+      let score = 0;
+      score -= (u[r.id] || 0) * 3;                       // dažnai valgai – mažiau rekomenduoja
+      score -= sum(r.tags.map(t => tagFreq[t] || 0)) * 0.3; // panašių skonių daug – irgi mažiau
+      score -= freezerPortions(r.id) * 2;                 // jau yra šaldiklyje
+      score += st.p / 10;                                 // daugiau baltymų – geriau
+      if (bw.budget && st.total > bw.left && bw.left > 0) score -= 6; // netelpa į biudžetą
+      score += (r.id.charCodeAt(r.id.length - 1) + new Date().getDate()) % 3 * 0.2; // šiek tiek įvairovės
+      return {r, st, score, used: u[r.id] || 0};
+    }).sort((a, b) => b.score - a.score);
+}
+
+// ===== Dienos įvertinimas =====
+function dayScore(d) {
+  const p = S.profile, parts = [];
+  const t = dayTime(d);
+  if (t.logged) parts.push({k:'Produktyvus laikas', w:30, v: clamp(t.prod / ((+p.prodGoalH || 6) * 60), 0, 1), txt: fmtH(t.prod)});
+  const tasksDone = S.tasks.filter(x => x.done && x.doneAt === d).length;
+  const tasksMissed = S.tasks.filter(x => !x.done && x.due === d && d < today()).length;
+  if (tasksDone + tasksMissed) parts.push({k:'Užduotys', w:15, v: tasksDone / (tasksDone + tasksMissed), txt: `${tasksDone} atlikta`});
+  const sl = sleepOn(d);
+  if (sl) { const h = sleepMinutes(sl) / 60; parts.push({k:'Miegas', w:20, v: clamp(1 - Math.abs(h - (+p.sleepGoal || 8)) / 3, 0, 1), txt: `${round(h, 1)} val`}); }
+  const w = workoutsOn(d).length, wy = workoutsOn(addDays(d, -1)).length;
+  if (t.logged || w || sl) parts.push({k:'Judėjimas', w:15, v: w ? 1 : (wy ? 0.6 : 0.25), txt: w ? 'treniruotė ✓' : (wy ? 'poilsio diena' : 'be treniruotės')});
+  const n = dayNutrition(d), tg = targets();
+  if (n.n) { const dev = Math.abs(n.kcal - tg.kcal) / tg.kcal; parts.push({k:'Mityba', w:15, v: clamp(1 - Math.max(0, dev - 0.08) * 3, 0, 1) * 0.7 + clamp(n.p / tg.protein, 0, 1) * 0.3, txt: `${n.kcal} kcal, ${Math.round(n.p)} g B`}); }
+  if (t.logged) { const lim = +p.screenLimitMin || 90; parts.push({k:'Ekrano laikas', w:10, v: t.screen <= lim ? 1 : clamp(1 - (t.screen - lim) / lim, 0, 1), txt: fmtDur(t.screen)}); }
+  if (!parts.length) return null;
+  const score = Math.round(sum(parts.map(x => x.w * x.v)) / sum(parts.map(x => x.w)) * 100);
+  return {score, parts};
+}
+const scoreColor = s => s == null ? 'var(--muted2)' : s >= 75 ? '#22c55e' : s >= 50 ? '#facc15' : s >= 30 ? '#f97316' : '#ef4444';
+
+// Periodo suvestinė (savaitė/mėnuo)
+function periodStats(from, n) {
+  const days = range(from, n).filter(d => d <= today());
+  const st = {days: days.length, prod: 0, screen: 0, sleep: [], kcal: [], protein: [], workouts: 0, workoutMin: 0, tasksDone: 0, scores: []};
+  for (const d of days) {
+    const t = dayTime(d); st.prod += t.prod; st.screen += t.screen;
+    const sl = sleepOn(d); if (sl) st.sleep.push(sleepMinutes(sl));
+    const nu = dayNutrition(d); if (nu.n) { st.kcal.push(nu.kcal); st.protein.push(nu.p); }
+    const ws = workoutsOn(d); st.workouts += ws.length; st.workoutMin += sum(ws.map(w => w.duration));
+    st.tasksDone += S.tasks.filter(x => x.done && x.doneAt === d).length;
+    const sc = dayScore(d); if (sc) st.scores.push(sc.score);
+  }
+  const avg = a => a.length ? sum(a) / a.length : null;
+  st.avgSleep = avg(st.sleep); st.avgKcal = avg(st.kcal); st.avgProtein = avg(st.protein); st.avgScore = avg(st.scores);
+  const ws = S.weights.filter(w => w.date >= from && w.date <= addDays(from, n - 1)).sort((a, b) => a.date < b.date ? -1 : 1);
+  st.weightStart = ws.length ? +ws[0].kg : null; st.weightEnd = ws.length ? +ws[ws.length - 1].kg : null;
+  return st;
+}
+
+// Svorio pokytis per N dienų (pagal įrašus)
+function weightChange(days) {
+  const w = [...S.weights].sort((a, b) => a.date < b.date ? -1 : 1);
+  if (w.length < 2) return null;
+  const last = w[w.length - 1], from = addDays(last.date, -days);
+  const base = [...w].reverse().find(x => x.date <= from) || w[0];
+  if (base === last) return null;
+  return round(last.kg - base.kg, 1);
+}
+function weightTrend() {
+  const w = [...S.weights].sort((a, b) => a.date < b.date ? -1 : 1).filter(x => diffDays(x.date, today()) <= 42);
+  if (w.length < 3) return null;
+  const xs = w.map(x => diffDays(w[0].date, x.date)), ys = w.map(x => +x.kg);
+  const mx = sum(xs) / xs.length, my = sum(ys) / ys.length;
+  const k = sum(xs.map((x, i) => (x - mx) * (ys[i] - my))) / (sum(xs.map(x => (x - mx) ** 2)) || 1);
+  return k * 7; // kg per savaitę
+}
+
+// ===== Motyvacija =====
+function motivation() {
+  const seed = parseD(today()).getDate();
+  const out = [];
+  const wc = weightChange(7), w30 = weightChange(30);
+  if (w30 != null && w30 <= -0.5) out.push({t: fill(pick(MOTIVATION.weightDown, seed), Math.abs(w30)), good: true});
+  else if (wc != null && wc <= -0.3) out.push({t: fill(pick(MOTIVATION.weightDown, seed), Math.abs(wc)), good: true});
+  else if (wc != null && wc >= 0.5) out.push({t: pick(MOTIVATION.weightUp, seed)});
+  else if (wc != null) out.push({t: pick(MOTIVATION.weightFlat, seed)});
+  const ws = weekStart(today()), thisW = periodStats(ws, 7), lastW = periodStats(addDays(ws, -7), 7);
+  const dScreen = (thisW.screen / thisW.days - lastW.screen / (lastW.days || 1)) * 7 / 60;
+  if (lastW.screen > 0 && thisW.days >= 2) {
+    if (dScreen <= -1) out.push({t: fill(pick(MOTIVATION.screenDown, seed), round(-dScreen, 1)), good: true});
+    else if (dScreen >= 1) out.push({t: fill(pick(MOTIVATION.screenUp, seed), round(dScreen, 1))});
+  }
+  const dProd = (thisW.prod / thisW.days - lastW.prod / (lastW.days || 1)) * 7 / 60;
+  if (lastW.prod > 0 && thisW.days >= 2) {
+    if (dProd >= 1) out.push({t: fill(pick(MOTIVATION.prodUp, seed), round(dProd, 1)), good: true});
+    else if (dProd <= -2) out.push({t: pick(MOTIVATION.prodDown, seed)});
+  }
+  if (thisW.workouts >= 2) out.push({t: fill(pick(MOTIVATION.workoutStreak, seed), thisW.workouts), good: true});
+  if (!out.length) out.push({t: S.meals.length + S.timelog.length + S.weights.length ? pick(MOTIVATION.general, seed) : pick(MOTIVATION.noData, seed)});
+  return out;
+}
+
+// ===== XP / lygiai / ženkleliai =====
+function gamification() {
+  const tasksDone = S.tasks.filter(t => t.done).length;
+  const daysLogged = new Set([...S.meals.map(m => m.date), ...S.timelog.map(t => t.date)]).size;
+  const sleepGood = S.sleep.filter(s => Math.abs(sleepMinutes(s) / 60 - (+S.profile.sleepGoal || 8)) <= 0.75).length;
+  const xp = tasksDone * 10 + S.workouts.length * 25 + daysLogged * 5 + sleepGood * 10 + S.checkins.length * 30 + S.weights.length * 5 + S.cooks.length * 15;
+  const level = Math.floor(Math.sqrt(xp / 40)) + 1;
+  const cur = (level - 1) ** 2 * 40, next = level ** 2 * 40;
+  const lost = S.weights.length ? round((+S.profile.startWeight || S.weights[0].kg) - currentWeight(), 1) : 0;
+  // serija: kiek dienų iš eilės kažkas įrašyta
+  let streak = 0; for (let d = today(); ; d = addDays(d, -1)) { if (S.meals.some(m => m.date === d) || S.timelog.some(t => t.date === d) || S.workouts.some(w => w.date === d)) streak++; else if (d !== today()) break; if (streak > 999) break; if (d < '2000') break; }
+  const badges = [
+    ['🌱','Pirmas žingsnis','Įrašei pirmą svorį', S.weights.length >= 1],
+    ['💪','Pirmoji treniruotė','Įrašei treniruotę', S.workouts.length >= 1],
+    ['🏋️','Dešimtukas','10 treniruočių', S.workouts.length >= 10],
+    ['🦾','Geležinis','30 treniruočių', S.workouts.length >= 30],
+    ['📉','−1 kg','Numetei 1 kg', lost >= 1],
+    ['🔥','−5 kg','Numetei 5 kg', lost >= 5],
+    ['🏆','−10 kg','Numetei 10 kg', lost >= 10],
+    ['✅','Darbštuolis','10 atliktų užduočių', tasksDone >= 10],
+    ['🧊','Šaldiklio meistras','5 kartus pagaminai porcijų', S.cooks.length >= 5],
+    ['📅','Savaitės serija','7 dienos iš eilės su įrašais', streak >= 7],
+    ['🗓️','Mėnesio serija','30 dienų iš eilės', streak >= 30],
+    ['😴','Išsimiegojęs','10 naktų pagal miego tikslą', sleepGood >= 10],
+    ['🪞','Refleksija','Pirmasis savaitės patikrinimas', S.checkins.length >= 1],
+  ];
+  const title = [...LEVEL_TITLES].reverse().find(t => level >= t[0]);
+  return {xp, level, cur, next, streak, badges, lost, title, parts: {tasksDone, workouts: S.workouts.length, daysLogged, sleepGood, checkins: S.checkins.length, weights: S.weights.length, cooks: S.cooks.length}};
+}
+const LEVEL_TITLES = [[1, '🌱', 'Pradedantysis'], [3, '🚶', 'Įsivažiuojantis'], [5, '🏃', 'Nuoseklus'], [8, '💪', 'Disciplinuotas'], [12, '🔥', 'Nesustabdomas'], [17, '🦾', 'Mašina'], [25, '👑', 'Legenda']];
+const XP_RULES = [['tasksDone', '✅ Atlikta užduotis', 10], ['workouts', '💪 Treniruotė', 25], ['daysLogged', '📖 Diena su įrašais (maistas ar laikas)', 5], ['sleepGood', '😴 Naktis pagal miego tikslą (±45 min)', 10], ['checkins', '🪞 Savaitės / mėnesio patikrinimas', 30], ['weights', '⚖️ Pasisvėrimas', 5], ['cooks', '👨‍🍳 Pagamintas maistas', 15]];
+
+// ===== SVG grafikai =====
+function svgLine(series, opts = {}) {
+  // series: [{points:[[x,y]], color, dashed}]
+  const W = opts.w || 600, H = opts.h || 200, P = {l: 38, r: 10, t: 10, b: 24};
+  const all = series.flatMap(s => s.points);
+  if (all.length < 1) return `<div class="empty">Dar nėra duomenų grafikui</div>`;
+  let xs = all.map(p => p[0]), ys = all.map(p => p[1]);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs); if (x0 === x1) { x0 -= 1; x1 += 1; }
+  let y0 = Math.min(...ys), y1 = Math.max(...ys); const pd = (y1 - y0) * 0.15 || 1; y0 -= pd; y1 += pd;
+  const X = x => P.l + (x - x0) / (x1 - x0) * (W - P.l - P.r), Y = y => H - P.b - (y - y0) / (y1 - y0) * (H - P.t - P.b);
+  let g = '';
+  for (let i = 0; i <= 4; i++) { const v = y0 + (y1 - y0) * i / 4; g += `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v)}" y2="${Y(v)}" class="grid"/><text x="${P.l - 5}" y="${Y(v) + 4}" class="ax" text-anchor="end">${round(v, 1)}</text>`; }
+  if (opts.xLabels) for (const [x, l] of opts.xLabels) g += `<text x="${X(x)}" y="${H - 6}" class="ax" text-anchor="middle">${esc(l)}</text>`;
+  for (const s of series) {
+    if (!s.points.length) continue;
+    const d = s.points.map((p, i) => `${i ? 'L' : 'M'}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('');
+    if (s.area) g += `<path d="${d}L${X(s.points[s.points.length - 1][0])},${H - P.b}L${X(s.points[0][0])},${H - P.b}Z" fill="${s.color}" opacity=".12"/>`;
+    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width || 2.5}" ${s.dashed ? 'stroke-dasharray="6 5"' : ''} stroke-linejoin="round" stroke-linecap="round"/>`;
+    if (s.dots !== false) for (const p of s.points) g += `<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="3.5" fill="${s.color}"><title>${esc(p[2] || '')} ${p[1]}</title></circle>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" preserveAspectRatio="none">${g}</svg>`;
+}
+function svgBars(days, opts = {}) {
+  // days: [{label, segs:[{v, color, name}], goal}]
+  const W = opts.w || 600, H = opts.h || 200, P = {l: 34, r: 8, t: 10, b: 24};
+  const max = Math.max(1, ...days.map(d => sum(d.segs.map(s => s.v))), opts.goal || 0) * 1.1;
+  const bw = (W - P.l - P.r) / days.length;
+  let g = '';
+  for (let i = 0; i <= 4; i++) { const v = max * i / 4, y = H - P.b - v / max * (H - P.t - P.b); g += `<line x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}" class="grid"/><text x="${P.l - 4}" y="${y + 4}" class="ax" text-anchor="end">${opts.fmt ? opts.fmt(v) : round(v)}</text>`; }
+  days.forEach((d, i) => {
+    let y = H - P.b; const x = P.l + i * bw + bw * 0.15, w = bw * 0.7;
+    for (const s of d.segs) { if (!s.v) continue; const h = s.v / max * (H - P.t - P.b); y -= h; g += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${s.color}"><title>${esc(d.label)} · ${esc(s.name || '')}: ${opts.fmt ? opts.fmt(s.v) : s.v}</title></rect>`; }
+    if (days.length <= 31 && (days.length <= 14 || i % 2 === 0)) g += `<text x="${x + w / 2}" y="${H - 7}" class="ax" text-anchor="middle">${esc(d.label)}</text>`;
+    if (d.click) g += `<rect x="${P.l + i * bw}" y="${P.t}" width="${bw}" height="${H - P.t - P.b}" fill="transparent" data-a="${d.click.a}" data-d="${d.click.d}" style="cursor:pointer"/>`;
+  });
+  if (opts.goal) { const y = H - P.b - opts.goal / max * (H - P.t - P.b); g += `<line x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}" stroke="var(--accent)" stroke-dasharray="5 4" stroke-width="1.5"/>`; }
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" preserveAspectRatio="none">${g}</svg>`;
+}
+function svgDonut(segs, center = '', sub = '') {
+  const total = sum(segs.map(s => s.v)); const R = 60, C = 2 * Math.PI * R; let off = 0, g = '';
+  if (!total) g = `<circle r="${R}" cx="80" cy="80" fill="none" stroke="var(--line)" stroke-width="22"/>`;
+  for (const s of segs) { if (!s.v) continue; const L = s.v / total * C; g += `<circle r="${R}" cx="80" cy="80" fill="none" stroke="${s.color}" stroke-width="22" stroke-dasharray="${L} ${C - L}" stroke-dashoffset="${-off}" transform="rotate(-90 80 80)"><title>${esc(s.name)}: ${fmtDur(s.v)}</title></circle>`; off += L; }
+  return `<svg viewBox="0 0 160 160" class="donut">${g}<text x="80" y="80" text-anchor="middle" class="dc">${esc(center)}</text><text x="80" y="100" text-anchor="middle" class="ds">${esc(sub)}</text></svg>`;
+}
+function ring(value, max, color, label, sub) {
+  const R = 42, C = 2 * Math.PI * R, f = clamp(max ? value / max : 0, 0, 1);
+  const over = max && value > max * 1.08;
+  return `<div class="ring"><svg viewBox="0 0 100 100"><circle r="${R}" cx="50" cy="50" class="rbg"/><circle r="${R}" cx="50" cy="50" fill="none" stroke="${over ? '#f97316' : color}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${f * C} ${C}" transform="rotate(-90 50 50)" class="rfg"/></svg><div class="rin"><b>${esc(label)}</b><small>${esc(sub)}</small></div></div>`;
+}
