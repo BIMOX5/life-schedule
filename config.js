@@ -3,4 +3,5 @@
 window.CLOUD = {
   url: 'https://lhbspehpgzgbkedrkiiv.supabase.co',
   key: 'sb_publishable_9CCj-x1E90CTHYbq3sKj3w_WbRx2fnq',
+  importFn: 'super-function', // Supabase Edge Function, kuri ištraukia receptą iš nuorodos
 };

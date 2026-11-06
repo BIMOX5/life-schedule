@@ -524,14 +524,27 @@ function similarRecipes(r, n = 3) {
   return S.recipes.filter(x => x.id !== r.id && !recipeBlock(x)).map(x => ({x, s: jaccard(x.tags, r.tags)})).filter(o => o.s > 0).sort((a, b) => b.s - a.s).slice(0, n).map(o => o.x);
 }
 
-// ===== Ingredientų atpažinimas iš teksto =====
-const FRACT = {'½':'.5','¼':'.25','¾':'.75','⅓':'.33','⅔':'.67','⅛':'.125'};
+// ===== Ingredientų atpažinimas iš teksto (LT / EN / SV / DE vienetai) =====
+const FRACT = {'½':'.5','¼':'.25','¾':'.75','⅓':'.33','⅔':'.67','⅛':'.125','⅜':'.375','⅝':'.625','⅞':'.875'};
+// [taisyklė, tipas: w = svoris (g), v = tūris (ml), pc = vienetas, fix = fiksuotas svoris (g), kiekis]
 const UNIT_RULES = [
-  [/^(kg|kilogram\w*)$/, 1000], [/^(g|gr|g\.|gram\w*)$/, 1], [/^(mg)$/, 0.001], [/^(ml|mililitr\w*)$/, 1], [/^(l|litr\w*|liter\w*|litre\w*)$/, 1000], [/^(dl)$/, 100], [/^(cl)$/, 10],
-  [/^(saukstel\w*|arb\w*|tsp|teaspoon\w*|a\.s\.?)$/, 5], [/^(sauks\w*|valg\w*|tbsp|tablespoon\w*|v\.s\.?)$/, 15],
-  [/^(stiklin\w*|puodel\w*|cups?)$/, 240], [/^(skiltel\w*|cloves?)$/, 5], [/^(ziupsn\w*|pinch\w*)$/, 1], [/^(oz|ounces?)$/, 28], [/^(lbs?|pounds?)$/, 454],
-  [/^(skardin\w*|cans?|tins?)$/, 400], [/^(pakel\w*|pak\.?|packs?|packages?)$/, 200], [/^(vnt\.?|vienet\w*|pcs|pieces?|whole|gabal\w*)$/, 'pc'], [/^(rieke\w*|slices?)$/, 'pc'],
+  [/^(kg|kilos?|kilogram\w*)$/, 'w', 1000], [/^(g|gr|g\.|grams?|grammes?|gram\w*)$/, 'w', 1], [/^(mg)$/, 'w', 0.001],
+  [/^(oz|ounces?|uncij\w*)$/, 'w', 28.35], [/^(lbs?|pounds?|svar\w*)$/, 'w', 453.6], [/^(hg|hekto)$/, 'w', 100],
+  [/^(ml|millilit\w*|mililitr\w*)$/, 'v', 1], [/^(l|lit(er|re)s?|litr\w*)$/, 'v', 1000], [/^(dl|decilit\w*)$/, 'v', 100], [/^(cl)$/, 'v', 10],
+  [/^(fl\.?\s?oz|fluid)$/, 'v', 29.57], [/^(pints?|pt)$/, 'v', 473], [/^(quarts?|qt)$/, 'v', 946], [/^(gallons?|gal)$/, 'v', 3785],
+  [/^(cups?|c\.|stiklin\w*|puodel\w*|kopp\w*|tasse\w*)$/, 'v', 240],
+  [/^(saukstel\w*|arb\w*|tsp|teaspoons?|tsk|tesked\w*|tl|teeloffel)$/, 'v', 5], [/^(sauks\w*|valg\w*|tbsp|tbs|tablespoons?|msk|matsked\w*|el|essloffel)$/, 'v', 15],
+  [/^(krm|kryddmatt|ziupsn\w*|pinch\w*|dash\w*|prise)$/, 'fix', 1], [/^(skiltel\w*|cloves?|klyft\w*)$/, 'fix', 5], [/^(sticks?)$/, 'fix', 113],
+  [/^(skardin\w*|cans?|tins?|burk\w*|dose)$/, 'fix', 400], [/^(pakel\w*|pak\.?|packs?|packages?|paket\w*)$/, 'fix', 200],
+  [/^(vnt\.?|vienet\w*|pcs|pieces?|whole|gabal\w*|st|styck\w*|stk)$/, 'pc', 1], [/^(rieke\w*|slices?|skiv\w*)$/, 'pc', 1],
 ];
+// Tankis g/ml – kad „1 cup miltų“ ≠ „1 cup pieno“
+const DENSITY = {miltai:0.53, cukrus:0.85, ryziai:0.78, ryziai_rudi:0.78, avizos:0.38, grikiai:0.73, kuskusas:0.73, bulguras:0.7, kinva:0.72, lesiai:0.8, perlines:0.8,
+  sviestas:0.96, alyv_al:0.91, saul_al:0.92, medus:1.42, suris:0.45, mozzarella:0.45, spinatai:0.13, salotos:0.2, uogos:0.6, kukuruzai:0.7, zirneliai:0.6, darz_mix:0.55,
+  migdolai:0.6, graikiniai:0.45, saulegrazos:0.6, chia:0.7, makaronai:0.42, makaronai_pg:0.42, majonezas:0.95, kecupas:1.1, sojos:1.15, pienas:1.03, kefyras:1.03,
+  jogurtas:1.03, graik_jog:1.05, skyr:1.05, varske_0:1.0, grietine20:1.0, grietine10:1.0, grietinele:1.0, kok_pienas:1.0, pom_konserv:1.0, pom_pasta:1.1, baltymai:0.4,
+  pup_raud:0.75, pup_balt:0.75, avinz:0.7, prieskoniai:0.5, riesut_sv:1.1, kakava:0.45, humusas:1.0, pesto:1.0};
+function unitOf(word) { const w = norm(word).replace(/\.$/, ''); for (const [re, kind, k] of UNIT_RULES) if (re.test(w) || re.test(norm(word))) return {kind, k}; return null; }
 function matchFood(text) {
   const t = norm(text).replace(/\(.*?\)/g, ' ').replace(/[^a-z0-9 ]/g, ' ');
   const toks = t.split(/\s+/).filter(w => w.length >= 3);
@@ -552,32 +565,41 @@ function matchFood(text) {
   }
   return bestS >= 4 ? best : null;
 }
+const toNum = x => { x = String(x).replace(',', '.').trim(); if (x.includes('/')) { const p = x.split(/\s+/); return p.reduce((a, v) => { if (v.includes('/')) { const [q, w] = v.split('/'); return a + +q / +w; } return a + +v; }, 0); } return x.split(/\s+/).reduce((acc, v) => acc + +v, 0); };
 function parseIngredient(line) {
   let s = String(line); for (const [k, v] of Object.entries(FRACT)) s = s.replaceAll(k, ' ' + v);
-  s = s.trim().replace(/^[-•*·▪]\s*/, '').replace(/(\d)\s+\.(\d)/, '$1.$2').replace(/^\.(\d)/, '0.$1');
-  let qty = null, unitF = null, rest = s;
-  const m = s.match(/^(\d+(?:[.,]\d+)?(?:\s+\.?\d+)?|\d+\/\d+|\.\d+)(?:\s*[-–]\s*(\d+(?:[.,]\d+)?))?\s*(.*)$/);
+  s = s.trim().replace(/^[-•*·▪]\s*/, '').replace(/(\d)\s+\.(\d)/, '$1.$2').replace(/^\.(\d)/, '0.$1').replace(/(\d)\s*-\s*(?=[a-z])/i, '$1 ');
+  let qty = null, unit = null, rest = s, extraG = 0;
+  // „1 lb 2 oz …“, „1 kg 200 g …“
+  const two = s.match(/^(\d+(?:[.,]\d+)?)\s*(lbs?|pounds?|kg)\s+(\d+(?:[.,]\d+)?)\s*(oz|ounces?|g)\b\s*(.*)$/i);
+  if (two) { const a = unitOf(two[2]), b = unitOf(two[4]); qty = 1; unit = {kind: 'w', k: toNum(two[1]) * a.k + toNum(two[3]) * b.k}; rest = two[5]; }
+  const m = !two && s.match(/^(\d+(?:[.,]\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+|\d*\.\d+)(?:\s*(?:[-–]|to|iki)\s*(\d+(?:[.,]\d+)?))?\s*(.*)$/i);
   if (m) {
-    const toNum = x => { x = x.replace(',', '.').trim(); if (x.includes('/')) { const [a, b] = x.split('/'); return +a / +b; } return x.split(/\s+/).reduce((acc, v) => acc + +v, 0); };
     qty = toNum(m[1]); if (m[2]) qty = (qty + toNum(m[2])) / 2; rest = m[3];
-    rest = rest.replace(/^((heaped|level|large|small|medium|big|rounded|scant|generous|good|apie|about|approx\w*|didel\w*|maz\w*|maž\w*|vidutin\w*|nedidel\w*|pilnas|pilno|kupin\w*)\s+)+/i, '');
-    const w = norm(rest).match(/^([a-z.]+)\s*(.*)$/);
-    if (w) for (const [re, f] of UNIT_RULES) if (re.test(w[1].replace(/\.$/, '') ) || re.test(w[1])) { unitF = f; rest = rest.slice(w[1].length).trim(); break; }
-  } else {
+    rest = rest.replace(/^((heaped|level|large|small|medium|big|rounded|scant|generous|good|heaping|apie|about|approx\w*|didel\w*|maz\w*|maž\w*|vidutin\w*|nedidel\w*|pilnas|pilno|kupin\w*|stor\w*|liten|stor)\s+)+/i, '');
+    // „1 (14 oz) can …“ – skliaustuose tikslesnis kiekis
+    const par = rest.match(/^\((\d+(?:[.,]\d+)?)\s*([a-z.]+)\)\s*(?:[a-z]+\s+)?(.*)$/i);
+    if (par && unitOf(par[2])) { const u = unitOf(par[2]); qty = qty * toNum(par[1]); unit = u; rest = par[3]; }
+    else {
+      const w = rest.match(/^(fl\.?\s?oz|[a-ząčęėįšųūžäöå.]+)\s*(.*)$/i);
+      if (w) { const u = unitOf(w[1]); if (u) { unit = u; rest = w[2]; } }
+    }
+  } else if (!two) {
     // „Druska – 1 šaukštelis“ / „Vištiena 500 g“ – kiekis gale
-    const e = s.match(/^(.*?)[\s:–-]+(\d+(?:[.,]\d+)?)\s*([a-ząčęėįšųūž.]+)?\s*$/i);
-    if (e) { rest = e[1]; qty = +e[2].replace(',', '.'); if (e[3]) for (const [re, f] of UNIT_RULES) if (re.test(norm(e[3]))) { unitF = f; break; } }
+    const e = s.match(/^(.*?)[\s:–-]+(\d+(?:[.,]\d+)?)\s*([a-ząčęėįšųūžäöå.]+)?\s*$/i);
+    if (e) { rest = e[1]; qty = toNum(e[2]); if (e[3]) unit = unitOf(e[3]); }
   }
-  rest = rest.replace(/^(of|su)\s+/i, '');
+  rest = rest.replace(/^(of|su|av|von)\s+/i, '');
   const f = matchFood(rest || s);
   let grams = 0;
   if (qty != null) {
-    if (unitF === 'pc' || unitF == null) grams = f ? qty * (PIECE_G[f.id] || 100) : 0;
-    else grams = qty * unitF;
+    if (!unit || unit.kind === 'pc') grams = f ? qty * (PIECE_G[f.id] || 100) : 0;
+    else if (unit.kind === 'v') grams = qty * unit.k * (f ? (DENSITY[f.id] ?? 1) : 1);
+    else grams = qty * unit.k; // svoris arba fiksuotas
   } else if (f && f.id === 'prieskoniai') grams = 3;
   if (f && f.id === 'prieskoniai') grams = Math.min(grams, 15);
   // „virtų ryžių“ – bazėje sausi, todėl ~÷3
-  if (f && /cooked|boiled|virt/.test(norm(s)) && ['ryziai', 'ryziai_rudi', 'grikiai', 'makaronai', 'makaronai_pg', 'kuskusas', 'bulguras', 'kinva', 'perlines', 'lesiai'].includes(f.id)) grams /= 3;
+  if (f && /cooked|boiled|virt|kokt/.test(norm(s)) && ['ryziai', 'ryziai_rudi', 'grikiai', 'makaronai', 'makaronai_pg', 'kuskusas', 'bulguras', 'kinva', 'perlines', 'lesiai'].includes(f.id)) grams /= 3;
   return {raw: line, foodId: f ? f.id : '', grams: Math.round(grams), qtyKnown: qty != null};
 }
 

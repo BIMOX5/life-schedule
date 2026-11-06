@@ -754,7 +754,7 @@ A.importRecipe = () => {
     <p id="impmsg" class="hint"></p>
     <details class="impalt"><summary>Nėra nuorodos arba neveikia? Įklijuok recepto tekstą</summary>
       <textarea id="imptext" rows="8" placeholder="Pvz.:&#10;Vištienos makaronai&#10;Ingredientai:&#10;500 g vištienos krūtinėlės&#10;300 g makaronų&#10;1 svogūnas&#10;Gaminimas:&#10;Išvirk makaronus…"></textarea>
-      ${btn('Atpažinti tekstą', 'importText', {}, 'sm')}</details>
+      <div class="choice row">${btn('Atpažinti tekstą', 'importText', {}, 'sm')}${btn('📋 Įklijuoti iš iškarpinės', 'pasteRecipe', {}, 'sm')}</div></details>
     <p class="center">${btn('✍️ Rašyti ranka', 'editRecipe', {}, 'sm ghost')}</p>`, null, {noFocus: true});
   setTimeout(() => $('#impurl')?.focus(), 50);
 };
@@ -765,26 +765,55 @@ A.importGo = async () => {
   try {
     let j;
     if (cloudOn()) {
-      const r = await fetch(`${CLOUD.url}/functions/v1/recipe-import`, {method: 'POST', headers: {apikey: CLOUD.key, Authorization: 'Bearer ' + await Auth.token(), 'Content-Type': 'application/json'}, body: JSON.stringify({url})});
-      if (r.status === 404) throw new Error('Importo funkcija dar neįdiegta Supabase (žr. DEBESIS.md)');
+      const tok = await Auth.token(); let r;
+      for (const fn of [...new Set([CLOUD.importFn, 'recipe-import'].filter(Boolean))]) {
+        r = await fetch(`${CLOUD.url}/functions/v1/${fn}`, {method: 'POST', headers: {apikey: CLOUD.key, Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json'}, body: JSON.stringify({url})});
+        if (r.status !== 404) break;
+      }
+      if (r.status === 404) throw new Error('Supabase nerado importo funkcijos – patikrink Edge Functions sąrašą. Kol kas gali įklijuoti recepto tekstą žemiau.');
+      if (r.status === 401) throw new Error('Supabase atmetė užklausą (401) – prisijunk iš naujo.');
       j = await r.json();
     } else j = await (await fetch('/api/import?url=' + encodeURIComponent(url))).json();
-    if (!j.ok) { msg.innerHTML = `⚠️ ${esc(j.error || 'Nepavyko')} Pabandyk įklijuoti tekstą žemiau.`; $('.impalt').open = true; return; }
+    if (!j.ok) {
+      const blocked = /just a moment|attention required|cloudflare|access denied|simple page|robot|captcha|forbidden/i.test(j.name || '');
+      msg.innerHTML = `<div class="warnbox">${blocked ? '🛡️ Ši svetainė blokuoja automatinį skaitymą.' : `⚠️ ${esc(j.error || 'Nepavyko perskaityti recepto.')}`}<br>
+        <small>Atidaryk receptą, pažymėk ingredientus ir žingsnius, nukopijuok – ir spausk „Įklijuoti iš iškarpinės“.</small>
+        <div class="choice row"><a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener">🔗 Atidaryti receptą</a>${btn('📋 Įklijuoti iš iškarpinės', 'pasteRecipe', {}, 'sm primary')}</div></div>`;
+      $('.impalt').open = true; return;
+    }
     impOpen({...j, source: url});
   } catch (e) { msg.textContent = '⚠️ ' + e.message; }
+};
+A.pasteRecipe = async () => {
+  try { const t = await navigator.clipboard.readText(); if (!t.trim()) throw 0; $('#imptext').value = t; A.importText(); }
+  catch (e) { $('.impalt').open = true; $('#imptext').focus(); toast('Įklijuok tekstą į laukelį (Ctrl+V arba ilgai paspaudus → Įklijuoti)'); }
 };
 A.importText = () => {
   const lines = $('#imptext').value.split('\n').map(s => s.trim()).filter(Boolean);
   if (!lines.length) return;
-  let mode = 'ing', name = '', ingredients = [], steps = [];
+  // Veikia ir su visu nukopijuotu puslapiu: meniu, reklamos ir kt. trumpos eilutės atmetamos
+  let mode = '', name = '', ingredients = [], steps = [], portions = null, time = null;
+  const ING_H = /^(ingredient|ingredienser|zutaten|produkt|reikes|reikia|ko reikia|sudetis|jums reikes)/, STEP_H = /^(gaminim|paruosim|eiga|instruk|method|direction|steps?|preparation|kaip gaminti|gor sa har|tillagning|zubereitung|gamybos)/;
+  const hasHeaders = lines.some(l => ING_H.test(norm(l)));
   for (const [i, l] of lines.entries()) {
     const n = norm(l);
-    if (/^(ingredient|produkt|reikes|reikia|ko reikia)/.test(n)) { mode = 'ing'; continue; }
-    if (/^(gaminim|paruosim|eiga|instruk|method|direction|steps?|preparation|kaip gaminti)/.test(n)) { mode = 'steps'; continue; }
-    if (i === 0 && !/^[\d½¼¾-]/.test(l) && !/\d/.test(l)) { name = l; continue; }
-    if (mode === 'ing' && (/^[\d½¼¾-]/.test(l) || parseIngredient(l).foodId) && l.length < 90) ingredients.push(l); else { mode = 'steps'; steps.push(l.replace(/^\d+[.)]\s*/, '')); }
+    if (ING_H.test(n) && l.length < 40) { mode = 'ing'; continue; }
+    if (STEP_H.test(n) && l.length < 40) { mode = 'steps'; continue; }
+    const pm = n.match(/(\d+)\s*(porc|serv|portion|persons?|zmon)/) || n.match(/(?:serves|porcijos?|portioner|yield|makes)\s*:?\s*(\d+)/); if (pm && l.length < 40) { portions = +pm[1]; continue; }
+    const tm = n.match(/(\d+)\s*(min|minut)/); if (tm && l.length < 30 && !mode) { time = +tm[1]; continue; }
+    if (!mode && !/\d/.test(l)) continue; // prieš ingredientus – pavadinimas, meniu ir pan. (pavadinimą parenkam žemiau)
+    const ing = parseIngredient(l), looksIng = l.length < 90 && (/^[\d½¼¾⅓⅔]/.test(l) || (ing.foodId && l.split(/\s+/).length <= 4 && !/[.!]\s*$/.test(l)));
+    if ((mode === 'ing' || (!hasHeaders && mode !== 'steps')) && looksIng) { ingredients.push(l); if (!mode) mode = 'ing'; continue; }
+    if (mode === 'ing' && !looksIng && l.length >= 30) mode = 'steps';
+    if ((mode === 'steps' || (!hasHeaders && ingredients.length)) && l.length >= 25) steps.push(l.replace(/^(\d+[.)]|step \d+:?|žingsnis \d+:?)\s*/i, ''));
   }
-  impOpen({name: name || 'Naujas receptas', ingredients, steps, portions: null, time: null, nutrition: null});
+  if (!ingredients.length) { toast('Neradau ingredientų – nukopijuok ingredientų sąrašą (su kiekiais)'); return; }
+  // pavadinimas: paskutinė „normali“ eilutė prieš ingredientus (ne meniu, ne reklama)
+  const JUNK = /^(pradzia|receptai|prisijungti|registruotis|paieska|ieskoti|reklama|home|recipes?|menu|log ?in|sign ?in|search|advertisement|jump to recipe|print|share|dalintis|komentarai|subscribe|newsletter|skip to content)$/;
+  const firstIng = lines.findIndex(l => ING_H.test(norm(l)) || l === ingredients[0]);
+  const cands = lines.slice(0, firstIng < 0 ? 8 : firstIng).filter(l => !/\d/.test(l) && !JUNK.test(norm(l)) && l.length >= 5 && l.length < 90 && !ING_H.test(norm(l)));
+  name = cands[cands.length - 1] || name;
+  impOpen({name: name || 'Naujas receptas', ingredients, steps, portions, time, nutrition: null});
 };
 function impOpen(j) {
   const lines = (j.ingredients || []).map(parseIngredient);
