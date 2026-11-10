@@ -43,17 +43,21 @@ function ask(title, text = '', o = {}) { const p = ASKQ.then(() => askNow(title,
 function askNow(title, text, o) {
   return new Promise(res => {
     const el = document.createElement('div'); el.className = 'askov';
-    el.innerHTML = `<div class="askbox ${o.danger ? 'danger' : ''}" role="dialog" aria-modal="true"><div class="askic">${o.icon || (o.danger ? '⚠️' : '❓')}</div><h3>${title}</h3>${text ? `<div class="asktxt">${text}</div>` : ''}
+    el.innerHTML = `<div class="askbox ${o.danger ? 'danger' : ''}" role="dialog" aria-modal="true"><div class="askic">${o.icon || (o.danger ? '⚠️' : '❓')}</div><h3>${title}</h3>${text ? `<div class="asktxt">${text}</div>` : ''}${o.input != null ? `<${o.multi ? 'textarea rows="5"' : 'input'} class="askin" placeholder="${esc(o.placeholder || '')}" ${o.multi ? `>${esc(o.input)}</textarea>` : `value="${esc(o.input)}">`}` : ''}
       <div class="askbtns">${o.no === false ? '' : `<button type="button" class="btn ghost" data-r="0">${o.no || 'Atšaukti'}</button>`}<button type="button" class="btn ${o.danger ? 'danger' : 'primary'}" data-r="1">${o.yes || 'Taip'}</button></div></div>`;
     document.body.appendChild(el);
-    const done = v => { el.classList.add('out'); document.removeEventListener('keydown', kd, true); setTimeout(() => el.remove(), 150); res(v); };
-    const kd = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); } else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); done(true); } };
+    const inp = el.querySelector('.askin');
+    const done = v => { el.classList.add('out'); document.removeEventListener('keydown', kd, true); setTimeout(() => el.remove(), 150); res(inp ? (v ? inp.value : null) : v); };
+    const kd = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); } else if (e.key === 'Enter' && !(o.multi && !e.ctrlKey)) { e.preventDefault(); e.stopPropagation(); done(true); } };
     document.addEventListener('keydown', kd, true);
     el.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r === '1'); else if (e.target === el && o.no !== false) done(false); });
-    el.querySelector(o.danger ? '[data-r="0"]' : '[data-r="1"]')?.focus();
+    if (inp) { inp.focus(); inp.select?.(); } else el.querySelector(o.danger ? '[data-r="0"]' : '[data-r="1"]')?.focus();
   });
 }
 const info = (title, text, o = {}) => ask(title, text, {no: false, yes: 'Gerai', icon: 'ℹ️', ...o});
+// vietoj naršyklės alert / prompt
+const warn = msg => { info('Patikrink', esc(msg).replace(/\n/g, '<br>'), {icon: '⚠️'}); };
+const askText = (title, text, value = '', o = {}) => ask(title, text, {icon: '✏️', yes: 'Išsaugoti', input: value ?? '', ...o});
 function formObj(form) {
   const o = {}; const fd = new FormData(form);
   for (const [k, v] of fd.entries()) { if (k.endsWith('[]')) (o[k.slice(0, -2)] = o[k.slice(0, -2)] || []).push(v); else o[k] = v; }
@@ -582,9 +586,9 @@ A.addEvent = d => { UI.ev = evFrom(null, d); evModal(); };
 A.editEvent = d => { const e = S.events.find(x => x.id === d.id); if (!e) return; UI.ev = evFrom(e); evModal(); };
 function saveEvent() {
   const E = UI.ev;
-  if (!E.title.trim()) { alert('Įrašyk pavadinimą'); return false; }
-  if (E.end === E.start) { alert('Pradžia ir pabaiga negali sutapti'); return false; }
-  if (['weekly', 'biweekly'].includes(E.type) && !E.days.length) { alert('Pasirink bent vieną savaitės dieną'); return false; }
+  if (!E.title.trim()) { warn('Įrašyk pavadinimą'); return false; }
+  if (E.end === E.start) { warn('Pradžia ir pabaiga negali sutapti'); return false; }
+  if (['weekly', 'biweekly'].includes(E.type) && !E.days.length) { warn('Pasirink bent vieną savaitės dieną'); return false; }
   const x = evObj(E);
   if (E.id) { const e = S.events.find(y => y.id === E.id); for (const k of ['date', 'days', 'mday', 'from', 'until']) delete e[k]; Object.assign(e, x); }
   else S.events.push({id: uid(), ...x});
@@ -769,7 +773,7 @@ function mealModal() {
       Object.assign(m, {name: r.name, recipeId: r.id, portions: n}, nutrOf(st, n)); takePortion(f.id, n); }
     else if (t === 'recipe') { const r = recipe(o.rid), st = recipeStats(r), n = +o.portions || 1; Object.assign(m, {name: r.name, recipeId: r.id, portions: n}, nutrOf(st, n)); }
     else if (t === 'snack') { const [n, k, p] = HEALTHY_SNACKS[+o.sn || 0]; Object.assign(m, {name: n.replace(/^\S+\s/, ''), kcal: k, p, snack: true}); }
-    else if (t === 'food') { const f = allFoods().find(x => x.name.toLowerCase() === o.fname.trim().toLowerCase()); if (!f) { alert('Tokio produkto nėra. Pasirink iš sąrašo arba naudok „Greitas“ / pridėk produktą skiltyje „Produktai“.'); return false; }
+    else if (t === 'food') { const f = allFoods().find(x => x.name.toLowerCase() === o.fname.trim().toLowerCase()); if (!f) { warn('Tokio produkto nėra. Pasirink iš sąrašo arba naudok „Greitas“ / pridėk produktą skiltyje „Produktai“.'); return false; }
       const g = +o.g || 100; Object.assign(m, {name: f.name, foodId: f.id, g}, nutrOf(f, g / 100)); }
     else Object.assign(m, {name: o.name, kcal: +o.kcal || 0, p: +o.p || 0});
     S.meals.push(m); commit(); toast(`🍽️ ${esc(m.name)} – ${Math.round(m.kcal)} kcal`);
@@ -838,7 +842,7 @@ A.editRecipe = d => {
     ${fld('Gaminimo žingsniai (kiekvienas naujoje eilutėje)', `<textarea name="steps" rows="5">${esc(r.steps.join('\n'))}</textarea>`)}`, o => {
     const ing = [], bad = [];
     (o.ingf || []).forEach((n, i) => { if (!n.trim()) return; const f = allFoods().find(x => x.name.toLowerCase() === n.trim().toLowerCase()) || matchFood(n); if (!f) bad.push(n); else ing.push([f.id, +o.ingg[i] || 0]); });
-    if (bad.length) { alert('Nerasti produktai: ' + bad.join(', ') + '\nPasirink iš sąrašo arba pirma pridėk skiltyje „Produktai“.'); return false; }
+    if (bad.length) { warn('Nerasti produktai: ' + bad.join(', ') + '\nPasirink iš sąrašo arba pirma pridėk skiltyje „Produktai“.'); return false; }
     const x = {name: o.name, emoji: o.emoji || '🍲', portions: +o.portions || 1, time: +o.time || 30, freezable: !!o.freezable, skill: +o.skill || 1, equip: o.equip || [], tags: o.tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean), ing, steps: o.steps.split('\n').map(s => s.trim()).filter(Boolean)};
     if (d.id) { Object.assign(r, x); delete r.nutri; } else S.recipes.push({id: 'r_' + uid(), ...x});
     commit();
@@ -988,7 +992,7 @@ function impModal() {
     ${trBox(I)}
     <h4>Žingsniai (${I.steps.length})</h4><ol class="steps small">${(I.showOrig && I.stepsOrig ? I.stepsOrig : I.steps).map(s => `<li>${esc(s)}</li>`).join('')}</ol>`,
     () => { impSync(); const I = UI.imp; const ing = I.lines.filter(l => l.foodId && l.grams > 0).map(l => [l.foodId, l.grams]);
-      if (!ing.length && !(I.useSite && I.nutri)) { alert('Bent vienas ingredientas turi būti atpažintas'); return false; }
+      if (!ing.length && !(I.useSite && I.nutri)) { warn('Bent vienas ingredientas turi būti atpažintas'); return false; }
       const flags = new Set(); ing.forEach(([f]) => (FOOD_FLAGS[f] || []).forEach(x => flags.add(x)));
       const tags = [...new Set([...['paukštiena', 'kiauliena', 'jautiena', 'žuvis', 'ankštiniai'].filter(x => flags.has(x)).map(x => x === 'paukštiena' ? 'vištiena' : x), ...(norm(I.name).includes('wrap') ? ['wrap'] : []), ...(norm(I.name).includes('sriub') || norm(I.name).includes('soup') ? ['sriuba'] : [])])];
       const r = {id: 'r_' + uid(), name: I.name, emoji: I.emoji || '🍲', portions: +I.portions || 1, time: +I.time || 30, freezable: true, skill: I.skill, equip: I.equip, tags, ing, steps: I.steps, source: I.source};
@@ -1241,11 +1245,11 @@ function fFoods() {
   <div class="card tblwrap"><table class="tbl"><thead><tr><th>Produktas</th><th>kcal</th><th>Balt.</th><th>Angl.</th><th>Cukr.</th><th>Rieb.</th><th>Skaid.</th><th>€/kg</th><th></th></tr></thead><tbody>${list.map(f => `<tr><td>${esc(f.name)}${f.builtin ? '' : ' <span class="tag">savas</span>'}</td><td>${f.kcal}</td><td>${f.p}</td><td>${f.c}</td><td>${f.s ?? '–'}</td><td>${f.f}</td><td>${f.fi ?? '–'}</td><td><button class="pricebtn ${f.priceMine ? 'mine' : ''}" data-a="editPrice" data-id="${f.id}" title="${f.priceMine ? `Tavo kaina${S.priceMeta?.[f.id] ? ' (' + S.priceMeta[f.id].src + ', ' + fmtDate(S.priceMeta[f.id].date) + ')' : ''}` : 'Apytikslė kaina – spausk ir pakeisk'}">${f.priceMine ? '' : '~'}${(f.price || 0).toFixed(2)} ✏️</button></td><td>${f.builtin ? '' : `<button class="x" data-a="delFood" data-id="${f.id}">✕</button>`}</td></tr>`).join('')}</tbody></table>
   <p class="hint">Vertės 100 g. Spausk kainą, kad įrašytum savo.</p></div>`;
 }
-A.editPrice = d => {
-  const f = food(d.id); const v = prompt(`${f.name}\nKaina už 1 kg (€). Palik tuščią – grąžinti numatytą.`, f.price?.toFixed(2));
+A.editPrice = async d => {
+  const f = food(d.id); const v = await askText(`💶 ${esc(f.name)}`, 'Kaina už 1 kg (€). Palik tuščią – grąžinti numatytą.', f.price?.toFixed(2) ?? '', {placeholder: 'pvz. 4,99'});
   if (v === null) return; S.priceOverrides = S.priceOverrides || {};
   S.priceMeta = S.priceMeta || {};
-  if (v.trim() === '') { delete S.priceOverrides[d.id]; delete S.priceMeta[d.id]; } else { const n = +v.replace(',', '.'); if (!(n >= 0)) return alert('Netinkama kaina'); S.priceOverrides[d.id] = n; S.priceMeta[d.id] = {date: today(), src: 'ranka'}; }
+  if (v.trim() === '') { delete S.priceOverrides[d.id]; delete S.priceMeta[d.id]; } else { const n = +v.replace(',', '.'); if (!(n >= 0)) return warn('Netinkama kaina'); S.priceOverrides[d.id] = n; S.priceMeta[d.id] = {date: today(), src: 'ranka'}; }
   commit(); toast('Kaina atnaujinta');
 };
 // Produktai iš čekių, kurių nėra bazėje
@@ -1813,7 +1817,7 @@ function versionsCard() {
     ${cur !== pub ? `<div class="choice row">${btn('↩ Grįžti į viešą versiją', 'tryVersion', {v: ''}, 'sm')}</div>` : ''}
     <p class="hint">„Išbandyti“ pakeičia versiją tik tavo naršyklėje. „Paleisti viešai“ – visiems, iškart. Seną versiją grąžinsi tuo pačiu mygtuku.</p>`);
 }
-A.tryVersion = d => { try { if (d.v && d.v !== window.PUBLIC_VERSION) localStorage.setItem('ls_ver_override', d.v); else localStorage.removeItem('ls_ver_override'); } catch (e) {} location.reload(); };
+A.tryVersion = d => { try { if (d.v && d.v !== window.PUBLIC_VERSION) { localStorage.setItem('ls_ver_override', d.v); localStorage.setItem('ls_ver_override_pub', window.PUBLIC_VERSION || ''); } else localStorage.removeItem('ls_ver_override'); } catch (e) {} location.reload(); };
 A.publishVersion = async d => {
   if (!isDeveloper() || !await ask(`Paleisti ${esc(d.v)} viešai?`, 'Versija iškart atsiras visiems naudotojams.', {icon: '🚀', yes: 'Paleisti'})) return;
   try {
@@ -1970,7 +1974,7 @@ function inboxCard() {
 A.inboxTab = d => { UI.inbox = d.k; render(); };
 A.inboxRefresh = async () => { await refreshInbox(); render(); };
 A.fbStatus = async d => { try { await DB.update('feedback', `id=eq.${d.id}`, {status: d.s}); await refreshInbox(); render(); } catch (e) { toast('⚠️ ' + esc(e.message)); } };
-A.fbReply = async d => { const t = prompt('Atsakymas (naudotojas jį matys „Mano atsiliepimai“):'); if (!t) return; try { await DB.update('feedback', `id=eq.${d.id}`, {reply: t, status: 'done'}); await refreshInbox(); render(); toast('Atsakyta ✓'); } catch (e) { toast('⚠️ ' + esc(e.message)); } };
+A.fbReply = async d => { const t = await askText('↩ Atsakymas', 'Naudotojas jį matys „Mano atsiliepimai“.', '', {multi: true, yes: 'Siųsti'}); if (!t) return; try { await DB.update('feedback', `id=eq.${d.id}`, {reply: t, status: 'done'}); await refreshInbox(); render(); toast('Atsakyta ✓'); } catch (e) { toast('⚠️ ' + esc(e.message)); } };
 
 // ================= PRIVATUMAS: duomenų kopija ir paskyros trynimas =================
 const DSAR_STATUS = {received: '📥 Gauta', in_progress: '⏳ Ruošiama', sent: '✉️ Išsiųsta', pending: '⏳ Laukia trynimo', cancelled: '↩ Atšaukta', done: '✅ Įvykdyta'};
@@ -2139,7 +2143,7 @@ document.addEventListener('change', e => {
   if (el.dataset.c === 'mealSuggest') { S.foodPrefs.mealSuggest = el.checked; commit(); toast(el.checked ? '🍽️ „Šiandien“ skiltyje siūlysiu, ką valgyti' : 'Pasiūlymai išjungti'); }
   if (el.dataset.cat !== undefined && el.dataset.k) { const c = S.categories[+el.dataset.cat]; c[el.dataset.k] = el.dataset.k === 'type' ? +el.value : el.value; commit({noRender: true}); }
   if (el.dataset.c === 'shopCheck') { S.shopChecked = S.shopChecked || {}; S.shopChecked[el.dataset.id] = el.checked; el.closest('.shop').classList.toggle('on', el.checked); commit({noRender: true}); }
-  if (el.dataset.c === 'importData') { const f = el.files[0]; if (!f) return; f.text().then(async t => { try { const d = JSON.parse(t); if (!d.profile) throw 0; if (!await ask('Pakeisti visus duomenis?', 'Dabartiniai duomenys bus pakeisti šia kopija.', {danger: true, yes: 'Pakeisti'})) return; S = migrate(d); commit(); toast('Duomenys įkelti ✓', 'good'); } catch (x) { alert('Netinkamas failas'); } }); }
+  if (el.dataset.c === 'importData') { const f = el.files[0]; if (!f) return; f.text().then(async t => { try { const d = JSON.parse(t); if (!d.profile) throw 0; if (!await ask('Pakeisti visus duomenis?', 'Dabartiniai duomenys bus pakeisti šia kopija.', {danger: true, yes: 'Pakeisti'})) return; S = migrate(d); commit(); toast('Duomenys įkelti ✓', 'good'); } catch (x) { warn('Netinkamas failas'); } }); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') A.closeModal(); });
 

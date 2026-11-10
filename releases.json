@@ -2,6 +2,11 @@
   "stable": "1.0.0",
   "versions": [
     {
+      "v": "1.2.1",
+      "date": "2026-11-10",
+      "notes": "Visi langai programėlės stiliumi, mažiau nereikalingų užuominų konsolėje"
+    },
+    {
       "v": "1.2.0",
       "date": "2026-11-10",
       "notes": "Pagalbos konsolė, gražūs patvirtinimo langai, atsakymai į atsiliepimus su priedais, XP dovanos"

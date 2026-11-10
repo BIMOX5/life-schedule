@@ -10,6 +10,15 @@ const dt = iso => iso ? new Date(iso).toLocaleString('lt-LT', {dateStyle: 'short
 const daysLeft = iso => Math.ceil((Date.parse(iso) - Date.now()) / 864e5);
 function toast(t) { const e = document.createElement('div'); e.className = 'toast'; e.innerHTML = t; $('#toasts').appendChild(e); setTimeout(() => e.remove(), 4000); }
 function modal(html, cls = '') { const m = $('#modal'); m.className = cls; m.innerHTML = `<div class="mbox">${html}</div>`; m.classList.add('open'); }
+// Patvirtinimo langas ekrano viduryje (vietoj naršyklės confirm)
+function ask(title, text = '', o = {}) {
+  return new Promise(res => {
+    modal(`<div class="askc"><div class="askic">${o.icon || '⚠️'}</div><h3>${title}</h3>${text ? `<p class="muted">${text}</p>` : ''}
+      <div class="row"><button class="btn ghost" id="askno">${o.no || 'Atšaukti'}</button><button class="btn ${o.danger ? 'danger' : 'primary'}" id="askyes">${o.yes || 'Taip'}</button></div></div>`, 'askm');
+    const done = v => { closeModal(true); res(v); };
+    $('#askno').onclick = () => done(false); $('#askyes').onclick = () => done(true); $('#askno').focus();
+  });
+}
 function closeModal(force) { const m = $('#modal'); if (m.classList.contains('locked') && !force) return; m.classList.remove('open'); }
 document.addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
 
@@ -163,7 +172,7 @@ async function mfaScreen(sim) {
 // Agento vardas ir pavardė – matosi tik komandai (klientas mato „Life Schedule komanda“)
 function askName(cur = '') {
   return new Promise(res => {
-    modal(`<h3>👋 Kaip tave vadinti?</h3><p class="muted">Vardas ir pavardė matysis tik komandai (pvz. „Priskirta: …“, žurnale). Klientas matys „Life Schedule komanda“.</p>
+    modal(`<h3>👋 Kaip tave vadinti?</h3><p class="muted">Matys tik komanda.</p>
       <div class="frm"><label class="wide">Vardas ir pavardė<input id="nm" value="${esc(cur)}" maxlength="60"></label></div><div class="row"><span class="sp"></span><button class="btn primary" id="nmok">Išsaugoti</button></div>`, cur ? '' : 'locked');
     const ok = async () => {
       const v = $('#nm').value.trim(); if (v.length < 3) return toast('Įrašyk vardą ir pavardę');
@@ -245,7 +254,7 @@ function convHtml(t) {
       ${!note && !mine ? `<div class="lockbox">🔒 Priskirk bilietą sau, kad galėtum atsakyti klientui.<br><br><button class="btn primary" data-act="assign">🙋 Priskirti man</button></div>`
       : `<textarea id="reply" data-tid="${t.id}" placeholder="${note ? 'Matoma tik iš vidaus…' : 'Rašyk atsakymą…'}"></textarea>
       ${(PENDING[t.id] || []).length ? `<div class="atts">${PENDING[t.id].map((f, i) => `<span class="att">📎 ${esc(f.name)} <small>${kb(f.size)}</small><b data-act="rmfile" data-i="${i}" title="Pašalinti">✕</b></span>`).join('')}</div>` : ''}
-      <div class="crow">${note ? '<small>📝 Klientas šios pastabos nematys</small>' : t.channel === 'email' ? `<small>✉️ Kam: <b>${esc(t.email || '')}</b> – laiškas su priedais</small>` : '<small>📱 Klientas atsakymą matys programėlėje</small>'}
+      <div class="crow">${!note && t.channel === 'email' ? `<small>✉️ Kam: <b>${esc(t.email || '')}</b></small>` : ''}
         <span class="sp"></span>${composerTools(t, note)}<label class="btn sm ghost" title="Pridėti failą (iki 10 MB)">📎<input type="file" id="files" multiple hidden></label><button class="btn ${note ? 'warn' : 'primary'}" data-act="send">${note ? 'Pridėti pastabą' : t.channel === 'email' ? '✉️ Siųsti laišką' : 'Siųsti'}</button></div>`}</div></div>`;
 }
 function sideHtml(t) {
@@ -263,7 +272,7 @@ function sideHtml(t) {
       <span>Reikalai</span><b>${(d.tasks || []).filter(x => !x.done).length} atvirų</b><span>Įvykiai</span><b>${(d.events || []).length}</b>
       <span>Treniruotės</span><b>${(d.workouts || []).length}</b><span>Valgiai</span><b>${(d.meals || []).length}</b></div>`}</div>
     ${t.type === 'feedback' ? `<div class="box"><h3>Kontekstas</h3><div class="kv"><span>Skiltis</span><b>${esc(ctx.view || '–')}</b><span>Versija</span><b>${esc(ctx.version || '–')}</b><span>Įrenginys</span><b>${esc(ctx.device || '–')}</b><span>Ekranas</span><b>${esc(ctx.screen || '–')}</b><span>Režimas</span><b>${esc(ctx.mode || '–')}</b></div></div>` : ''}
-    ${t.type === 'dsar_export' && t.status !== 'solved' ? `<div class="box"><h3>Duomenų kopija</h3>${t.assignee === ME.id ? `<button class="btn primary" data-act="dsarprep" style="width:100%;justify-content:center">📄 Paruošti failus laiškui</button><small>Prisega HTML ataskaitą + JSON ir įrašo laiško tekstą. Išsiuntus užklausa užsidaro.</small>` : '<small>Priskirk bilietą sau, kad galėtum paruošti ir išsiųsti duomenų kopiją.</small>'}</div>` : ''}
+    ${t.type === 'dsar_export' && t.status !== 'solved' ? `<div class="box"><h3>Duomenų kopija</h3>${t.assignee === ME.id ? `<button class="btn primary" data-act="dsarprep" style="width:100%;justify-content:center">📄 Paruošti failus laiškui</button>` : '<small>Pirmiau priskirk sau</small>'}</div>` : ''}
     ${t.due_at ? `<div class="box"><h3>Terminas</h3><b class="${daysLeft(t.due_at) <= 7 && t.status !== 'solved' ? 'pr-urgent' : ''}">${dt(t.due_at)}</b><br><small>${t.status === 'solved' ? 'užbaigta' : `liko ${daysLeft(t.due_at)} d.`}</small></div>` : ''}
     <div class="box"><h3>Kiti bilietai (${others.length})</h3>${others.map(x => `<div class="qi" data-t="${x.id}" style="padding:6px 0;border:0"><span class="ic">${ticketIcon(x)}</span><b>${esc(x.subject)}</b><span class="chip st-${x.status}">${stName(x.status)}</span></div>`).join('') || '<small>Nėra</small>'}</div>
     <div class="box"><h3>Bilietas</h3><div class="kv"><span>ID</span><b>${esc(String(t.id).slice(0, 8))}</b><span>Sukurta</span><b>${dt(t.created_at)}</b><span>Kanalas</span><b>${t.channel === 'email' ? '✉️ el. paštas' : '📱 programėlė'}</b></div></div></div>`;
@@ -287,8 +296,7 @@ function setStatus(t, s, why) {
 const allTags = () => { const c = {}; T.forEach(x => (x.tags || []).forEach(g => c[g] = (c[g] || 0) + 1)); return Object.entries(c).sort((a, b) => b[1] - a[1]); };
 function tagPicker(t) {
   const has = new Set(t.tags || []);
-  modal(`<h3>🏷️ Žymos</h3><p class="muted">Spausk, kad pridėtum arba nuimtum. Naujai žymai – įrašyk apačioje.</p>
-    <div class="tagpick">${allTags().map(([g, n]) => `<button class="${has.has(g) ? 'on' : ''}" data-act="tagtoggle" data-v="${esc(g)}">#${esc(g)} <i>${n}</i></button>`).join('') || '<small>Žymų dar nėra</small>'}</div>
+  modal(`<h3>🏷️ Žymos</h3>    <div class="tagpick">${allTags().map(([g, n]) => `<button class="${has.has(g) ? 'on' : ''}" data-act="tagtoggle" data-v="${esc(g)}">#${esc(g)} <i>${n}</i></button>`).join('') || '<small>Žymų dar nėra</small>'}</div>
     <div class="row"><input id="newtag" placeholder="nauja žyma, pvz. importas" style="flex:1"><button class="btn primary" data-act="tagadd">Pridėti</button><button class="btn ghost" data-act="mclose">Baigta</button></div>`);
   const i = $('#newtag'); i.focus(); i.onkeydown = e => { if (e.key === 'Enter') $('[data-act="tagadd"]').click(); };
 }
@@ -303,7 +311,7 @@ function caseData(t) {
     <label>Prioritetas<select id="c_prio">${PRIO.map(([v, l]) => `<option value="${v}" ${t.priority === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <label>Kanalas<select id="c_chan"><option value="app" ${t.channel !== 'email' ? 'selected' : ''}>📱 Programėlė</option>${t.email ? `<option value="email" ${t.channel === 'email' ? 'selected' : ''}>✉️ El. paštas</option>` : ''}</select></label>
     <label>Žinoma problema<select id="c_issue"><option value="">– nėra –</option>${ISSUES.filter(i => i.status !== 'fixed' || i.id === t.issue_id).map(i => `<option value="${i.id}" ${t.issue_id === i.id ? 'selected' : ''}>🧯 ${esc(i.title.slice(0, 50))}</option>`).join('')}<option value="__new">+ Nauja problema…</option></select></label></div>
-    <div class="row"><small class="muted">Visi pakeitimai matysis pokalbyje kaip vidinis įvykis.</small><span class="sp"></span><button class="btn ghost" data-act="mclose">Atšaukti</button><button class="btn primary" data-act="casesave">Išsaugoti</button></div>`);
+    <div class="row"><span class="sp"></span><button class="btn ghost" data-act="mclose">Atšaukti</button><button class="btn primary" data-act="casesave">Išsaugoti</button></div>`);
 }
 async function saveCase(t) {
   const nv = {subject: $('#c_subj').value.trim() || t.subject, language: $('#c_lang').value, priority: $('#c_prio').value, channel: $('#c_chan').value, issue_id: $('#c_issue').value};
@@ -360,7 +368,7 @@ document.addEventListener('click', async e => {
     MODE = 'reply'; const rp = $('#reply');
     if (rp) { if (!rp.value.trim()) rp.value = dsarText(t); } else if (!DRAFT[t.id]) DRAFT[t.id] = dsarText(t);
     if (t.source_id) DB.update('dsar_requests', `id=eq.${t.source_id}&status=eq.received`, {status: 'in_progress'}).catch(() => {});
-    audit('paruošė duomenų kopiją', t); render(); toast('📄 Failai prisegti. Peržiūrėk tekstą ir spausk „Siųsti laišką“.'); return;
+    audit('paruošė duomenų kopiją', t); render(); toast('📄 Failai prisegti'); return;
   }
   if (a === 'send') {
     if (SENDING) return;

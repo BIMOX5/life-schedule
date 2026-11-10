@@ -21,8 +21,13 @@
   try {
     const qv = new URLSearchParams(location.search).get('v');
     if (qv === 'public') localStorage.removeItem('ls_ver_override');
-    else if (qv && exists(qv)) localStorage.setItem('ls_ver_override', qv);
+    else if (qv && exists(qv)) { localStorage.setItem('ls_ver_override', qv); localStorage.setItem('ls_ver_override_pub', pub || ''); }
     if (qv) history.replaceState(null, '', location.pathname);
+    // paleidus naują viešą versiją – senas bandomasis pasirinkimas nebegalioja
+    const cur = localStorage.getItem('ls_ver_override'), num = v => String(v).split('.').map(n => +n || 0), older = (a, b) => { const x = num(a), y = num(b); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); return false; };
+    let was = localStorage.getItem('ls_ver_override_pub');
+    if (cur && pub && was === null) { if (older(cur, pub) || cur === pub) was = ''; else { localStorage.setItem('ls_ver_override_pub', pub); was = pub; } }
+    if (cur && pub && was !== pub) { localStorage.removeItem('ls_ver_override'); localStorage.removeItem('ls_ver_override_pub'); }
   } catch (e) {}
   let ov = null; try { ov = localStorage.getItem('ls_ver_override'); } catch (e) {}
   if (C.test) ver = ov && exists(ov) ? ov : 'src';

@@ -74,7 +74,7 @@ function customerView() {
         <span>Klientas nuo</span><b>${dt(c.created_at)}</b><span>Paskutinis prisijungimas</span><b>${dt(c.last_sign_in_at)}</b>
         <span>Matytas programėlėje</span><b>${m ? dt(m.last_seen) : '–'}</b><span>Versija</span><b>${esc(m?.version || '–')}</b>
         <span>Įrenginys</span><b>${esc(m?.device || '–')}</b><span>Ekranas</span><b>${esc(m?.screen || '–')}</b>
-        <span>Vieta</span><b>${esc(m?.place || '–')}${m?.place ? ' <small>(pagal laiko juostą)</small>' : ''}</b>
+        <span>Vieta</span><b>${esc(m?.place || '–')}${m?.place ? '' : ''}</b>
         <span>Programėlės laikas</span><b>${esc(d.settings?.tz || '–')}</b>
         <span>Režimai</span><b>${d.settings?.modes ? [d.settings.modes.sport && 'sportas', d.settings.modes.food && 'mityba'].filter(Boolean).join(', ') || 'tik sekimas' : '–'}</b></div></div>
       <div class="box"><h3>✏️ Profilis</h3><div class="frm">
@@ -90,7 +90,7 @@ function customerView() {
         <span>Valgiai</span><b>${(d.meals || []).length}</b><span>Įvykiai</span><b>${(d.events || []).length}</b><span>Patikrinimai</span><b>${g.parts.checkins}</b><span>Receptai</span><b>${(d.recipes || []).length}</b></div></div>
       <div class="box"><h3>🕓 Komandos pakeitimai</h3>${adj.length ? adj.map(a => `<div class="li"><span>${a.kind === 'xp' ? `⭐ ${+a.payload?.amount > 0 ? '+' : ''}${esc(a.payload?.amount)} XP` : `👤 ${esc(Object.entries(a.payload || {}).map(([k, v]) => `${k === 'name' ? 'vardas' : 'gimimo m.'}: ${v}`).join(', '))}`}
         <small>${esc(a.reason || '')} · ${esc(a.actor_name || '')} · ${dt(a.created_at)}</small></span>${a.applied ? '<span class="chip st-solved">✓ pritaikyta</span>' : `<span class="chip st-pending">⏳ laukia</span><b class="x" data-act="deladj" data-id="${a.id}" title="Atšaukti">✕</b>`}</div>`).join('') : '<small>Pakeitimų nebuvo</small>'}
-        <small class="note">Pakeitimai pritaikomi, kai klientas atidaro programėlę.</small></div>
+</div>
       <div class="box"><h3>🎫 Bilietai (${tix.length})</h3>${tix.map(x => `<div class="qi" data-t="${x.id}" data-go="1" style="padding:6px 0;border:0"><span class="ic">${ticketIcon(x)}</span><b>${esc(x.subject)}</b><span class="chip st-${x.status}">${stName(x.status)}</span></div>`).join('') || '<small>Nėra</small>'}</div>
       <div class="box wide"><h3>📜 Veiksmai su šiuo klientu</h3>${(CAUDIT[uid] || []).map(a => `<div class="li"><span>${esc(a.action)}<small>${esc(a.actor_name || '')} · ${dt(a.created_at)}</small></span></div>`).join('') || '<small>Nėra</small>'}</div>
     </div></div></div>`;
@@ -101,7 +101,7 @@ async function addAdj(kind, payload, reason, label) {
     await audit(label, {user_id: CUSTID}, {...payload, reason});
     ADJ[CUSTID] = await DB.list('account_adjustments', `user_id=eq.${CUSTID}&order=created_at.desc`);
     CAUDIT[CUSTID] = await DB.list('audit_log', `target_user=eq.${CUSTID}&order=created_at.desc&limit=40`).catch(() => CAUDIT[CUSTID]);
-    render(); toast('✓ Išsaugota. Klientas pamatys atidaręs programėlę.');
+    render(); toast('✓ Išsaugota');
   } catch (e) { toast('⚠️ ' + esc(e.message)); }
 }
 
@@ -133,7 +133,6 @@ function kbEdit(a = {}) {
 // ===================== MAKROSAI =====================
 function macrosView() {
   return `<div class="main full"><div class="pagew"><div class="row"><h2>⚡ Makrosai</h2><span class="sp"></span><button class="btn primary sm" data-act="macnew">+ Naujas makrosas</button></div>
-    <p class="muted">Paruošti atsakymai. Bilieto lange pasirink „⚡ Makrosas“ – tekstas įsiterps. Žymės: <code>{vardas}</code> <code>{agentas}</code> <code>{nr}</code></p>
     ${MACROS.map(m => `<div class="box mac"><div class="row"><b>${esc(m.title)}</b><span class="chip ${m.kind === 'internal' ? 'st-open' : ''}">${m.kind === 'internal' ? '📝 vidinė' : '💬 klientui'}</span>${m.set_status ? `<span class="chip st-${m.set_status}">→ ${stName(m.set_status)}</span>` : ''}<span class="sp"></span>
       <button class="btn sm ghost" data-act="macedit" data-id="${m.id}">✏️</button><button class="btn sm ghost" data-act="macdel" data-id="${m.id}">🗑️</button></div><pre>${esc(m.body)}</pre></div>`).join('') || '<div class="empty">Makrosų nėra</div>'}</div></div>`;
 }
@@ -172,7 +171,6 @@ function issuesView() {
       <button class="btn sm ghost" data-act="issedit" data-id="${i.id}">✏️</button></div>${i.description ? `<p>${esc(i.description)}</p>` : ''}
       ${linked.length ? `<div class="links">${linked.map(x => `<span class="qi mini" data-t="${x.id}" data-go="1">${ticketIcon(x)} ${esc(x.subject.slice(0, 50))} <span class="chip st-${x.status}">${stName(x.status)}</span></span>`).join('')}</div>` : ''}</div>`; };
   return `<div class="main full"><div class="pagew"><div class="row"><h2>🧯 Žinomos problemos</h2><span class="sp"></span><button class="btn primary sm" data-act="issnew">+ Nauja problema</button></div>
-    <p class="muted">Bilietą prie problemos priskirsi bilieto viršuje („🧯 Problema“). Kai pataisysi – vienu mygtuku pranešk visiems tiems klientams.</p>
     <h3>Atviros (${open.length})</h3>${open.map(card).join('') || '<div class="empty">Atvirų problemų nėra 🎉</div>'}
     ${fixed.length ? `<h3>Pataisytos (${fixed.length})</h3>${fixed.map(card).join('')}` : ''}</div></div>`;
 }
@@ -189,7 +187,7 @@ const issueSelect = t => `<select data-set="issue_id" title="Susieti su žinoma 
 async function notifyIssue(i) {
   const tx = T.filter(x => x.issue_id === i.id && x.status !== 'solved');
   const mac = MACROS.find(m => /pataisyta/i.test(m.title));
-  modal(`<h3>📣 Pranešti ${tx.length} klientams</h3><p class="muted">Kiekvienam bus išsiųstas šis tekstas (programėlėje arba el. paštu – pagal bilieto kanalą), bilietai bus priskirti tau ir uždaryti. Kitiems agentams priskirti bilietai praleidžiami.</p>
+  modal(`<h3>📣 Pranešti ${tx.length} klientams</h3>
     <textarea id="n_body" rows="9" style="width:100%">${esc(mac?.body || `Sveiki, {vardas}!\n\nGera žinia – problemą „${i.title}“ pataisėme${i.fixed_in ? ` (versija ${i.fixed_in})` : ''}. Atnaujinkite programėlę.\n\nAčiū už kantrybę!\n{agentas}, Life Schedule`)}</textarea>
     <div class="row"><span class="sp"></span><button class="btn ghost" data-act="mclose">Atšaukti</button><button class="btn primary" data-act="issgo" data-id="${i.id}">Siųsti visiems</button></div>`);
 }
@@ -241,7 +239,7 @@ const EXTRA_ACT = {
   kbedit: () => kbEdit(KB.find(x => x.id === KBSEL)),
   kbfull: () => modal(`<div class="kbart">${kbArticle(KB.find(x => x.id === KBSEL), true)}</div>`, 'full'),
   kbdel: async () => {
-    const a = KB.find(x => x.id === KBSEL); if (!a || !confirm(`Ištrinti „${a.title}“?`)) return;
+    const a = KB.find(x => x.id === KBSEL); if (!a || !await ask('Ištrinti straipsnį?', `„${esc(a.title)}“ bus ištrintas visam laikui.`, {danger: true, icon: '🗑️', yes: 'Ištrinti'})) return;
     try { await DB.req('DELETE', 'kb_articles', `id=eq.${a.id}`); await audit('ištrynė KB straipsnį', null, {title: a.title}); KB = KB.filter(x => x.id !== a.id); KBSEL = null; render(); } catch (e) { toast('⚠️ ' + esc(e.message)); }
   },
   kbsave: async el => {
@@ -257,7 +255,7 @@ const EXTRA_ACT = {
   // makrosai
   macnew: () => macEdit(),
   macedit: el => macEdit(MACROS.find(m => m.id === el.dataset.id)),
-  macdel: async el => { const m = MACROS.find(x => x.id === el.dataset.id); if (!m || !confirm(`Ištrinti „${m.title}“?`)) return; try { await DB.req('DELETE', 'macros', `id=eq.${m.id}`); MACROS = MACROS.filter(x => x.id !== m.id); render(); } catch (e) { toast('⚠️ ' + esc(e.message)); } },
+  macdel: async el => { const m = MACROS.find(x => x.id === el.dataset.id); if (!m || !await ask('Ištrinti makrosą?', `„${esc(m.title)}“`, {danger: true, icon: '🗑️', yes: 'Ištrinti'})) return; try { await DB.req('DELETE', 'macros', `id=eq.${m.id}`); MACROS = MACROS.filter(x => x.id !== m.id); render(); } catch (e) { toast('⚠️ ' + esc(e.message)); } },
   macsave: async el => {
     const row = {title: val('m_title'), kind: val('m_kind'), set_status: val('m_status') || null, body: $('#m_body').value.trim()};
     if (!row.title || !row.body) return toast('⚠️ Reikia pavadinimo ir teksto');

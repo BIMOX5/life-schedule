@@ -454,3 +454,4 @@ pre.mail { white-space:pre-wrap; background:var(--card); border:1px solid var(--
 .fbmsg.agent { align-self:flex-start; background:rgba(79,140,255,.18); border-bottom-left-radius:4px; }
 .replypop { display:flex; flex-direction:column; gap:8px; } .replypop .fbmsg { max-width:100%; }
 .fbatt { display:block; margin-top:6px; font-size:13px; color:var(--accent); cursor:pointer; text-decoration:underline; }
+.askin { width:100%; margin-top:12px; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--card2); color:var(--text); font:inherit; font-size:15px; } textarea.askin { resize:vertical; }

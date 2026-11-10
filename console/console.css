@@ -143,3 +143,5 @@ a.att:hover { border-color:var(--accent); } .att small { font-size:11px; } .att 
 .box.issue.fixed { opacity:.75; } .box.issue p { margin:8px 0 0; color:var(--muted); }
 .links { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; } .qi.mini { display:inline-flex; gap:6px; align-items:center; padding:4px 10px; border:1px solid var(--line); border-radius:99px; font-size:12.5px; }
 @media (max-width:1000px) { .kbm { grid-template-columns:1fr; } .frm { grid-template-columns:1fr; } }
+#modal.askm .mbox { max-width:400px; text-align:center; padding:24px; } .askc .askic { font-size:40px; } .askc h3 { margin:8px 0; } .askc .row { justify-content:center; margin-top:16px; } .askc .row .btn { flex:1; justify-content:center; }
+.btn.danger { background:var(--bad); border-color:var(--bad); color:#fff; font-weight:600; }
