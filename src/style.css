@@ -455,3 +455,4 @@ pre.mail { white-space:pre-wrap; background:var(--card); border:1px solid var(--
 .replypop { display:flex; flex-direction:column; gap:8px; } .replypop .fbmsg { max-width:100%; }
 .fbatt { display:block; margin-top:6px; font-size:13px; color:var(--accent); cursor:pointer; text-decoration:underline; }
 .askin { width:100%; margin-top:12px; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--card2); color:var(--text); font:inherit; font-size:15px; } textarea.askin { resize:vertical; }
+.fbreply { display:flex; gap:6px; align-items:flex-end; margin-top:4px; } .fbreply textarea { flex:1; resize:vertical; min-height:36px; padding:8px 10px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--text); font:inherit; }

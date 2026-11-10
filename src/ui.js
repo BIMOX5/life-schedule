@@ -1726,7 +1726,7 @@ function vSettings() {
   ${card('🔔 Priminimai', `<p>Naršyklės pranešimai: <b>${'Notification' in window ? ({granted: 'įjungti ✓', denied: 'užblokuoti', default: 'neįjungti'})[Notification.permission] : 'nepalaikoma'}</b></p>${btn('Įjungti pranešimus', 'enableNotif', {}, 'sm')} ${btn('📲 Eksportuoti į telefono kalendorių', 'exportIcs', {}, 'sm')}<p class="hint">Pranešimai veikia, kol programėlė atidaryta. Patikimiems priminimams telefone naudok kalendoriaus eksportą.</p>`)}
   ${cloudOn() ? card('👤 Paskyra', `<p>Prisijungęs kaip <b>${esc(Auth.user()?.email)}</b>. Duomenys saugomi debesyje ir sinchronizuojasi tarp įrenginių.</p>${btn('Atsijungti', 'logout', {}, 'sm danger')}`) : ''}
   ${privacyCard()}
-  ${card('💬 Atsiliepimai', `<p>Radai klaidą ar turi idėją? Parašyk – pamatysiu.</p><div class="choice row">${btn('💬 Parašyti', 'feedback', {}, 'sm primary')}${btn('Mano atsiliepimai', 'myFeedback', {}, 'sm')}</div>`)}
+  ${card('💬 Atsiliepimai', `<p>Radai klaidą ar turi idėją? Parašyk – pamatysiu.</p><div class="choice row">${btn('💬 Parašyti', 'feedback', {}, 'sm primary')}${btn('Mano pokalbiai', 'myFeedback', {}, 'sm')}</div>`)}
   ${card('🎨 Išvaizda', btn(S.settings.theme === 'dark' ? '☀️ Šviesi tema' : '🌙 Tamsi tema', 'theme', {}, 'sm'))}
   ${DEV ? card('🐞 Kūrėjo įrankiai', `<p class="hint">Dirbi su bandomaisiais duomenimis – tikri nepaliečiami ir niekur nesiunčiami. Išjungus 🐞 viskas grįš.</p>
     <div class="choice row">${btn('🧪 Užpildyti bandomaisiais', 'devSeed', {}, 'sm')}${btn('📋 Kopijuoti mano tikrus duomenis čia', 'devCopyReal', {}, 'sm')}${btn('♻️ Pradėti nuo nulio', 'devReset', {}, 'sm')}</div>
@@ -1852,7 +1852,9 @@ const FB_STATUS = {new: '🆕 Nauja', seen: '👀 Peržiūrėta', done: '✅ Iš
 // Mano atsiliepimai – kaip pokalbis: mano žinutė ir komandos atsakymai (iš bilietų sistemos)
 const TK_STATUS = {new: '🆕 Gauta', open: '👀 Peržiūrima', pending: '💬 Atsakyta', solved: '✅ Išspręsta'};
 async function myTickets() {
-  const tickets = await DB.list('tickets', `user_id=eq.${DB.uid()}&type=eq.feedback&order=created_at.desc`);
+  // klientas mato tik paskutinių 3 mėnesių pokalbius
+  const since = new Date(Date.now() - 90 * 864e5).toISOString();
+  const tickets = (await DB.list('tickets', `user_id=eq.${DB.uid()}&order=updated_at.desc`)).filter(t => (t.updated_at || t.created_at) > since);
   const msgs = tickets.length ? await DB.list('ticket_messages', `ticket_id=in.(${tickets.map(t => t.id).join(',')})&kind=eq.public&order=created_at.asc`) : [];
   return tickets.map(t => ({...t, msgs: msgs.filter(m => m.ticket_id === t.id && m.kind === 'public')}));
 }
@@ -1862,8 +1864,9 @@ A.myFeedback = async () => {
   try {
     if (list) {
       markRepliesSeen(list);
-      modal('Mano atsiliepimai', list.length ? list.map(t => `<div class="fbconv"><div class="fbhead"><b>${KIND_EMOJI[(t.tags || [])[0]] || '💬'} ${esc(t.subject)}</b><small>${new Date(t.created_at).toLocaleDateString('lt-LT')}</small></div>
-        ${t.msgs.map(m => `<div class="fbmsg ${m.author_role === 'agent' ? 'agent' : 'me'}"><small>${m.author_role === 'agent' ? '🎧 Life Schedule komanda' : 'Tu'} · ${new Date(m.created_at).toLocaleString('lt-LT', {dateStyle: 'short', timeStyle: 'short'})}</small>${m.body === '📎' ? '' : esc(m.body)}${(m.attachments || []).map(a => `<a class="fbatt" data-a="openAtt" data-p="${esc(a.path)}">📎 ${esc(a.name)}</a>`).join('')}</div>`).join('')}</div>`).join('') : empty('Dar nieko nesiuntei'));
+      modal('Mano pokalbiai', list.length ? list.map(t => `<div class="fbconv"><div class="fbhead"><b>${caseIcon(t)} ${esc(caseName(t))}</b><small>${new Date(t.created_at).toLocaleDateString('lt-LT')}</small></div>
+        ${t.msgs.map(m => `<div class="fbmsg ${m.author_role === 'agent' ? 'agent' : 'me'}"><small>${m.author_role === 'agent' ? '🎧 Life Schedule komanda' : 'Tu'} · ${new Date(m.created_at).toLocaleString('lt-LT', {dateStyle: 'short', timeStyle: 'short'})}</small>${m.body === '📎' ? '' : esc(m.body)}${(m.attachments || []).map(a => `<a class="fbatt" data-a="openAtt" data-p="${esc(a.path)}">📎 ${esc(a.name)}</a>`).join('')}</div>`).join('')}
+        ${t.status !== 'closed' ? `<div class="fbreply"><textarea id="fbr_${t.id}" rows="1" placeholder="Atsakyti…"></textarea><button class="btn sm primary" data-a="fbSend" data-id="${t.id}">Siųsti</button></div>` : ''}</div>`).join('') : empty('Dar nieko nesiuntei'));
       return;
     }
     const rows = await DB.list('feedback', `user_id=eq.${DB.uid()}&order=created_at.desc`);
@@ -1871,6 +1874,16 @@ A.myFeedback = async () => {
   } catch (e) { toast('⚠️ ' + esc(e.message)); }
 };
 const KIND_EMOJI = {bug: '🐞', idea: '💡', question: '❓', other: '💬'};
+// Pokalbio pavadinimas kaip konsolėje: „Klaida: 12“, „Atsiliepimas: 13“, komandos pradėtas – jo tema
+const CASE_WORDS = {bug: 'Klaida', idea: 'Idėja', question: 'Klausimas', other: 'Atsiliepimas', dsar_export: 'Duomenų užklausa', dsar_delete: 'Paskyros trynimas'};
+const caseKind = t => t.outgoing ? 'outgoing' : t.type === 'feedback' ? (CASE_WORDS[(t.tags || [])[0]] ? t.tags[0] : 'other') : t.type;
+const caseName = t => t.outgoing ? t.subject : t.case_no ? `${CASE_WORDS[caseKind(t)] || 'Atvejis'}: ${t.case_no}` : t.subject;
+const caseIcon = t => ({outgoing: '🎧', dsar_export: '🌍', dsar_delete: '🗑️'})[caseKind(t)] || KIND_EMOJI[caseKind(t)] || '💬';
+A.fbSend = async d => {
+  const ta = $(`#fbr_${d.id}`), body = ta?.value.trim(); if (!body) return;
+  try { await DB.insert('ticket_messages', {ticket_id: d.id, author_id: DB.uid(), author_role: 'customer', kind: 'public', body, attachments: []}); toast('Išsiųsta ✓', 'good'); A.myFeedback(); }
+  catch (e) { toast('⚠️ Nepavyko išsiųsti'); }
+};
 // ----- Pagalbai: kokia versija / įrenginys (be IP – vieta tik pagal įrenginio laiko juostą) -----
 const TZ_COUNTRY = {Vilnius: 'Lietuva', Riga: 'Latvija', Tallinn: 'Estija', Warsaw: 'Lenkija', Stockholm: 'Švedija', Oslo: 'Norvegija', Copenhagen: 'Danija', Helsinki: 'Suomija', London: 'Jungtinė Karalystė', Dublin: 'Airija', Berlin: 'Vokietija', Paris: 'Prancūzija', Amsterdam: 'Nyderlandai', Brussels: 'Belgija', Madrid: 'Ispanija', Rome: 'Italija', Vienna: 'Austrija', Prague: 'Čekija', Kiev: 'Ukraina', Kyiv: 'Ukraina', Minsk: 'Baltarusija', Moscow: 'Rusija', New_York: 'JAV', Chicago: 'JAV', Denver: 'JAV', Los_Angeles: 'JAV', Toronto: 'Kanada'};
 async function reportMeta() {
