@@ -8,13 +8,18 @@
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="console.css">
+<meta http-equiv="Cache-Control" content="no-cache">
+<script>
+  // Visada naujausi konsolės failai (naršyklė jų nelaiko atmintyje)
+  window.CV = Date.now();
+  document.write(`<link rel="stylesheet" href="console.css?v=${CV}">`);
+</script>
 </head>
 <body>
 <div id="root"><div class="center muted">…</div></div>
 <div id="modal"></div>
 <div id="toasts"></div>
 <script src="../config.js"></script>
-<script src="console-tools.js"></script><script src="console.js"></script>
+<script>document.write(`<script src="console-tools.js?v=${CV}"><\/script><script src="console.js?v=${CV}"><\/script>`);</script>
 </body>
 </html>
