@@ -119,7 +119,7 @@ async function boot() {
     const tok = await token();
     const r = await fetch(`${C.url}/rest/v1/user_roles?select=role&user_id=eq.${s.user.id}`, {headers: {apikey: C.key, Authorization: 'Bearer ' + tok}});
     const role = r.ok ? (await r.json())[0]?.role : null;
-    if (role !== 'developer') return notFound();
+    if (!['developer', 'agent'].includes(role)) return notFound();
     ME = {id: s.user.id, email: s.user.email, name: s.user.email.split('@')[0]};
     try { ME.full = (await authCall('user', null, 'GET', tok)).user_metadata?.full_name || ''; } catch (e) {}
     if (jwt(tok).aal === 'aal2') return start();
