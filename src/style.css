@@ -1,5 +1,5 @@
 :root, [data-theme=dark] {
-  --bg:#0f1220; --bg2:#161a2e; --card:#1b2038; --card2:#232a48; --line:#2c3457; --text:#e8ebf7; --muted:#9aa3c7; --muted2:#5f6890;
+  --bg:#000000; --bg2:#0b0b0c; --card:#141416; --card2:#1d1d20; --line:#2a2a2f; --text:#f3f3f5; --muted:#a3a3ab; --muted2:#6e6e76;
   --accent:#4f8cff; --accent2:#8b6cff; --good:#22c55e; --warn:#f59e0b; --bad:#ef4444; --shadow:0 8px 30px rgba(0,0,0,.35);
 }
 [data-theme=dark] { color-scheme: dark; }
@@ -8,7 +8,7 @@
   --bg:#f3f5fb; --bg2:#ffffff; --card:#ffffff; --card2:#f0f3fa; --line:#e1e6f2; --text:#1c2140; --muted:#5d668c; --muted2:#a2a9c6; --shadow:0 6px 24px rgba(30,40,90,.08);
 }
 * { box-sizing:border-box; }
-html, body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+html, body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 'Rubik', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 button, input, select, textarea { font:inherit; color:inherit; }
 h1, h2, h3, h4 { margin:0; }
 h4 { margin:14px 0 8px; font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
@@ -456,3 +456,15 @@ pre.mail { white-space:pre-wrap; background:var(--card); border:1px solid var(--
 .fbatt { display:block; margin-top:6px; font-size:13px; color:var(--accent); cursor:pointer; text-decoration:underline; }
 .askin { width:100%; margin-top:12px; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--card2); color:var(--text); font:inherit; font-size:15px; } textarea.askin { resize:vertical; }
 .fbreply { display:flex; gap:6px; align-items:flex-end; margin-top:4px; } .fbreply textarea { flex:1; resize:vertical; min-height:36px; padding:8px 10px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--text); font:inherit; }
+
+/* Pokalbio pabaiga: ar išspręsta, įvertinimas */
+.fbsolved, .fbclosed, .fbrate, .fbrated { border-radius:12px; padding:10px 12px; font-size:14px; }
+.fbsolved { background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.35); } .fbsolved .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+.fbclosed { background:var(--card); color:var(--muted); border:1px dashed var(--line); }
+.fbrated { color:var(--muted); }
+.fbrate { background:var(--card); border:1px solid var(--line); } .fbrate b { display:block; margin-bottom:8px; }
+.fbrate > div { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+.fbrate button { border:1px solid var(--line); background:var(--card2); border-radius:12px; padding:8px 6px; cursor:pointer; font-size:24px; display:flex; flex-direction:column; align-items:center; gap:2px; min-width:72px; color:var(--text); }
+.fbrate button small { font-size:11px; color:var(--muted); } .fbrate button:hover { border-color:var(--accent); transform:translateY(-1px); }
+.askbox .fbrate { background:none; border:0; padding:0; }
+.askbox .fbrate > div { flex-wrap:nowrap; } .askbox .fbrate button { min-width:0; flex:1; padding:8px 2px; } .askbox .fbrate button small { font-size:10px; white-space:nowrap; }

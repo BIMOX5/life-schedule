@@ -221,6 +221,18 @@ const DB = {
   insert(table, row) { return this.req('POST', table, '', row, 'return=representation'); },
   update(table, query, patch) { return this.req('PATCH', table, query, patch, 'return=representation'); },
   upsert(table, row, key) { return this.req('POST', table, `on_conflict=${key}`, row, 'resolution=merge-duplicates,return=representation'); },
+  async rpc(name, args) {
+    const r = cloudOn() ? await fetch(`${CLOUD.url}/rest/v1/rpc/${name}`, {method: 'POST', headers: {apikey: CLOUD.key, Authorization: 'Bearer ' + await Auth.token(), 'Content-Type': 'application/json'}, body: JSON.stringify(args)})
+      : await fetch(`/api/rpc/${name}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(args)});
+    if (!r.ok) throw new Error(`${name}: ${r.status}`);
+    return r.json();
+  },
+  // Edge funkcija (super-function); testuojant – vietinis serveris /api/<action>
+  async fn(action, body = {}) {
+    const r = cloudOn() ? await fetch(`${CLOUD.url}/functions/v1/${CLOUD.importFn || 'super-function'}`, {method: 'POST', headers: {apikey: CLOUD.key, Authorization: 'Bearer ' + await Auth.token(), 'Content-Type': 'application/json'}, body: JSON.stringify({action, ...body})})
+      : await fetch(`/api/${action}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    return r.json().catch(() => ({ok: false}));
+  },
 };
 // Paskyros trynimo būsena: kol laukiama trynimo – programėlė tik skaitoma
 let DELREQ = null, SNAP = null;
@@ -841,10 +853,10 @@ function gamification() {
     ['📝','Pirmas įrašas','Įrašei pirmą dalyką', daysLogged >= 1, true],
     ['📅','Savaitės serija','7 dienos iš eilės su įrašais', streak >= 7, true],
     ['🗓️','Mėnesio serija','30 dienų iš eilės', streak >= 30, true],
-    ['✅','Darbštuolis','10 padarytų reikalų', tasksDone >= 10, true],
+    ['✅','Darbštuolis','10 atliktų užduočių', tasksDone >= 10, true],
     ['😴','Išsimiegojęs','10 naktų pagal miego tikslą', sleepGood >= 10, true],
     ['⏱️','Laiko meistras','20 val. užfiksuoto laiko', timeLogged >= 1200, true],
-    ['🗂️','Planuotojas','5 įvykiai kalendoriuje', S.events.length >= 5, true],
+    ['🗂️','Planuotojas','5 veiklos kalendoriuje', S.events.length >= 5, true],
     ['🪞','Refleksija','Pirmasis patikrinimas', checkins >= 1, true],
     ['💪','Pirmoji treniruotė','Įrašei treniruotę', S.workouts.length >= 1, sp],
     ['🏋️','Dešimtukas','10 treniruočių', S.workouts.length >= 10, sp],
@@ -862,7 +874,7 @@ function gamification() {
 }
 const LEVEL_TITLES = [[1, '🌱', 'Pradedantysis'], [3, '🚶', 'Įsivažiuojantis'], [5, '🏃', 'Nuoseklus'], [8, '💪', 'Disciplinuotas'], [12, '🔥', 'Nesustabdomas'], [17, '🦾', 'Mašina'], [25, '👑', 'Legenda']];
 // [raktas, pavadinimas, XP, kada rodyti]
-const XP_RULES = [['daysLogged', '📖 Diena su įrašais', 5, 'all'], ['tasksDone', '✅ Padarytas reikalas', 10, 'all'], ['sleepGood', '😴 Naktis pagal miego tikslą (±45 min)', 10, 'all'], ['checkins', '🪞 Savaitės / mėnesio patikrinimas (1 per laikotarpį)', 30, 'all'], ['workouts', '💪 Treniruotė', 25, 'sport'], ['weights', '⚖️ Pasisvėrimas', 5, 'body'], ['cooks', '👨‍🍳 Pagamintas maistas', 15, 'food']];
+const XP_RULES = [['daysLogged', '📖 Diena su įrašais', 5, 'all'], ['tasksDone', '✅ Atlikta užduotis', 10, 'all'], ['sleepGood', '😴 Naktis pagal miego tikslą (±45 min)', 10, 'all'], ['checkins', '🪞 Savaitės / mėnesio patikrinimas (1 per laikotarpį)', 30, 'all'], ['workouts', '💪 Treniruotė', 25, 'sport'], ['weights', '⚖️ Pasisvėrimas', 5, 'body'], ['cooks', '👨‍🍳 Pagamintas maistas', 15, 'food']];
 
 // ===== SVG grafikai =====
 function svgLine(series, opts = {}) {

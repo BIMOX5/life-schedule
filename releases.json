@@ -2,6 +2,11 @@
   "stable": "1.0.0",
   "versions": [
     {
+      "v": "1.4.0",
+      "date": "2026-11-11",
+      "notes": "Naujas šriftas ir juodas tamsus režimas; Užduotys, Veikla, Maistas; pokalbį gali pažymėti išspręstu ir įvertinti pagalbą"
+    },
+    {
       "v": "1.3.0",
       "date": "2026-11-10",
       "notes": "Pokalbiai su komanda: gali atsakyti programėlėje, aiškūs pavadinimai; nauja pagalbos konsolė"

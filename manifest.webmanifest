@@ -3,7 +3,7 @@
   "short_name": "Life Schedule",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0f1220",
-  "theme_color": "#0f1220",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
 }
