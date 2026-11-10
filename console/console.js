@@ -148,7 +148,7 @@ const queue = () => T.filter(t => !t.assignee && ['new', 'open'].includes(t.stat
 // ===== 1. Entry: 404 -> role -> MFA =====
 function notFound() { document.title = '404'; $('#root').innerHTML = `<div class="center nf"><h1>404</h1><p>Page not found.</p></div>`; }
 async function boot() {
-  if (TEST) { ME = {id: 'local-user', email: 'testas@vietinis.lt', name: 'Tester'}; ROLE = 'developer'; return mfaScreen(true); }
+  if (TEST) { ME = {id: 'local-user', email: 'testas@vietinis.lt', name: 'Tester'}; ROLE = 'developer'; return enter(true, true); }
   const s = sess(); if (!s || !C.url) return notFound();
   try {
     const tok = await token();
@@ -157,10 +157,62 @@ async function boot() {
     if (!['developer', 'agent'].includes(ROLE)) return notFound();
     ME = {id: s.user.id, email: s.user.email, name: s.user.email.split('@')[0]};
     try { ME.full = (await authCall('user', null, 'GET', tok)).user_metadata?.full_name || ''; } catch (e) {}
-    if (jwt(tok).aal === 'aal2') return start();
-    return mfaScreen(false);
+    return enter(jwt(tok).aal === 'aal2', false);
   } catch (e) { return notFound(); }
 }
+// ----- Console session: sign out, 2 h idle -> inbox off, 6 h idle -> code needed again -----
+const IDLE_INBOX = 2 * 3600e3, IDLE_LOCK = 6 * 3600e3, IDLE_WARN = IDLE_LOCK - 5 * 60e3;
+const lastActive = () => +LS.get('console_active') || 0;
+const idleMs = () => Date.now() - lastActive();
+let actWritten = 0;
+function markActive(force) { const n = Date.now(); if (force || n - actWritten > 15000) { actWritten = n; LS.set('console_active', String(n)); } }
+function enter(aal2, sim) {
+  const fresh = aal2 && lastActive() && idleMs() < IDLE_LOCK;
+  if (LS.get('console_signed_out') === '1') return signedOutScreen(fresh, sim);
+  return fresh ? start() : mfaScreen(sim);
+}
+function signedOutScreen(fresh, sim) {
+  document.title = 'Signed out';
+  $('#root').innerHTML = `<div class="auth"><div class="lock">👋</div><h2>You're signed out</h2>
+    <p class="muted">${fresh ? 'Sign in again to continue working.' : 'Your session has expired – you will need your authenticator code.'}</p>
+    <button id="si" class="btn primary">Sign in</button><p><a class="muted" href="../">↩ Back to the app</a></p></div>`;
+  $('#si').onclick = () => { LS.set('console_signed_out', '0'); if (fresh) { markActive(true); start(); } else mfaScreen(sim); };
+}
+// Return my unfinished (new / open) cases to the queue
+async function returnCases(why) {
+  try {
+    const rows = await DB.update('tickets', `assignee=eq.${ME.id}&status=in.(new,open)`, {assignee: null, assignee_name: null, updated_at: nowIso()});
+    for (const t of rows || []) { await logEvent(t, `${why} – case returned to queue`); await audit('case returned to queue', t, {why}); }
+    return (rows || []).length;
+  } catch (e) { return 0; }
+}
+async function setInbox(on) { INBOX_ON = on; LS.set('console_inbox', on ? '1' : '0'); await heartbeat(); }
+async function signOut() {
+  const n = myOpen().length;
+  if (!await ask('Sign out?', `${n ? `Your ${n} open case${n > 1 ? 's' : ''} will go back to the queue. ` : ''}Pending and on-hold cases stay with you.`, {icon: '👋', yes: 'Sign out'})) return;
+  await setInbox(false); await returnCases(`${ME.name} signed out`);
+  try { await DB.req('POST', 'agent_presence', 'on_conflict=user_id', {user_id: ME.id, name: ME.name, inbox_on: false, last_seen: new Date(Date.now() - 864e5).toISOString()}, 'resolution=merge-duplicates'); } catch (e) {}
+  LS.set('console_signed_out', '1'); location.reload();
+}
+let WARNED = false;
+async function idleCheck() {
+  if (!ME) return;
+  if (LS.get('console_signed_out') === '1') return location.reload();   // signed out in another window
+  const idle = idleMs();
+  if (idle > IDLE_LOCK) {
+    await setInbox(false); await returnCases('Session expired after 6 h of inactivity');
+    LS.set('console_active', '1'); return location.reload();   // -> code needed again
+  }
+  if (idle > IDLE_INBOX && INBOX_ON && !PAGE_CUSTOMER && !PAGE_KB) {
+    await setInbox(false); const n = await returnCases('Inbox turned off after 2 h of inactivity');
+    await loadTickets(true); if (SEL && !T.some(x => x.id === SEL && x.assignee === ME.id)) SEL = null; render();
+    ask('Inbox turned off', `You were inactive for 2 hours, so we turned your inbox off${n ? ` and returned ${n} case${n > 1 ? 's' : ''} to the queue` : ''}. You will be signed out after 6 hours of inactivity.`, {icon: '😴', yes: 'OK', no: 'Close'});
+  }
+  if (idle > IDLE_WARN && !WARNED) { WARNED = true; ask('Still there?', 'You will be signed out in 5 minutes because of inactivity.', {icon: '⏳', yes: "I'm here", no: 'Close'}); }
+  if (idle < IDLE_WARN) WARNED = false;
+}
+let STARTED = false;
+['pointerdown', 'keydown', 'mousemove', 'wheel', 'touchstart'].forEach(ev => document.addEventListener(ev, () => { if (STARTED && LS.get('console_signed_out') !== '1') markActive(); }, {passive: true}));
 async function mfaScreen(sim) {
   document.title = 'Sign in';
   let factor = null, enroll = null;
@@ -209,6 +261,7 @@ function askName(cur = '') {
 // ===== 2. Console =====
 async function start() {
   document.title = PAGE_CUSTOMER ? 'Customer · Console' : PAGE_KB ? 'Knowledge base · Console' : 'Support Console';
+  STARTED = true; markActive(true); setInterval(idleCheck, 30000);
   const nm = TEST ? LS.get('console_name') : ME.full;
   if (nm) ME.name = nm; else { $('#root').innerHTML = ''; await askName(); }
   DEVVIEW = ROLE === 'developer' && LS.get('console_devview') !== '0';
@@ -223,7 +276,7 @@ async function start() {
 }
 async function tick() { if (document.hidden) return; await loadTickets(true); if (SEL) await loadMsgs(SEL, true); await pump(); render(true); }
 async function heartbeat() {
-  if (!ME) return;
+  if (!ME || !STARTED || idleMs() > IDLE_INBOX) return;   // inactive agents look offline -> server returns their cases
   try { await DB.req('POST', 'agent_presence', 'on_conflict=user_id', {user_id: ME.id, name: ME.name, inbox_on: INBOX_ON, last_seen: nowIso()}, 'resolution=merge-duplicates'); } catch (e) {}
 }
 function welcome() {
@@ -311,7 +364,7 @@ function agentQueue() {
     <div class="qlist"><h4>Working on (${mo.length})</h4>${mo.map(x => qi(x, slaInline(x))).join('') || '<div class="empty sm">—</div>'}
     ${mh.length ? `<h4>On hold (${mh.length})</h4>${mh.map(x => qi(x, x.hold_reason ? ` · ${esc(x.hold_reason)}` : '')).join('')}` : ''}
     ${mp.length ? `<h4>Pending</h4>${mp.map(x => qi(x, ' · waiting for reply')).join('')}` : ''}</div>
-    <div class="qfoot"><button class="btn sm" data-act="newcase">＋ New case</button></div></div>`;
+    <div class="qfoot"><button class="btn sm" data-act="newcase">＋ New case</button><span class="sp"></span><button class="btn sm ghost" data-act="signout" title="Sign out of the console">⏻ Sign out</button></div></div>`;
 }
 const FILTERS = [['backlog', 'Backlog', t => !t.assignee && ['new', 'open'].includes(t.status)], ['mine', 'My cases', t => t.assignee === ME.id && ['new', 'open', 'pending', 'hold'].includes(t.status)],
   ['waiting', 'Pending / On hold', t => ['pending', 'hold'].includes(t.status)], ['solved', 'Solved', t => t.status === 'solved'], ['outgoing', 'Outgoing', t => t.outgoing && t.status !== 'closed'], ['all', 'All', t => t.status !== 'closed']];
@@ -321,7 +374,7 @@ function devQueue() {
   return `<div class="queue"><div class="qhead"><input id="q" placeholder="Search: title, email, tag, #number" value="${esc(QTEXT)}">
     <div class="filters">${FILTERS.map(([k, l, fn]) => `<button class="${FILTER === k ? 'on' : ''}" data-f="${k}">${l}<i>${T.filter(fn).length}</i></button>`).join('')}</div></div>
     <div class="qlist">${list.map(x => qi(x, `${x.assignee ? ` · 👤 ${esc(x.assignee === ME.id ? 'you' : x.assignee_name || '')}` : ''}${slaInline(x)}`)).join('') || '<div class="empty">Nothing here 🎉</div>'}</div>
-    <div class="qfoot"><button class="btn sm" data-act="newcase">＋ New case</button></div></div>`;
+    <div class="qfoot"><button class="btn sm" data-act="newcase">＋ New case</button><span class="sp"></span><button class="btn sm ghost" data-act="signout" title="Sign out of the console">⏻ Sign out</button></div></div>`;
 }
 function idleHtml() {
   if (DEVVIEW) return '<div class="conv"><div class="empty" style="margin:auto">← Select a case</div></div>';
@@ -444,7 +497,8 @@ document.addEventListener('click', async e => {
   const a = el.dataset.act;
   if (a === 'rename') return askName(ME.name).then(() => render(true));
   if (a === 'devview') { DEVVIEW = !DEVVIEW; LS.set('console_devview', DEVVIEW ? '1' : '0'); render(); if (!DEVVIEW) { welcome(); await pump(); render(); } return; }
-  if (a === 'inbox') { INBOX_ON = !INBOX_ON; LS.set('console_inbox', INBOX_ON ? '1' : '0'); heartbeat(); render(); if (INBOX_ON) { welcome(); await pump(); render(); } return; }
+  if (a === 'signout') return signOut();
+  if (a === 'inbox') { await setInbox(!INBOX_ON); render(); if (INBOX_ON) { welcome(); await pump(); render(); } return; }
   if (EXTRA_ACT[a]) return EXTRA_ACT[a](el);
   const t = T.find(x => x.id === SEL); if (!t) return;
   if (a === 'assign') return updTicket(t, {assignee: ME.id, assignee_name: ME.name, ...(t.status === 'new' ? {status: 'open', status_at: nowIso()} : {})}, 'assigned to self', `Assigned to ${ME.name}`);
@@ -516,8 +570,7 @@ document.addEventListener('click', async e => {
           if (t.type === 'feedback' && t.source_id) DB.update('feedback', `id=eq.${t.source_id}`, {reply: body, status: 'seen'}).catch(() => {});
           toast('💬 Reply sent');
         }
-        const ns = NEXT_STATUS[t.id] || 'pending'; delete NEXT_STATUS[t.id];
-        await audit('replied to customer', t); SENDING = false; await setStatus(t, ns, 'after reply');
+        await audit('replied to customer', t);   // case stays open – the agent picks Pending / On hold / Close
       } else { await audit('added internal note', t); toast('📝 Note added'); }
     } catch (x) { toast('⚠️ ' + esc(x.message)); }
     SENDING = false; render(true);

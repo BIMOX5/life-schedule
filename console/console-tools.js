@@ -143,7 +143,7 @@ function kbEdit(a = {}) {
 // ===================== MACROS =====================
 function macrosView() {
   return `<div class="main full"><div class="pagew"><div class="row"><h2>⚡ Macros</h2><span class="sp"></span><button class="btn primary sm" data-act="macnew">+ New macro</button></div>
-    ${[...MACROS].sort((a, b) => (a.language || 'lt').localeCompare(b.language || 'lt')).map(m => `<div class="box mac"><div class="row"><span class="chip">${(m.language || 'lt') === 'en' ? '🇬🇧' : '🇱🇹'}</span><b>${esc(m.title)}</b><span class="chip ${m.kind === 'internal' ? 'st-open' : ''}">${m.kind === 'internal' ? 'internal note' : 'reply'}</span>${m.set_status ? `<span class="chip st-${m.set_status}">→ ${stName(m.set_status)}</span>` : ''}<span class="sp"></span>
+    ${[...MACROS].sort((a, b) => (a.language || 'lt').localeCompare(b.language || 'lt')).map(m => `<div class="box mac"><div class="row"><span class="chip">${(m.language || 'lt') === 'en' ? '🇬🇧' : '🇱🇹'}</span><b>${esc(m.title)}</b><span class="chip ${m.kind === 'internal' ? 'st-open' : ''}">${m.kind === 'internal' ? 'internal note' : 'reply'}</span><span class="sp"></span>
       <button class="btn sm ghost" data-act="macedit" data-id="${m.id}">Edit</button><button class="btn sm ghost" data-act="macdel" data-id="${m.id}">Delete</button></div><pre>${esc(m.body)}</pre></div>`).join('') || '<div class="empty">No macros</div>'}</div></div>`;
 }
 function macEdit(m = {}) {
@@ -151,7 +151,6 @@ function macEdit(m = {}) {
     <label class="wide">Title<input id="m_title" value="${esc(m.title || '')}"></label>
     <label>Language<select id="m_lang"><option value="lt" ${(m.language || 'lt') === 'lt' ? 'selected' : ''}>🇱🇹 Lithuanian</option><option value="en" ${m.language === 'en' ? 'selected' : ''}>🇬🇧 English</option></select></label>
     <label>Type<select id="m_kind"><option value="public" ${m.kind !== 'internal' ? 'selected' : ''}>Reply to customer</option><option value="internal" ${m.kind === 'internal' ? 'selected' : ''}>Internal note</option></select></label>
-    <label>Status after sending<select id="m_status"><option value="">Pending (default)</option>${STATUS.filter(s => ['open', 'pending', 'solved'].includes(s[0])).map(([v, l]) => `<option value="${v}" ${m.set_status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <label class="wide">Text <small>{vardas} {agentas} {nr}</small><textarea id="m_body" rows="10">${esc(m.body || '')}</textarea></label></div>
     <div class="row"><span class="sp"></span><button class="btn ghost" data-act="mclose">Cancel</button><button class="btn primary" data-act="macsave" data-id="${m.id || ''}">Save</button></div>`);
 }
@@ -309,7 +308,7 @@ const EXTRA_ACT = {
   macedit: el => macEdit(MACROS.find(m => m.id === el.dataset.id)),
   macdel: async el => { const m = MACROS.find(x => x.id === el.dataset.id); if (!m || !await ask('Delete macro?', `"${esc(m.title)}"`, {danger: true, icon: '🗑️', yes: 'Delete'})) return; try { await DB.req('DELETE', 'macros', `id=eq.${m.id}`); MACROS = MACROS.filter(x => x.id !== m.id); render(); } catch (e) { toast('⚠️ ' + esc(e.message)); } },
   macsave: async el => {
-    const row = {title: val('m_title'), language: val('m_lang'), kind: val('m_kind'), set_status: val('m_status') || null, body: $('#m_body').value.trim()};
+    const row = {title: val('m_title'), language: val('m_lang'), kind: val('m_kind'), set_status: null, body: $('#m_body').value.trim()};
     if (!row.title || !row.body) return toast('⚠️ Title and text are required');
     try { el.dataset.id ? await DB.update('macros', `id=eq.${el.dataset.id}`, row) : await DB.insert('macros', row); await loadExtra('macros'); closeModal(true); render(); } catch (e) { toast('⚠️ ' + esc(e.message)); }
   },
@@ -346,7 +345,7 @@ document.addEventListener('change', e => {
   if (e.target.id !== 'macro' || !e.target.value) return;
   const m = MACROS.find(x => x.id === e.target.value), t = T.find(x => x.id === SEL); e.target.value = '';
   if (!m || !t) return;
-  insertText(fillMacro(m.body, t)); if (m.set_status && m.kind === 'public') { NEXT_STATUS[t.id] = m.set_status; toast(`Status after sending: ${stName(m.set_status)}`); }
+  insertText(fillMacro(m.body, t));
 });
 document.addEventListener('input', e => {
   const id = e.target.id;
