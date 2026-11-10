@@ -12,7 +12,19 @@ const fill = (t, x) => t.replace('{x}', x);
 // Datos (vietinis laikas, formatas YYYY-MM-DD)
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
-const today = () => ymd(new Date());
+// Laiko juosta: programėlė skaičiuoja „dabar“ pagal pasirinktą zoną, todėl VPN ar naršyklės plėtiniai laiko nepakeičia
+const deviceTZ = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; } };
+const appTZ = () => (S && S.settings && S.settings.tz) || deviceTZ();
+let _tzFmt = null, _tzName = null;
+function zonedParts(t = Date.now()) {
+  const tz = appTZ();
+  try {
+    if (_tzName !== tz) { _tzFmt = new Intl.DateTimeFormat('en-CA', {timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'}); _tzName = tz; }
+    const o = {}; for (const x of _tzFmt.formatToParts(new Date(t))) o[x.type] = x.value;
+    return {date: `${o.year}-${o.month}-${o.day}`, min: (+o.hour % 24) * 60 + +o.minute};
+  } catch (e) { const d = new Date(t); return {date: ymd(d), min: d.getHours() * 60 + d.getMinutes()}; }
+}
+const today = () => zonedParts().date;
 const addDays = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return ymd(d); };
 const dow = s => ((parseD(s).getDay() + 6) % 7) + 1; // 1=Pr ... 7=Sk
 const weekStart = s => addDays(s, 1 - dow(s));
@@ -22,7 +34,7 @@ const diffDays = (a, b) => Math.round((parseD(b) - parseD(a)) / 864e5);
 const range = (from, n) => Array.from({length: n}, (_, i) => addDays(from, i));
 const toMin = t => { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + (m || 0); };
 const fromMin = m => { m = Math.round(m); m = ((m % 1440) + 1440) % 1440; return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`; };
-const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const nowMin = () => zonedParts().min;
 const nowHM = () => fromMin(nowMin());
 const fmtDur = m => { m = Math.round(m); if (m < 60) return `${m} min`; const h = Math.floor(m / 60), r = m % 60; return r ? `${h} val ${r} min` : `${h} val`; };
 const fmtH = m => `${round(m / 60, 1)} val`;
@@ -39,7 +51,6 @@ const DEFAULT_CATS = [
   {id:'darbas', name:'Darbas', emoji:'💼', color:'#4f8cff', type:1},
   {id:'paskaitos', name:'Paskaitos', emoji:'🎓', color:'#8b6cff', type:1},
   {id:'mokslai', name:'Mokslai / namų darbai', emoji:'📚', color:'#a78bfa', type:1},
-  {id:'svedu', name:'Švedų kalba', emoji:'🗣️', color:'#facc15', type:1},
   {id:'sportas', name:'Sportas', emoji:'💪', color:'#22c55e', type:1},
   {id:'projektai', name:'Asmeniniai projektai', emoji:'🚀', color:'#06b6d4', type:1},
   {id:'gaminimas', name:'Gaminimas', emoji:'🍳', color:'#f97316', type:0},
@@ -47,7 +58,8 @@ const DEFAULT_CATS = [
   {id:'kelione', name:'Kelionė', emoji:'🚌', color:'#64748b', type:0},
   {id:'draugai', name:'Draugai / šeima', emoji:'🫶', color:'#ec4899', type:0},
   {id:'poilsis', name:'Poilsis', emoji:'🌿', color:'#10b981', type:0},
-  {id:'netflix', name:'Netflix / serialai', emoji:'📺', color:'#ef4444', type:-1},
+  {id:'hobiai', name:'Hobiai / laisvalaikis', emoji:'🎨', color:'#facc15', type:0},
+  {id:'netflix', name:'Serialai / filmai', emoji:'📺', color:'#ef4444', type:-1},
   {id:'telefonas', name:'Telefonas / soc. tinklai', emoji:'📱', color:'#f43f5e', type:-1},
   {id:'zaidimai', name:'Žaidimai', emoji:'🎮', color:'#e11d48', type:-1},
 ];
@@ -63,20 +75,54 @@ const defaultData = () => ({
   plans: [], active: null, sportPrefs: {}, sportReviews: [],
   foodPrefs: {done: false, mealSuggest: false, cookTimes: 2, cookMax: 60, budget: 40, cookDays: [7], mealsPerDay: 3, skill: 2, equip: ['puodas', 'keptuvė', 'orkaitė', 'mikrobangė'], dislikes: [], allergies: [], dislikeText: ''},
   ratings: {}, priceOverrides: {}, priceMeta: {}, deletedRecipes: [], spend: [], mealPlans: [], receiptFoods: [],
-  settings: { theme:'dark' },
+  settings: { theme:'dark', tz: '', onboarded: false, modes: {sport: false, food: false}, review: 'week', dismissed: {}, intro: {} },
+  reviews: [],
 });
+// Režimai: ką žmogus nori daryti su programėle
+const sportOn = () => !!S?.settings?.modes?.sport;
+const foodOn = () => !!S?.settings?.modes?.food;
+// Veiklos, per kurias valgyti galima tik pasiėmus maistą su savimi (kitur – valgymą perkeliam prieš/po)
+const PACK_CATS = ['darbas', 'paskaitos', 'mokslai', 'kelione', 'projektai'];
 
 // ===== Būsena ir sinchronizacija su serveriu =====
 let S = null, REV = 0, ONLINE = false, DIRTY = false, saveTimer = null, PUSHING = false;
 const cloudOn = () => !!(window.CLOUD && CLOUD.url && CLOUD.key);
 const lsKey = () => cloudOn() ? 'manogyv_cloud_' + (Auth.user()?.id || 'x') : 'manogyv_v1';
 
-function storeLocal() { try { localStorage.setItem(lsKey(), JSON.stringify({S, REV, DIRTY})); } catch (e) {} }
+// ===== Kūrėjo režimas =====
+// Rolė saugoma Supabase lentelėje user_roles (keisti gali tik projekto savininkas SQL redaktoriuje).
+// Kūrėjo režime dirbama su atskira „smėlio dėže“: tikri duomenys lieka atmintyje, niekas nesiunčiama į debesį.
+let ROLE = 'user', DEV = false, REAL = null;
+const DEV_KEY = 'ls_dev_sandbox';
+const isDeveloper = () => ROLE === 'developer';
+async function loadRole() {
+  if (!cloudOn()) { ROLE = window.CLOUD?.test ? 'developer' : 'user'; return; }
+  try {
+    const r = await fetch(`${CLOUD.url}/rest/v1/user_roles?select=role&user_id=eq.${Auth.user().id}`, {headers: {apikey: CLOUD.key, Authorization: 'Bearer ' + await Auth.token()}, cache: 'no-store'});
+    ROLE = r.ok ? ((await r.json())[0]?.role || 'user') : 'user';
+    localStorage.setItem('ls_role_' + Auth.user().id, ROLE);
+  } catch (e) { ROLE = localStorage.getItem('ls_role_' + (Auth.user()?.id || '')) || 'user'; }
+}
+function storeLocal() {
+  if (DEV) { try { sessionStorage.setItem(DEV_KEY, JSON.stringify(S)); } catch (e) {} return; }
+  try { localStorage.setItem(lsKey(), JSON.stringify({S, REV, DIRTY})); } catch (e) {}
+}
 function migrate(d) {
   const def = defaultData();
   for (const k in def) if (d[k] === undefined) d[k] = def[k];
   d.profile = {...def.profile, ...d.profile};
+  // seni naudotojai (jau turėjo profilį) – abu režimai įjungti, pirmo paleidimo vedlio nerodom
+  const legacy = d.settings && d.settings.modes === undefined && d.profile && d.profile.height;
   d.settings = {...def.settings, ...d.settings};
+  if (legacy) { d.settings.onboarded = true; d.settings.modes = {sport: true, food: true}; d.settings.tz = d.settings.tz || 'Europe/Vilnius'; }
+  d.settings.modes = {...def.settings.modes, ...d.settings.modes};
+  if (d.settings.review === '2w') d.settings.review = 'week';
+  d.settings.dismissed = d.settings.dismissed || {}; d.settings.intro = d.settings.intro || {};
+  // kategorijos: „Netflix / serialai“ → „Serialai / filmai“, pridedam „Hobiai“, nenaudojamą „Švedų kalba“ išimam
+  const nf = d.categories.find(c => c.id === 'netflix'); if (nf && nf.name === 'Netflix / serialai') nf.name = 'Serialai / filmai';
+  if (!d.categories.some(c => c.id === 'hobiai')) { const i = d.categories.findIndex(c => c.id === 'poilsis'); d.categories.splice(i < 0 ? d.categories.length : i + 1, 0, {...DEFAULT_CATS.find(c => c.id === 'hobiai')}); }
+  const svUsed = (d.events || []).some(e => e.cat === 'svedu') || (d.timelog || []).some(t => t.cat === 'svedu') || (d.tasks || []).some(t => t.cat === 'svedu');
+  if (!svUsed) d.categories = d.categories.filter(c => !(c.id === 'svedu' && c.name === 'Švedų kalba'));
   if (d.foodPrefs && !d.foodPrefs.done && d.profile.budgetWeek && d.foodPrefs.budget === def.foodPrefs.budget) d.foodPrefs.budget = +d.profile.budgetWeek;
   d.foodPrefs = {...def.foodPrefs, ...d.foodPrefs};
   // nauji įdėti receptai atsiranda ir seniems naudotojams; seniems užpildom lygį/techniką
@@ -86,6 +132,9 @@ function migrate(d) {
     else if (r) { if (r.skill == null) r.skill = b.skill; if (!r.equip) r.equip = [...b.equip]; }
   }
   for (const r of d.recipes) { r.skill = r.skill || 1; r.equip = r.equip || []; r.tags = r.tags || []; }
+  // mėsos patiekalams – ne žalios/mėlynos ikonos
+  const EMO = {r_kalak_kotl: ['🧆', '🍖'], r_tingus_balandeliai: ['🥬', '🥘'], r_tuno_makaronai: ['🐠', '🍝']};
+  for (const r of d.recipes) if (EMO[r.id] && r.emoji === EMO[r.id][0]) r.emoji = EMO[r.id][1];
   for (const f of d.freezer) { if (!f.place) f.place = 'freezer'; if (!f.until) f.until = addDays(f.date || today(), 90); }
   delete d.rev;
   return d;
@@ -184,12 +233,13 @@ async function loadData() {
   return true;
 }
 function commit(opts = {}) {
+  if (DEV) { storeLocal(); if (!opts.noRender) render(); return; } // smėlio dėžė – į debesį nesiunčiama
   DIRTY = true; storeLocal();
   clearTimeout(saveTimer); saveTimer = setTimeout(push, 400);
   if (!opts.noRender) render();
 }
 async function push(force) {
-  if (!DIRTY || PUSHING) return;
+  if (DEV || !DIRTY || PUSHING) return;
   PUSHING = true;
   try {
     const snapshot = JSON.stringify(S);
@@ -207,7 +257,7 @@ async function push(force) {
   PUSHING = false; updateSyncBadge();
 }
 async function pullIfChanged() {
-  if (!S) return;
+  if (!S || DEV) return;
   if (DIRTY) { push(); return; }
   try {
     const rev = await BK().rev();
@@ -336,6 +386,33 @@ function busyBlocks(d) {
   for (const w of workoutsOn(d)) if (w.start) b.push([toMin(w.start), toMin(w.start) + (+w.duration || 30) + (+S.profile.showerMin || 0)]);
   for (const p of plansOn(d)) b.push([toMin(p.start), toMin(p.start) + (+p.duration || 40) + (+S.profile.showerMin || 0)]);
   return b.sort((x, y) => x[0] - y[0]);
+}
+// Užimtumas su kategorija (valgymo laikams parinkti)
+function busyDetail(d) {
+  const b = [];
+  for (const g of eventSegs(d)) b.push({s: g.tail ? 0 : g.s - (+g.e.travel || 0), e: g.head ? 1440 : g.en + (+g.e.travel || 0), cat: g.e.cat, name: g.e.title});
+  for (const t of timelogOn(d)) { let en = toMin(t.end); if (en <= toMin(t.start)) en = 1440; b.push({s: toMin(t.start), e: en, cat: t.cat, name: cat(t.cat).name}); }
+  for (const w of workoutsOn(d)) if (w.start) b.push({s: toMin(w.start), e: toMin(w.start) + (+w.duration || 30) + (+S.profile.showerMin || 0), cat: 'sportas', name: 'treniruotė'});
+  for (const p of plansOn(d)) b.push({s: toMin(p.start), e: toMin(p.start) + (+p.duration || 40) + (+S.profile.showerMin || 0), cat: 'sportas', name: 'treniruotė'});
+  const sl = sleepOn(d); if (sl) { const bb = toMin(sl.bed), ww = toMin(sl.wake); b.push({s: bb < ww ? bb : 0, e: ww, cat: 'miegas', name: 'miegas'}); }
+  return b.sort((x, y) => x.s - y.s);
+}
+// Įpročiai: kada dažniausiai valgai (paskutinės 3 sav.)
+function mealHabits(defaults) {
+  const from = addDays(today(), -21), ms = S.meals.filter(m => m.date >= from && m.time && !m.snack), ts = ms.map(m => toMin(m.time));
+  if (ts.length < 8 || new Set(ms.map(m => m.date)).size < 4) return null;
+  let c = [...defaults];
+  for (let it = 0; it < 12; it++) {
+    const g = c.map(() => []);
+    for (const t of ts) { let bi = 0; c.forEach((x, i) => { if (Math.abs(t - x) < Math.abs(t - c[bi])) bi = i; }); g[bi].push(t); }
+    c = c.map((x, i) => g[i].length >= 2 ? sum(g[i]) / g[i].length : x);
+  }
+  return c;
+}
+// Įpročiai: kada dažniausiai sportuoji
+function sportHabit() {
+  const from = addDays(today(), -45), ts = S.workouts.filter(w => w.date >= from && w.start).map(w => toMin(w.start)).sort((a, b) => a - b);
+  return ts.length >= 3 ? ts[Math.floor(ts.length / 2)] : null;
 }
 function freeSlots(d, fromM) {
   const p = S.profile;
@@ -633,14 +710,14 @@ function dayScore(d) {
   const w7 = S.workouts.filter(x => x.date <= d && x.date > addDays(d, -7)).length, wGoal = +p.workoutsPerWeek || 3, wToday = workoutsOn(d).length;
   if (t.logged || wToday || sl) parts.push({k:'Judėjimas', w:15, v: wToday ? 1 : clamp(w7 / wGoal, 0, 1), txt: wToday ? 'treniruotė ✓' : `${w7}/${wGoal} treniruotės per 7 d.`, why: 'Poilsio diena nebaudžiama, jei per savaitę treniruočių pakanka.'});
   const n = dayNutrition(d), tg = targets();
-  if (n.n) {
+  if (foodOn() && n.n) {
     const over = (n.kcal - tg.kcal) / tg.kcal;
     let v;
     if (live) v = (over > 0.08 ? clamp(1 - (over - 0.08) * 3, 0, 1) : 1); // šiandien „per mažai“ nebaudžiama – diena dar nesibaigė
     else v = clamp(1 - Math.max(0, Math.abs(over) - 0.1) * 2.5, 0, 1) * 0.7 + clamp(n.p / tg.protein, 0, 1) * 0.3;
     parts.push({k:'Mityba', w:15, v, txt: `${n.kcal} kcal, ${Math.round(n.p)} g B`, why: live ? 'Šiandien baudžiama tik už viršijimą – likusius valgius dar suvalgysi.' : '±10% nuo tikslo – pilnas balas, plius baltymai.'});
   }
-  if (t.logged) { const lim = +p.screenLimitMin || 90; parts.push({k:'Ekrano laikas', w:10, v: t.screen <= lim ? 1 : clamp(1 - (t.screen - lim) / lim, 0, 1), txt: fmtDur(t.screen), why: 'Tik tai, ką pats pažymėjai kaip Netflix / telefoną / žaidimus.'}); }
+  if (t.logged) { const lim = +p.screenLimitMin || 90; parts.push({k:'Ekrano laikas', w:10, v: t.screen <= lim ? 1 : clamp(1 - (t.screen - lim) / lim, 0, 1), txt: fmtDur(t.screen), why: 'Tik tai, ką pats pažymėjai kaip ekraną (serialai, telefonas, žaidimai).'}); }
   if (!parts.length) return null;
   const score = Math.round(sum(parts.map(x => x.w * x.v)) / sum(parts.map(x => x.w)) * 100);
   return {score, parts, live};
@@ -712,36 +789,53 @@ function motivation() {
 }
 
 // ===== XP / lygiai / ženkleliai =====
+// Patikrinimo laikotarpis: savaitė (nuo pirmadienio) arba kalendorinis mėnuo
+const periodKey = (type, d) => type === 'week' ? weekStart(d) : d.slice(0, 7);
+// XP skaičiuojam tik už vieną patikrinimą per laikotarpį ir tik su serverio patvirtinta data
+const countedCheckins = () => new Set(S.checkins.filter(c => c.verified !== false).map(c => c.type + '|' + (c.period || periodKey(c.type, c.date)))).size;
 function gamification() {
   const tasksDone = S.tasks.filter(t => t.done).length;
-  const daysLogged = new Set([...S.meals.map(m => m.date), ...S.timelog.map(t => t.date)]).size;
+  const daysLogged = new Set([...S.meals.map(m => m.date), ...S.timelog.map(t => t.date), ...S.sleep.map(s => s.date), ...S.workouts.map(w => w.date)]).size;
   const sleepGood = S.sleep.filter(s => Math.abs(sleepMinutes(s) / 60 - (+S.profile.sleepGoal || 8)) <= 0.75).length;
-  const xp = tasksDone * 10 + S.workouts.length * 25 + daysLogged * 5 + sleepGood * 10 + S.checkins.length * 30 + S.weights.length * 5 + S.cooks.length * 15;
+  const checkins = countedCheckins();
+  const parts = {tasksDone, workouts: S.workouts.length, daysLogged, sleepGood, checkins, weights: S.weights.length, cooks: S.cooks.length};
+  const xp = sum(XP_RULES.map(([k, , x]) => (parts[k] || 0) * x));
   const level = Math.floor(Math.sqrt(xp / 40)) + 1;
   const cur = (level - 1) ** 2 * 40, next = level ** 2 * 40;
   const lost = S.weights.length ? round((+S.profile.startWeight || S.weights[0].kg) - currentWeight(), 1) : 0;
   // serija: kiek dienų iš eilės kažkas įrašyta
-  let streak = 0; for (let d = today(); ; d = addDays(d, -1)) { if (S.meals.some(m => m.date === d) || S.timelog.some(t => t.date === d) || S.workouts.some(w => w.date === d)) streak++; else if (d !== today()) break; if (streak > 999) break; if (d < '2000') break; }
-  const badges = [
-    ['🌱','Pirmas žingsnis','Įrašei pirmą svorį', S.weights.length >= 1],
-    ['💪','Pirmoji treniruotė','Įrašei treniruotę', S.workouts.length >= 1],
-    ['🏋️','Dešimtukas','10 treniruočių', S.workouts.length >= 10],
-    ['🦾','Geležinis','30 treniruočių', S.workouts.length >= 30],
-    ['📉','−1 kg','Numetei 1 kg', lost >= 1],
-    ['🔥','−5 kg','Numetei 5 kg', lost >= 5],
-    ['🏆','−10 kg','Numetei 10 kg', lost >= 10],
-    ['✅','Darbštuolis','10 atliktų užduočių', tasksDone >= 10],
-    ['🧊','Šaldiklio meistras','5 kartus pagaminai porcijų', S.cooks.length >= 5],
-    ['📅','Savaitės serija','7 dienos iš eilės su įrašais', streak >= 7],
-    ['🗓️','Mėnesio serija','30 dienų iš eilės', streak >= 30],
-    ['😴','Išsimiegojęs','10 naktų pagal miego tikslą', sleepGood >= 10],
-    ['🪞','Refleksija','Pirmasis savaitės patikrinimas', S.checkins.length >= 1],
+  const logged = new Set([...S.meals.map(m => m.date), ...S.timelog.map(t => t.date), ...S.workouts.map(w => w.date), ...S.sleep.map(s => s.date)]);
+  let streak = 0; for (let d = today(), i = 0; i < 1000; d = addDays(d, -1), i++) { if (logged.has(d)) streak++; else if (d !== today()) break; }
+  const timeLogged = sum(S.timelog.map(t => { let m = toMin(t.end) - toMin(t.start); if (m <= 0) m += 1440; return m; }));
+  const recipesEaten = new Set(S.meals.filter(m => m.recipeId).map(m => m.recipeId)).size;
+  const sp = sportOn(), fo = foodOn(), body = sp || fo || S.weights.length;
+  // [emoji, pavadinimas, aprašymas, gautas?, kada rodyti]
+  const all = [
+    ['📝','Pirmas įrašas','Įrašei pirmą dalyką', daysLogged >= 1, true],
+    ['📅','Savaitės serija','7 dienos iš eilės su įrašais', streak >= 7, true],
+    ['🗓️','Mėnesio serija','30 dienų iš eilės', streak >= 30, true],
+    ['✅','Darbštuolis','10 padarytų reikalų', tasksDone >= 10, true],
+    ['😴','Išsimiegojęs','10 naktų pagal miego tikslą', sleepGood >= 10, true],
+    ['⏱️','Laiko meistras','20 val. užfiksuoto laiko', timeLogged >= 1200, true],
+    ['🗂️','Planuotojas','5 įvykiai kalendoriuje', S.events.length >= 5, true],
+    ['🪞','Refleksija','Pirmasis patikrinimas', checkins >= 1, true],
+    ['💪','Pirmoji treniruotė','Įrašei treniruotę', S.workouts.length >= 1, sp],
+    ['🏋️','Dešimtukas','10 treniruočių', S.workouts.length >= 10, sp],
+    ['🦾','Geležinis','30 treniruočių', S.workouts.length >= 30, sp],
+    ['🌱','Pirmas pasisvėrimas','Įrašei svorį', S.weights.length >= 1, body],
+    ['📉','−1 kg','Numetei 1 kg', lost >= 1, body && +S.profile.goalRate > 0],
+    ['🔥','−5 kg','Numetei 5 kg', lost >= 5, body && +S.profile.goalRate > 0],
+    ['🏆','−10 kg','Numetei 10 kg', lost >= 10, body && +S.profile.goalRate > 0],
+    ['🧊','Šaldiklio meistras','5 kartus pagaminai porcijų', S.cooks.length >= 5, fo],
+    ['🌈','Įvairovė','Valgei 10 skirtingų receptų', recipesEaten >= 10, fo],
   ];
+  const badges = all.filter(b => b[4] || b[3]).map(b => b.slice(0, 4));
   const title = [...LEVEL_TITLES].reverse().find(t => level >= t[0]);
-  return {xp, level, cur, next, streak, badges, lost, title, parts: {tasksDone, workouts: S.workouts.length, daysLogged, sleepGood, checkins: S.checkins.length, weights: S.weights.length, cooks: S.cooks.length}};
+  return {xp, level, cur, next, streak, badges, lost, title, parts};
 }
 const LEVEL_TITLES = [[1, '🌱', 'Pradedantysis'], [3, '🚶', 'Įsivažiuojantis'], [5, '🏃', 'Nuoseklus'], [8, '💪', 'Disciplinuotas'], [12, '🔥', 'Nesustabdomas'], [17, '🦾', 'Mašina'], [25, '👑', 'Legenda']];
-const XP_RULES = [['tasksDone', '✅ Atlikta užduotis', 10], ['workouts', '💪 Treniruotė', 25], ['daysLogged', '📖 Diena su įrašais (maistas ar laikas)', 5], ['sleepGood', '😴 Naktis pagal miego tikslą (±45 min)', 10], ['checkins', '🪞 Savaitės / mėnesio patikrinimas', 30], ['weights', '⚖️ Pasisvėrimas', 5], ['cooks', '👨‍🍳 Pagamintas maistas', 15]];
+// [raktas, pavadinimas, XP, kada rodyti]
+const XP_RULES = [['daysLogged', '📖 Diena su įrašais', 5, 'all'], ['tasksDone', '✅ Padarytas reikalas', 10, 'all'], ['sleepGood', '😴 Naktis pagal miego tikslą (±45 min)', 10, 'all'], ['checkins', '🪞 Savaitės / mėnesio patikrinimas (1 per laikotarpį)', 30, 'all'], ['workouts', '💪 Treniruotė', 25, 'sport'], ['weights', '⚖️ Pasisvėrimas', 5, 'body'], ['cooks', '👨‍🍳 Pagamintas maistas', 15, 'food']];
 
 // ===== SVG grafikai =====
 function svgLine(series, opts = {}) {
