@@ -164,7 +164,8 @@ const ICON = {
 let ME = null, ROLE = null, T = [], MSGS = {}, CUST = {}, PENDING = {}, DRAFT = {}, SENDING = false, SEL = null, MODE = 'reply', FILTER = 'backlog', QTEXT = '', VIEW = 'home', AUDIT = [], CLEAN = false, SIDE = 'customer';
 let DEVVIEW = false, INBOX_ON = LS.get('console_inbox') === '1', POP = null, DEVTAB = 'macros', TP = null, MORE = {}, TR = {};
 const SR = {q: '', page: 0, rows: null, more: false, busy: false}, PER = 25;
-const CAN_TOGGLE = () => ['developer', 'lead'].includes(ROLE), IS_DEV = () => ROLE === 'developer';
+const VIEW_AS = () => ROLE === 'developer' ? (LS.get('console_viewas') || 'developer') : ROLE;   // developer can preview other roles
+const CAN_TOGGLE = () => ['developer', 'lead'].includes(VIEW_AS()), IS_DEV = () => VIEW_AS() === 'developer';
 const myOpen = () => T.filter(t => t.assignee === ME.id && ['new', 'open'].includes(t.status)).sort(byPrio);
 const myHold = () => T.filter(t => t.assignee === ME.id && t.status === 'hold');
 const myPendingRecent = () => T.filter(t => t.assignee === ME.id && t.status === 'pending' && Date.now() - Date.parse(t.status_at || t.updated_at) < 5 * 60e3);
@@ -313,6 +314,10 @@ async function loadTickets(quiet) {
     T = [...rows, ...keep];
   } catch (e) { if (!quiet) toast('⚠️ Could not load cases: ' + esc(e.message)); }
 }
+async function loadClosed() {
+  try { const rows = await DB.list('tickets', 'status=eq.closed&order=closed_at.desc&limit=200'); for (const r of rows) { const i = T.findIndex(x => x.id === r.id); if (i < 0) T.push(r); else T[i] = r; } render(); }
+  catch (e) { toast('⚠️ ' + esc(e.message)); }
+}
 async function loadMsgs(id, quiet) {
   try { MSGS[id] = await DB.list('ticket_messages', `ticket_id=eq.${id}&order=created_at.asc`); } catch (e) { if (!quiet) toast('⚠️ ' + esc(e.message)); }
 }
@@ -379,14 +384,16 @@ function render(keepScroll) {
   const th2 = $('.thread');
   if (th2) th2.scrollTop = keepScroll && st != null && !nearBottom && th2.dataset.n === prevN && th2.dataset.t === prevT ? st : th2.scrollHeight;
 }
+const ROLE_NAMES = {agent: 'Agent', lead: 'Lead', developer: 'Developer'};
 const rb = (act, icon, title, on, extra = '') => `<button class="rb ${on ? 'on' : ''}" data-act="${act}" title="${title}" aria-label="${title}" ${extra}>${icon}</button>`;
 function rail() {
   const initials = (ME.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
   return `<nav class="rail">${rb('home', ICON.home, 'Home', VIEW === 'home')}${rb('newcase', ICON.plus, 'New case', VIEW === 'newcase')}${rb('search', ICON.search, 'Search cases', VIEW === 'search')}
     ${CAN_TOGGLE() ? rb('devview', ICON.layers, DEVVIEW ? 'All cases view (on)' : 'All cases view (off)', DEVVIEW) : ''}${IS_DEV() ? rb('devpage', ICON.code, 'Developer tools', VIEW === 'dev') : ''}
-    <span class="sp"></span>${TEST ? '<span class="test">TEST</span>' : ''}
+    <span class="sp"></span>${VIEW_AS() !== ROLE ? `<span class="asbadge" title="You are previewing the console as ${ROLE_NAMES[VIEW_AS()]}">as ${ROLE_NAMES[VIEW_AS()]}</span>` : ''}${TEST ? '<span class="test">TEST</span>' : ''}
     <div class="popwrap"><button class="avatar sm" data-act="pop" data-p="me" title="${esc(ME.name)}">${esc(initials)}</button>
-    ${POP === 'me' ? `<div class="pop up"><div class="pophead"><b>${esc(ME.name)}</b><small>${esc({developer: 'Developer', lead: 'Lead', agent: 'Agent'}[ROLE] || ROLE)} · 🔐 MFA</small></div>
+    ${POP === 'me' ? `<div class="pop up"><div class="pophead"><b>${esc(ME.name)}</b><small>${esc(ROLE_NAMES[ROLE] || ROLE)} · 🔐 MFA</small></div>
+      ${ROLE === 'developer' ? `<div class="viewas"><small>View console as</small><div>${Object.entries(ROLE_NAMES).map(([k, l]) => `<button class="${VIEW_AS() === k ? 'on' : ''}" data-act="viewas" data-r="${k}">${l}</button>`).join('')}</div></div>` : ''}
       <button data-act="rename">${ICON.user} Change name</button>
       <button data-act="theme">${document.documentElement.dataset.theme === 'light' ? ICON.moon + ' Dark mode' : ICON.sun + ' Light mode'}</button>
       <button data-act="signout" class="t-bad">${ICON.out} Sign out</button></div>` : ''}</div></nav>`;
@@ -404,22 +411,24 @@ function agentQueue() {
     ${mp.length ? `<h4>Pending</h4>${mp.map(x => qi(x, ' · waiting for reply')).join('')}` : ''}</div>` : '<div class="qlist"></div>'}</div>`;
 }
 const FILTERS = [['backlog', 'Backlog', t => !t.assignee && ['new', 'open'].includes(t.status)], ['mine', 'Mine', t => t.assignee === ME.id && ['new', 'open', 'pending', 'hold'].includes(t.status)],
-  ['waiting', 'Pending / On hold', t => ['pending', 'hold'].includes(t.status)], ['solved', 'Solved', t => t.status === 'solved'], ['outgoing', 'Outgoing', t => t.outgoing && t.status !== 'closed'], ['all', 'All', t => t.status !== 'closed']];
+  ['waiting', 'Pending / On hold', t => ['pending', 'hold'].includes(t.status)], ['solved', 'Solved', t => t.status === 'solved'], ['outgoing', 'Outgoing', t => t.outgoing && t.status !== 'closed'], ['all', 'All', t => t.status !== 'closed'], ['closed', 'Closed', t => t.status === 'closed', 'dev']];
 function devQueue() {
-  const q = QTEXT.toLowerCase(), f = FILTERS.find(x => x[0] === FILTER) || FILTERS[0];
+  const q = QTEXT.toLowerCase(), fl = FILTERS.filter(x => !x[3] || IS_DEV()), f = fl.find(x => x[0] === FILTER) || fl[0];
   const list = T.filter(f[2]).filter(t => !q || [caseTitle(t), t.subject, t.email, (t.tags || []).join(' '), '#' + t.case_no].join(' ').toLowerCase().includes(q)).sort(FILTER === 'backlog' ? byPrio : (a, b) => a.created_at < b.created_at ? 1 : -1);
   return `<div class="queue"><div class="qhead"><input id="q" placeholder="Filter" value="${esc(QTEXT)}">
-    <div class="filters">${FILTERS.map(([k, l, fn]) => `<button class="${FILTER === k ? 'on' : ''}" data-f="${k}">${l} <i>${T.filter(fn).length}</i></button>`).join('')}</div></div>
+    <div class="filters">${fl.map(([k, l, fn]) => `<button class="${FILTER === k ? 'on' : ''}" data-f="${k}">${l} <i>${T.filter(fn).length}</i></button>`).join('')}</div></div>
     <div class="qlist">${list.map(x => qi(x, `${x.assignee ? ` · ${esc(x.assignee === ME.id ? 'you' : x.assignee_name || '')}` : ''}${slaInline(x)}`)).join('') || '<div class="empty">Nothing here 🎉</div>'}</div></div>`;
 }
 function idleHtml() {
   const first = esc((ME.name || '').split(' ')[0]);
-  if (!DEVVIEW && !INBOX_ON) return `<div class="wv">😴</div><h1>Your inbox is off</h1><p>Turn it on to start receiving cases.</p><button class="btn primary big" data-act="inbox">Turn inbox on</button>`;
-  return `<div class="wv">👋</div><h1>Welcome back, ${first}!</h1><p>Let's give the best support to everyone today 💙</p>
-    ${DEVVIEW ? '<small>Select a case on the left.</small>' : queue().length ? '<small>Getting your next case…</small>' : '<small>All caught up – new cases appear here automatically.</small>'}`;
+  const small = DEVVIEW ? 'Select a case on the left.' : !INBOX_ON ? '' : queue().some(x => !SKIPPED().includes(x.id)) ? 'Getting your next case…' : 'All caught up – new cases appear here automatically.';
+  return `<div class="wv">👋</div><h1>Welcome back, ${first}!</h1><p>Let's give the best support to everyone today 💙</p>${small ? `<small>${small}</small>` : ''}`;
 }
+const RATE_EMO = ['😞', '🙁', '😐', '🙂', '😍'];
 function msgHtml(m, t) {
-  if (m.kind === 'event' || m.author_role === 'system') return CLEAN ? '' : `<div class="msg event">${esc(m.body)}${m.dev_note && ROLE !== 'agent' ? ` <span class="devnote" title="Visible to developers and leads only">${esc(m.dev_note)}</span>` : ''} <small>${m.author_name && !m.body.includes(m.author_name) ? esc(m.author_name) + ' · ' : ''}${dt(m.created_at)}</small></div>`;
+  const rt = m.author_role === 'system' && /^Customer rated the support: (\d)\/5 \((.+)\)/.exec(m.body || '');
+  if (rt) return `<div class="msg customer rating"><small>${esc(customerName(t))} · ${dt(m.created_at)}</small><span class="stars">${'★'.repeat(+rt[1])}${'☆'.repeat(5 - +rt[1])}</span> ${RATE_EMO[rt[1] - 1] || ''} Rated the support: <b>${esc(rt[2])}</b> (${rt[1]}/5)</div>`;
+  if (m.kind === 'event' || m.author_role === 'system') return CLEAN ? '' : `<div class="msg event">${esc(m.body)}${m.dev_note && VIEW_AS() !== 'agent' ? ` <span class="devnote" title="Visible to developers and leads only">${esc(m.dev_note)}</span>` : ''} <small>${m.author_name && !m.body.includes(m.author_name) ? esc(m.author_name) + ' · ' : ''}${dt(m.created_at)}</small></div>`;
   if (m.kind === 'internal') return `<div class="msg internal"><small>Internal note · ${esc(m.author_name || '')} · ${dt(m.created_at)}</small>${esc(m.body)}${attHtml(m)}</div>`;
   const tr = TR[t.id], tx = m.author_role === 'customer' && tr?.on && tr.map[m.id];
   return `<div class="msg ${m.author_role === 'auto' ? 'agent' : m.author_role}"><small>${m.author_role === 'customer' ? esc(customerName(t)) : m.author_role === 'auto' ? 'Automatic message' : esc(m.author_name || 'Agent')} · ${dt(m.created_at)}${tx ? ` · <b class="trl">Translated from ${esc(DEEPL[tr.from] || tr.from || '?')}</b>` : ''}</small>${m.body === '📎' ? '' : esc(tx || m.body)}${attHtml(m)}${mailHtml(m)}</div>`;
@@ -451,7 +460,7 @@ function convHtml(t) {
       ${t.due_at && !done ? `<span class="chip ${Date.parse(t.due_at) - Date.now() < 7 * 864e5 ? 'c-warn' : ''}">Due ${dt(t.due_at)}</span>` : ''}
       ${iss ? `<span class="chip">🧯 ${esc(iss.title.slice(0, 40))}</span>` : ''}${t.rating ? `<span class="chip ${t.rating >= 4 ? 'c-good' : t.rating <= 2 ? 'c-bad' : 'c-warn'}" title="Customer rating">★ ${t.rating}/5 · ${['Very bad', 'Bad', 'Okay', 'Good', 'Very good'][t.rating - 1]}</span>` : ''}
       ${issueTags(t).map(g => `<span class="tag">${esc(g)}<b data-act="rmtag" data-v="${esc(g)}" title="Remove">✕</b></span>`).join('')}<button class="btn sm" data-act="tag">${ICON.tag} Tags</button></div>
-    ${t.outgoing && ROLE !== 'agent' && t.created_reason ? `<div class="oreason"><b>Created by ${esc(t.created_by_name || '?')}</b> · ${esc(t.created_reason)}</div>` : ''}</div>
+    ${t.outgoing && VIEW_AS() !== 'agent' && t.created_reason ? `<div class="oreason"><b>Created by ${esc(t.created_by_name || '?')}</b> · ${esc(t.created_reason)}</div>` : ''}</div>
     <div class="thread" data-n="${msgs.length}" data-t="${t.id}">${msgs.map(m => msgHtml(m, t)).join('') || '<div class="empty">No messages</div>'}</div>
     <div class="composer ${note ? 'internal' : ''}"><div class="ctabs"><button data-mode="reply" class="${!note ? 'on' : ''}">Reply</button><button data-mode="internal" class="note ${note ? 'on' : ''}">Internal note</button></div>
       ${!note && block ? (block === 'assign' ? `<div class="lockbox">Assign the case to yourself to reply. <button class="btn primary" data-act="assign">Assign to me</button></div>`
@@ -606,7 +615,7 @@ document.addEventListener('click', async e => {
   if (POP && !e.target.closest('.pop, [data-p]')) { POP = null; render(true); if (!e.target.closest('[data-act],[data-t],[data-f],[data-mode]')) return; }
   const el = e.target.closest('[data-t],[data-f],[data-mode],[data-act],[data-file]'); if (!el) return;
   if (el.dataset.file) { const w = window.open('', '_blank'); try { w.location = await STORE.url(el.dataset.file); } catch (x) { w?.close(); toast('⚠️ ' + esc(x.message)); } return; }
-  if (el.dataset.f) { FILTER = el.dataset.f; render(); return; }
+  if (el.dataset.f) { FILTER = el.dataset.f; render(); if (FILTER === 'closed') await loadClosed(); return; }
   if (el.dataset.mode) { MODE = el.dataset.mode; render(true); return; }
   if (el.dataset.t && !el.dataset.act) { if (PAGE_CUSTOMER) return; return selectCase(el.dataset.t); }
   const a = el.dataset.act;
@@ -618,6 +627,7 @@ document.addEventListener('click', async e => {
   if (a === 'devpage') { VIEW = 'dev'; render(); if (DEVTAB === 'audit') await loadAudit(); return; }
   if (a === 'devtab') { DEVTAB = el.dataset.k; render(); if (DEVTAB === 'audit') await loadAudit(); else { await loadExtra(DEVTAB); render(); } return; }
   if (a === 'rename') { POP = null; render(true); return askName(ME.name).then(() => render(true)); }
+  if (a === 'viewas') { LS.set('console_viewas', el.dataset.r); POP = null; DEVVIEW = CAN_TOGGLE() && LS.get('console_devview') === '1'; if (FILTER === 'closed' && !IS_DEV()) FILTER = 'backlog'; if (VIEW === 'dev' && !IS_DEV()) VIEW = 'home'; render(); await pump(); render(true); return; }
   if (a === 'theme') { LS.set('console_theme', document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'); applyTheme(); render(true); return; }
   if (a === 'signout') return signOut();
   if (a === 'devview') { DEVVIEW = !DEVVIEW; LS.set('console_devview', DEVVIEW ? '1' : '0'); VIEW = 'home'; render(); if (!DEVVIEW) { await pump(); render(); } return; }

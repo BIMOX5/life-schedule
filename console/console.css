@@ -177,3 +177,10 @@ input:focus, select:focus, textarea:focus { border-color:var(--accent); }
 
 @media (max-width:1180px) { .home { grid-template-columns:260px minmax(0, 1fr) 290px; } }
 @media (max-width:980px) { .home { grid-template-columns:1fr; overflow:auto; } .queue { max-height:40vh; } .side { border-left:0; } .kbm, .frm { grid-template-columns:1fr; } }
+
+/* Role preview, rating message */
+.viewas { padding:8px 12px 10px; border-bottom:1px solid var(--line); margin-bottom:4px; } .viewas small { display:block; margin-bottom:6px; }
+.viewas div { display:flex; gap:4px; } .pop .viewas button { padding:5px 9px; font-size:12.5px; border:1px solid var(--line); border-radius:99px; }
+.pop .viewas button.on { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
+.asbadge { font-size:10.5px; background:var(--accent); color:var(--on-accent); padding:2px 6px; border-radius:99px; font-weight:500; text-align:center; }
+.msg.rating .stars { color:var(--warn); letter-spacing:1px; font-size:16px; }
