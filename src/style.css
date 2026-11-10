@@ -432,3 +432,25 @@ body.devmode header::after { content:'🐞 KŪRĖJO REŽIMAS – bandomieji duom
 .banner.danger { background:linear-gradient(90deg, rgba(239,68,68,.25), rgba(239,68,68,.08)); border-color:#ef4444; animation:none; cursor:default; }
 pre.mail { white-space:pre-wrap; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; font:13px/1.5 system-ui, sans-serif; max-height:50vh; overflow:auto; }
 .banner.update { background:linear-gradient(90deg, rgba(79,140,255,.28), rgba(139,108,255,.15)); border-color:var(--accent); cursor:default; } .banner.update small { color:var(--muted); }
+
+/* Patvirtinimo / pranešimo langas ekrano viduryje */
+.askov { position:fixed; inset:0; z-index:200; background:rgba(5,8,20,.62); backdrop-filter:blur(5px); display:flex; align-items:center; justify-content:center; padding:20px; animation:fade .15s; }
+.askov.out { opacity:0; transition:opacity .15s; }
+.askbox { background:var(--bg2); border:1px solid var(--line); border-radius:24px; width:100%; max-width:400px; padding:26px 22px 20px; text-align:center; box-shadow:0 24px 70px rgba(0,0,0,.55); animation:pop .22s cubic-bezier(.2,1.4,.4,1); }
+.askbox.danger { border-color:rgba(239,68,68,.45); }
+.askic { font-size:42px; line-height:1; margin-bottom:8px; }
+.askbox h3 { margin:0 0 8px; font-size:19px; }
+.asktxt { color:var(--muted); font-size:14.5px; text-align:left; } .asktxt p { margin:6px 0; } .asktxt ul { margin:8px 0; padding-left:20px; } .asktxt li { margin:3px 0; }
+.asktxt b { color:var(--text); }
+.askbtns { display:flex; gap:10px; margin-top:18px; } .askbtns .btn { flex:1; justify-content:center; padding:11px 14px; }
+.askbox.danger .btn.danger { background:#ef4444; border-color:#ef4444; color:#fff; font-weight:700; }
+@keyframes pop { from { transform:scale(.9); opacity:0; } }
+/* Atsiliepimų pokalbis */
+.fbconv { border:1px solid var(--line); border-radius:14px; padding:10px 12px; margin-bottom:10px; background:var(--card2); display:flex; flex-direction:column; gap:6px; }
+.fbhead { display:flex; gap:8px; align-items:flex-start; justify-content:space-between; }
+.fbmsg { padding:8px 12px; border-radius:14px; background:var(--card); white-space:pre-wrap; word-wrap:break-word; max-width:88%; font-size:14px; text-align:left; color:var(--text); }
+.fbmsg small { display:block; color:var(--muted); font-size:11.5px; margin-bottom:2px; }
+.fbmsg.me { align-self:flex-end; border-bottom-right-radius:4px; }
+.fbmsg.agent { align-self:flex-start; background:rgba(79,140,255,.18); border-bottom-left-radius:4px; }
+.replypop { display:flex; flex-direction:column; gap:8px; } .replypop .fbmsg { max-width:100%; }
+.fbatt { display:block; margin-top:6px; font-size:13px; color:var(--accent); cursor:pointer; text-decoration:underline; }

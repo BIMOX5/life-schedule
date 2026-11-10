@@ -2,6 +2,11 @@
   "stable": "1.0.0",
   "versions": [
     {
+      "v": "1.2.0",
+      "date": "2026-11-10",
+      "notes": "Pagalbos konsolė, gražūs patvirtinimo langai, atsakymai į atsiliepimus su priedais, XP dovanos"
+    },
+    {
       "v": "1.1.0",
       "date": "2026-11-10",
       "notes": "Atsiliepimai (💬), versijos, duomenų kopija ir paskyros trynimas, pranešimas apie naują versiją, sportas be rekomendacijų"

@@ -36,6 +36,24 @@ function modal(title, body, onSubmit, o = {}) {
   const f = m.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]),textarea'); if (f && !o.noFocus && window.innerWidth > 700) f.focus();
 }
 A.closeModal = () => { $('#modal').classList.remove('open'); $('#modal').innerHTML = ''; MODAL_SUBMIT = null; };
+// Gražus patvirtinimo langas ekrano viduryje (vietoj naršyklės confirm). Grąžina true/false.
+// langai rodomi po vieną (jei vienu metu ateina keli – eilė)
+let ASKQ = Promise.resolve();
+function ask(title, text = '', o = {}) { const p = ASKQ.then(() => askNow(title, text, o)); ASKQ = p.catch(() => {}); return p; }
+function askNow(title, text, o) {
+  return new Promise(res => {
+    const el = document.createElement('div'); el.className = 'askov';
+    el.innerHTML = `<div class="askbox ${o.danger ? 'danger' : ''}" role="dialog" aria-modal="true"><div class="askic">${o.icon || (o.danger ? '⚠️' : '❓')}</div><h3>${title}</h3>${text ? `<div class="asktxt">${text}</div>` : ''}
+      <div class="askbtns">${o.no === false ? '' : `<button type="button" class="btn ghost" data-r="0">${o.no || 'Atšaukti'}</button>`}<button type="button" class="btn ${o.danger ? 'danger' : 'primary'}" data-r="1">${o.yes || 'Taip'}</button></div></div>`;
+    document.body.appendChild(el);
+    const done = v => { el.classList.add('out'); document.removeEventListener('keydown', kd, true); setTimeout(() => el.remove(), 150); res(v); };
+    const kd = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); } else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); done(true); } };
+    document.addEventListener('keydown', kd, true);
+    el.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r === '1'); else if (e.target === el && o.no !== false) done(false); });
+    el.querySelector(o.danger ? '[data-r="0"]' : '[data-r="1"]')?.focus();
+  });
+}
+const info = (title, text, o = {}) => ask(title, text, {no: false, yes: 'Gerai', icon: 'ℹ️', ...o});
 function formObj(form) {
   const o = {}; const fd = new FormData(form);
   for (const [k, v] of fd.entries()) { if (k.endsWith('[]')) (o[k.slice(0, -2)] = o[k.slice(0, -2)] || []).push(v); else o[k] = v; }
@@ -85,7 +103,7 @@ A.toggleDev = async () => {
     REAL = null; A.closeModal(); UI.view = 'today'; render(); pullIfChanged(); toast('Grįžai į savo tikrus duomenis ✓', 'good');
   }
 };
-A.devReset = () => { if (!DEV || !confirm('Ištrinti bandomuosius duomenis ir pradėti nuo nulio?')) return; S = migrate(defaultData()); storeLocal(); UI.view = 'today'; render(); A.onboard(); };
+A.devReset = async () => { if (!DEV || !await ask('Pradėti nuo nulio?', 'Bandomieji duomenys bus ištrinti.', {danger: true, yes: 'Ištrinti'})) return; S = migrate(defaultData()); storeLocal(); UI.view = 'today'; render(); A.onboard(); };
 A.devCopyReal = () => { if (!DEV || !REAL) return; S = migrate(JSON.parse(JSON.stringify(REAL))); storeLocal(); render(); toast('Nukopijuota – keisk drąsiai, tikri duomenys nepasikeis'); };
 A.exportReal = () => { if (REAL) download(`life-schedule-tikri-${today()}.json`, JSON.stringify(REAL, null, 1), 'application/json'); };
 A.devSeed = () => {
@@ -108,7 +126,7 @@ A.levelInfo = () => {
   modal(`${g.title[1]} ${g.level} lygis – ${g.title[2]}`, `<div class="xpb"><i style="width:${(g.xp - g.cur) / (g.next - g.cur) * 100}%"></i></div>
     <p class="center">${g.xp} XP · iki ${g.level + 1} lygio liko <b>${g.next - g.xp} XP</b>${nextT ? ` · titulas „${nextT[2]}“ nuo ${nextT[0]} lygio` : ''}</p>
     <h4>Kam lygiai?</h4><p>Lygiai neturi didelės įtakos kasdieniam gyvenimui – jie parodo, <b>kiek nuosekliai rūpiniesi savimi</b>. XP gauni už veiksmus, ne už rezultatus: net jei ne viskas pavyksta, bet vis tiek įrašinėji, išsimiegi ir padarai, ką buvai numatęs – kyli. Kiekvienas lygis reikalauja vis daugiau XP, todėl aukštas lygis reiškia ilgalaikį įprotį, o ne vieną gerą savaitgalį.</p>
-    <h4>Kaip renkasi XP</h4><table class="tbl"><tbody>${XP_RULES.filter(([k, , , m]) => m === 'all' || (m === 'sport' && sportOn()) || (m === 'food' && foodOn()) || (m === 'body' && (sportOn() || foodOn())) || g.parts[k]).map(([k, l, x]) => `<tr><td>${l}</td><td>+${x}</td><td><small>${g.parts[k]}× = ${g.parts[k] * x} XP</small></td></tr>`).join('')}</tbody></table>
+    <h4>Kaip renkasi XP</h4><table class="tbl"><tbody>${XP_RULES.filter(([k, , , m]) => m === 'all' || (m === 'sport' && sportOn()) || (m === 'food' && foodOn()) || (m === 'body' && (sportOn() || foodOn())) || g.parts[k]).map(([k, l, x]) => `<tr><td>${l}</td><td>+${x}</td><td><small>${g.parts[k]}× = ${g.parts[k] * x} XP</small></td></tr>`).join('')}${g.bonus ? `<tr><td>🎁 Komandos dovanos / pataisymai</td><td>${g.bonus > 0 ? '+' : ''}${g.bonus}</td><td><small>${(S.xpAdjust || []).map(a => esc(a.reason || '')).filter(Boolean).slice(-3).join(' · ')}</small></td></tr>` : ''}</tbody></table>
     <h4>Serija 🔥 ${g.streak} d.</h4><p class="hint">Kiek dienų iš eilės kažką įrašei.</p>
     <h4>Titulai</h4><div class="badges">${LEVEL_TITLES.map(([l, e, n]) => `<div class="badge ${g.level >= l ? 'on' : ''}"><span>${e}</span><b>${n}</b><small>${l} lygis</small></div>`).join('')}</div>
     <div class="choice row">${btn('Ženkleliai ir progresas →', 'go', {v: 'progress'}, 'sm')}</div>`);
@@ -578,7 +596,7 @@ A.manageEvents = () => {
   const rec = S.events.filter(e => e.type !== 'once');
   modal('🔁 Pasikartojantys įvykiai', rec.length ? rec.map(e => `<div class="li click" data-a="editEvent" data-id="${e.id}">${chip(cat(e.cat).emoji + ' ' + esc(cat(e.cat).name), cat(e.cat).color)} <b>${esc(e.title)}</b> <small>${repText(e)} · ${timeText(e)}${e.until ? ` · iki ${fmtDate(e.until)}` : ''}</small></div>`).join('') + `<div class="choice row">${btn('+ Naujas', 'addEvent', {weekly: 1}, 'primary sm')}</div>` : empty('Dar nėra. Įrašyk paskaitas, darbą, švedų pamokas.') + btn('+ Naujas', 'addEvent', {weekly: 1}, 'primary'));
 };
-A.delEvent = d => { if (!confirm('Ištrinti įvykį?')) return; S.events = S.events.filter(e => e.id !== d.id); A.closeModal(); commit(); };
+A.delEvent = async d => { if (!await ask('Ištrinti įvykį?', '', {danger: true, icon: '🗑️', yes: 'Ištrinti'})) return; S.events = S.events.filter(e => e.id !== d.id); A.closeModal(); commit(); };
 A.eventInfo = d => {
   const e = S.events.find(x => x.id === d.id); if (!e) return; const c = cat(e.cat);
   const occ = eventOccurs(e, d.d) ? d.d : addDays(d.d, -1);
@@ -622,7 +640,7 @@ function taskForm(t) {
 }
 A.addTask = () => modal('Naujas reikalas', taskForm({due: addDays(today(), 1)}), o => { S.tasks.push({id: uid(), ...o, done: false, created: today()}); commit(); toast('Pridėta ✓'); });
 A.editTask = d => { const t = S.tasks.find(x => x.id === d.id); modal('Reikalas', taskForm(t), o => { Object.assign(t, o); commit(); }, {extra: btn('🗑', 'delTask', {id: t.id}, 'danger sm')}); };
-A.delTask = d => { if (!confirm('Ištrinti užduotį?')) return; S.tasks = S.tasks.filter(t => t.id !== d.id); A.closeModal(); commit(); };
+A.delTask = async d => { if (!await ask('Ištrinti užduotį?', '', {danger: true, icon: '🗑️', yes: 'Ištrinti'})) return; S.tasks = S.tasks.filter(t => t.id !== d.id); A.closeModal(); commit(); };
 A.toggleTask = d => { const t = S.tasks.find(x => x.id === d.id); t.done = !t.done; t.doneAt = t.done ? today() : null; if (t.done) { t.progress = 100; confetti(); toast(pick(MOTIVATION.taskDone) + ' +10 XP', 'good'); } commit(); };
 
 // ICS eksportas
@@ -826,7 +844,7 @@ A.editRecipe = d => {
     commit();
   }, {wide: true, extra: d.id ? btn('🗑', 'delRecipe', {id: d.id}, 'danger sm') : ''});
 };
-A.delRecipe = d => { if (!confirm('Ištrinti receptą?')) return; S.recipes = S.recipes.filter(r => r.id !== d.id); if (!S.deletedRecipes.includes(d.id)) S.deletedRecipes.push(d.id); A.closeModal(); commit(); };
+A.delRecipe = async d => { if (!await ask('Ištrinti receptą?', '', {danger: true, icon: '🗑️', yes: 'Ištrinti'})) return; S.recipes = S.recipes.filter(r => r.id !== d.id); if (!S.deletedRecipes.includes(d.id)) S.deletedRecipes.push(d.id); A.closeModal(); commit(); };
 
 // ---------- Recepto importas ----------
 A.importRecipe = () => {
@@ -1389,9 +1407,9 @@ A.reasonSet = d => {
 A.backToPlan = () => planModal();
 
 // ---------- Treniruotės režimas ----------
-A.startPlan = d => {
+A.startPlan = async d => {
   const p = S.plans.find(x => x.id === d.id); if (!p) return;
-  if (S.active && !confirm('Jau vyksta kita treniruotė. Pradėti naują?')) return;
+  if (S.active && !await ask('Pradėti naują treniruotę?', 'Jau vyksta kita treniruotė – ji bus nutraukta.', {icon: '🏋️', yes: 'Pradėti naują'})) return;
   S.active = {planId: p.id, type: p.type, date: today(), start: nowHM(), ts: Date.now(), ex: p.exercises.map(x => ({id: x.id, reps: [...x.sets], done: x.sets.map(() => false)}))};
   commit({noRender: true}); render(); A.workoutMode();
 };
@@ -1416,10 +1434,10 @@ A.workoutMode = () => {
 };
 A.wSet = d => { const x = S.active.ex[+d.i]; x.done[+d.j] = !x.done[+d.j]; if (x.done[+d.j]) REST_UNTIL = Date.now() + 60000; commit({noRender: true}); A.workoutMode(); };
 A.wAdj = d => { const x = S.active.ex[+d.i]; x.reps = x.reps.map((r, j) => x.done[j] ? r : Math.max(1, r + +d.n)); commit({noRender: true}); A.workoutMode(); };
-A.wCancel = () => { if (!confirm('Atšaukti treniruotę? Niekas nebus įrašyta.')) return; S.active = null; REST_UNTIL = 0; A.closeModal(); commit(); };
-A.wFinish = () => {
+A.wCancel = async () => { if (!await ask('Atšaukti treniruotę?', 'Niekas nebus įrašyta.', {danger: true, yes: 'Atšaukti treniruotę', no: 'Tęsti'})) return; S.active = null; REST_UNTIL = 0; A.closeModal(); commit(); };
+A.wFinish = async () => {
   const a = S.active, done = a.ex.map(x => ({id: x.id, sets: x.reps.filter((_, j) => x.done[j])})).filter(x => x.sets.length);
-  if (!done.length && !confirm('Nepažymėjai nė vienos serijos. Įrašyti visas kaip padarytas?')) return;
+  if (!done.length && !await ask('Įrašyti visas serijas?', 'Nepažymėjai nė vienos serijos. Įrašyti visas kaip padarytas?', {icon: '✅', yes: 'Įrašyti visas'})) return;
   const exercises = done.length ? done : a.ex.map(x => ({id: x.id, sets: x.reps}));
   const duration = Math.max(1, Math.round((Date.now() - a.ts) / 60000));
   S.workouts.push({id: uid(), date: a.date, start: a.start, duration, exercises, type: a.type, feel: 4});
@@ -1469,7 +1487,7 @@ function workoutModal(w, d = {}) {
     commit();
   }, {wide: true, extra: w ? btn('🗑', 'delWorkout', {id: w.id}, 'danger sm') : ''});
 }
-A.delWorkout = d => { if (!confirm('Ištrinti treniruotę?')) return; S.workouts = S.workouts.filter(w => w.id !== d.id); A.closeModal(); commit(); };
+A.delWorkout = async d => { if (!await ask('Ištrinti treniruotę?', '', {danger: true, icon: '🗑️', yes: 'Ištrinti'})) return; S.workouts = S.workouts.filter(w => w.id !== d.id); A.closeModal(); commit(); };
 
 // ================= LAIKAS =================
 function vTime() {
@@ -1668,7 +1686,7 @@ function vNotes() {
 A.addNote = () => { const n = {id: uid(), title: '', body: '', updated: Date.now()}; S.notes.push(n); UI.noteId = n.id; commit(); setTimeout(() => $('.ntitle')?.focus(), 50); };
 A.openNote = d => { UI.noteId = d.id; render(); };
 A.pinNote = d => { const n = S.notes.find(x => x.id === d.id); n.pinned = !n.pinned; commit(); };
-A.delNote = d => { if (!confirm('Ištrinti užrašą?')) return; S.notes = S.notes.filter(n => n.id !== d.id); UI.noteId = null; commit(); };
+A.delNote = async d => { if (!await ask('Ištrinti užrašą?', '', {danger: true, icon: '🗑️', yes: 'Ištrinti'})) return; S.notes = S.notes.filter(n => n.id !== d.id); UI.noteId = null; commit(); };
 
 // ================= PROFILIS / NUSTATYMAI =================
 // Profilio laukai – rodomi tik tie, kurių reikia pasirinktiems režimams
@@ -1713,7 +1731,7 @@ function vSettings() {
   ${DEV ? versionsCard() + inboxCard() : ''}</div></div>`;
 }
 A.addCat = () => { S.categories.push({id: 'c_' + uid(), name: 'Nauja', emoji: '⭐', color: '#888888', type: 0}); commit(); };
-A.delCat = d => { if (!confirm('Ištrinti kategoriją? Seni įrašai liks, bet be spalvos.')) return; S.categories.splice(+d.i, 1); commit(); };
+A.delCat = async d => { if (!await ask('Ištrinti kategoriją?', 'Seni įrašai liks, bet be spalvos.', {danger: true, icon: '🗑️', yes: 'Ištrinti'})) return; S.categories.splice(+d.i, 1); commit(); };
 A.enableNotif = async () => { if (!('Notification' in window)) return toast('Ši naršyklė nepalaiko pranešimų'); const r = await Notification.requestPermission(); toast(r === 'granted' ? 'Pranešimai įjungti 🔔' : 'Pranešimai neleisti'); render(); };
 A.exportData = () => download(`life-schedule-${today()}.json`, JSON.stringify(S, null, 1), 'application/json');
 A.theme = () => { S.settings.theme = S.settings.theme === 'dark' ? 'light' : 'dark'; applyTheme(); commit(); };
@@ -1797,7 +1815,7 @@ function versionsCard() {
 }
 A.tryVersion = d => { try { if (d.v && d.v !== window.PUBLIC_VERSION) localStorage.setItem('ls_ver_override', d.v); else localStorage.removeItem('ls_ver_override'); } catch (e) {} location.reload(); };
 A.publishVersion = async d => {
-  if (!isDeveloper() || !confirm(`Paleisti versiją ${d.v} visiems naudotojams?`)) return;
+  if (!isDeveloper() || !await ask(`Paleisti ${esc(d.v)} viešai?`, 'Versija iškart atsiras visiems naudotojams.', {icon: '🚀', yes: 'Paleisti'})) return;
   try {
     await DB.upsert('app_config', {key: 'stable', value: {version: d.v}, updated_at: new Date().toISOString(), ...(cloudOn() ? {updated_by: DB.uid()} : {})}, 'key');
     window.PUBLIC_VERSION = d.v; render(); toast(`🚀 Versija ${d.v} dabar vieša`, 'good');
@@ -1827,12 +1845,95 @@ A.feedback = () => {
 };
 A.fbKind = d => { const t = $('#mform textarea')?.value || ''; UI.fbKind = d.k; A.feedback(); const ta = $('#mform textarea'); if (ta) ta.value = t; };
 const FB_STATUS = {new: '🆕 Nauja', seen: '👀 Peržiūrėta', done: '✅ Išspręsta'};
+// Mano atsiliepimai – kaip pokalbis: mano žinutė ir komandos atsakymai (iš bilietų sistemos)
+const TK_STATUS = {new: '🆕 Gauta', open: '👀 Peržiūrima', pending: '💬 Atsakyta', solved: '✅ Išspręsta'};
+async function myTickets() {
+  const tickets = await DB.list('tickets', `user_id=eq.${DB.uid()}&type=eq.feedback&order=created_at.desc`);
+  const msgs = tickets.length ? await DB.list('ticket_messages', `ticket_id=in.(${tickets.map(t => t.id).join(',')})&kind=eq.public&order=created_at.asc`) : [];
+  return tickets.map(t => ({...t, msgs: msgs.filter(m => m.ticket_id === t.id && m.kind === 'public')}));
+}
 A.myFeedback = async () => {
+  let list = null;
+  try { list = await myTickets(); } catch (e) { /* bilietų lentelės dar nėra – rodom senu būdu */ }
   try {
+    if (list) {
+      markRepliesSeen(list);
+      modal('Mano atsiliepimai', list.length ? list.map(t => `<div class="fbconv"><div class="fbhead"><b>${KIND_EMOJI[(t.tags || [])[0]] || '💬'} ${esc(t.subject)}</b><small>${new Date(t.created_at).toLocaleDateString('lt-LT')}</small></div>
+        ${t.msgs.map(m => `<div class="fbmsg ${m.author_role === 'agent' ? 'agent' : 'me'}"><small>${m.author_role === 'agent' ? '🎧 Life Schedule komanda' : 'Tu'} · ${new Date(m.created_at).toLocaleString('lt-LT', {dateStyle: 'short', timeStyle: 'short'})}</small>${m.body === '📎' ? '' : esc(m.body)}${(m.attachments || []).map(a => `<a class="fbatt" data-a="openAtt" data-p="${esc(a.path)}">📎 ${esc(a.name)}</a>`).join('')}</div>`).join('')}</div>`).join('') : empty('Dar nieko nesiuntei'));
+      return;
+    }
     const rows = await DB.list('feedback', `user_id=eq.${DB.uid()}&order=created_at.desc`);
-    modal('Mano atsiliepimai', rows.length ? rows.map(f => `<div class="fbi"><div><b>${FB_KINDS.find(k => k[0] === f.kind)?.[1] || '💬'} ${esc(f.message)}</b><small>${new Date(f.created_at).toLocaleString('lt-LT')} · ${FB_STATUS[f.status] || f.status}</small>${f.reply ? `<div class="reply">↩ ${esc(f.reply)}</div>` : ''}</div></div>`).join('') : empty('Dar nieko nesiuntei'));
+    modal('Mano atsiliepimai', rows.length ? rows.map(f => `<div class="fbi"><div><b>${FB_KINDS.find(k => k[0] === f.kind)?.[1] || '💬'} ${esc(f.message)}</b><small>${new Date(f.created_at).toLocaleString('lt-LT')}</small>${f.reply ? `<div class="reply">↩ ${esc(f.reply)}</div>` : ''}</div></div>`).join('') : empty('Dar nieko nesiuntei'));
   } catch (e) { toast('⚠️ ' + esc(e.message)); }
 };
+const KIND_EMOJI = {bug: '🐞', idea: '💡', question: '❓', other: '💬'};
+// ----- Pagalbai: kokia versija / įrenginys (be IP – vieta tik pagal įrenginio laiko juostą) -----
+const TZ_COUNTRY = {Vilnius: 'Lietuva', Riga: 'Latvija', Tallinn: 'Estija', Warsaw: 'Lenkija', Stockholm: 'Švedija', Oslo: 'Norvegija', Copenhagen: 'Danija', Helsinki: 'Suomija', London: 'Jungtinė Karalystė', Dublin: 'Airija', Berlin: 'Vokietija', Paris: 'Prancūzija', Amsterdam: 'Nyderlandai', Brussels: 'Belgija', Madrid: 'Ispanija', Rome: 'Italija', Vienna: 'Austrija', Prague: 'Čekija', Kiev: 'Ukraina', Kyiv: 'Ukraina', Minsk: 'Baltarusija', Moscow: 'Rusija', New_York: 'JAV', Chicago: 'JAV', Denver: 'JAV', Los_Angeles: 'JAV', Toronto: 'Kanada'};
+async function reportMeta() {
+  try {
+    const c = fbContext(), tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '', city = tz.split('/').pop() || '';
+    await DB.upsert('user_meta', {user_id: DB.uid(), version: c.version, device: c.device, screen: c.screen, device_tz: tz, place: city ? `${city.replace(/_/g, ' ')}${TZ_COUNTRY[city] ? ', ' + TZ_COUNTRY[city] : ''}` : '', last_seen: new Date().toISOString()}, 'user_id');
+  } catch (e) { /* lentelės dar nėra – nieko baisaus */ }
+}
+// ----- Komandos pakeitimai (XP dovana / pataisymas, profilio taisymas) – pritaikom patys -----
+async function applyAdjustments() {
+  if (DEV || readOnly()) return;
+  let rows; try { rows = await DB.list('account_adjustments', `user_id=eq.${DB.uid()}&applied=eq.false&order=created_at.asc`); } catch (e) { return; }
+  if (!rows.length) return;
+  const xp = []; let prof = false;
+  for (const r of rows) {
+    const p = r.payload || {};
+    if (r.kind === 'xp' && Math.round(+p.amount || 0)) {
+      const n = Math.round(+p.amount);
+      S.xpAdjust = [...(S.xpAdjust || []).filter(a => a.id !== r.id), {id: r.id, date: today(), amount: n, reason: r.reason || ''}];
+      xp.push({n, reason: r.reason || ''});
+    }
+    if (r.kind === 'profile') {
+      if (p.name != null && String(p.name).trim()) { S.profile.name = String(p.name).trim().slice(0, 60); prof = true; }
+      if (p.birthYear != null && +p.birthYear > 1900) { S.profile.birthYear = +p.birthYear; prof = true; }
+    }
+  }
+  commit();
+  for (const r of rows) DB.update('account_adjustments', `id=eq.${r.id}`, {applied: true, applied_at: new Date().toISOString()}).catch(() => {});
+  const tot = sum(xp.map(x => x.n));
+  if (tot > 0) await ask(`🎁 Gavai +${tot} XP!`, xp.map(x => x.reason ? `<p>${esc(x.reason)}</p>` : '').join('') || '<p>Dovana nuo Life Schedule komandos.</p>', {icon: '⭐', yes: 'Ačiū!', no: false});
+  else if (tot < 0) await info('XP pataisyti', `<p>Tavo XP pakeisti: <b>${tot}</b>.</p>${xp.map(x => x.reason ? `<p>${esc(x.reason)}</p>` : '').join('')}`);
+  if (prof) toast('👤 Komanda atnaujino tavo profilį', 'good');
+}
+// Komandos atsiųstas failas – trumpalaikė saugi nuoroda (5 min.)
+A.openAtt = async d => {
+  const w = window.open('', '_blank');
+  try {
+    if (!cloudOn()) { w.location = `/api/files/${d.p}`; return; }
+    const r = await fetch(`${CLOUD.url}/storage/v1/object/sign/attachments/${d.p}`, {method: 'POST', headers: {apikey: CLOUD.key, Authorization: 'Bearer ' + await Auth.token(), 'Content-Type': 'application/json'}, body: JSON.stringify({expiresIn: 300})});
+    const j = await r.json(); if (!r.ok) throw new Error(j.message || r.status);
+    w.location = CLOUD.url + '/storage/v1' + j.signedURL;
+  } catch (e) { w?.close(); toast('⚠️ Nepavyko atidaryti failo'); }
+};
+// Naujas komandos atsakymas -> gražus langas ekrano viduryje (vieną kartą)
+const seenReplies = () => { try { return JSON.parse(localStorage.getItem('ls_seen_replies') || '[]'); } catch (e) { return []; } };
+function markRepliesSeen(list) {
+  const ids = list.flatMap(t => t.msgs.filter(m => m.author_role === 'agent').map(m => m.id));
+  try { localStorage.setItem('ls_seen_replies', JSON.stringify([...new Set([...seenReplies(), ...ids])].slice(-300))); } catch (e) {}
+}
+let REPLY_OPEN = false;
+async function checkReplies() {
+  if (REPLY_OPEN || DEV || document.hidden) return;
+  let list; try { list = await myTickets(); } catch (e) { return; }
+  const seen = seenReplies();
+  const fresh = list.flatMap(t => t.msgs.filter(m => m.author_role === 'agent' && !seen.includes(m.id)).map(m => ({t, m})));
+  if (!fresh.length) return;
+  REPLY_OPEN = true;
+  const {t, m} = fresh[fresh.length - 1];
+  // trumpas pokalbis: tavo paskutinė žinutė + nauji komandos atsakymai (tik vieši – jokios vidinės info)
+  const newIds = fresh.filter(f => f.t.id === t.id).map(f => f.m.id), firstNew = t.msgs.findIndex(x => newIds.includes(x.id));
+  const mine = t.msgs.slice(0, firstNew).filter(x => x.author_role !== 'agent').pop();
+  const bub = x => `<div class="fbmsg ${x.author_role === 'agent' ? 'agent' : 'me'}"><small>${x.author_role === 'agent' ? '🎧 Life Schedule komanda' : 'Tu'}</small>${x.body === '📎' ? '' : esc(x.body)}${(x.attachments || []).length ? `<small>📎 Prisegta failų: ${x.attachments.length}</small>` : ''}</div>`;
+  const others = fresh.length - newIds.length;
+  const open = await ask('💬 Gavai atsakymą!', `<div class="replypop">${mine ? bub(mine) : ''}${t.msgs.filter(x => newIds.includes(x.id)).map(bub).join('')}${others ? `<small>Ir dar ${others} nauj${others === 1 ? 'as atsakymas' : 'i atsakymai'} kituose pokalbiuose</small>` : ''}</div>`, {icon: '🎧', yes: 'Atidaryti pokalbį', no: 'Gerai'});
+  markRepliesSeen(list); REPLY_OPEN = false;
+  if (open) A.myFeedback();
+}
 
 // ----- Kūrėjo gautieji: atsiliepimai ir užklausos -----
 let INBOX = {fb: [], req: [], loaded: false};
@@ -1887,7 +1988,7 @@ function privacyCard() {
     <div class="choice row">${openExp ? '' : btn('📦 Gauti savo duomenų kopiją', 'dsarRequest', {}, 'sm')}${DELREQ ? btn('↩ Atšaukti paskyros trynimą', 'cancelDeletion', {}, 'sm primary') : btn('🗑️ Ištrinti paskyrą', 'requestDeletion', {}, 'sm danger')}</div>`);
 }
 A.dsarRequest = async () => {
-  if (!confirm('Pateikti prašymą gauti visų tavo duomenų kopiją?')) return;
+  if (!await ask('Gauti savo duomenų kopiją?', 'Paruošime visų tavo duomenų kopiją ir atsiųsime el. paštu per 30 dienų.', {icon: '📦', yes: 'Pateikti prašymą'})) return;
   try {
     const td = await trustedDate(), due = addDays(td.date, 30);
     const [r] = await DB.insert('dsar_requests', {user_id: DB.uid(), email: DB.email(), type: 'export', status: 'received', due_at: new Date(due + 'T23:59:00Z').toISOString()});
@@ -1901,8 +2002,8 @@ A.dsarRequest = async () => {
 };
 A.requestDeletion = async () => {
   if (DEV) return toast('Kūrėjo režime tikros paskyros trinti negalima – išbandyk per Testuoti.bat');
-  if (!confirm('Ar tikrai nori ištrinti paskyrą?\n\nPo 20 dienų visi tavo duomenys bus negrįžtamai ištrinti. Iki tol programėlė veiks tik peržiūrai, o pranešimai nebus siunčiami. Per tą laiką gali apsigalvoti ir atšaukti.')) return;
-  if (!confirm('Paskutinis patvirtinimas: pradėti paskyros trynimą?')) return;
+  if (!await ask('Ištrinti paskyrą?', `<p>Po <b>20 dienų</b> visi tavo duomenys bus <b>negrįžtamai</b> ištrinti.</p><ul><li>Iki tol programėlė veiks tik peržiūrai</li><li>Priminimai nebus siunčiami</li><li>Per tą laiką gali apsigalvoti ir atšaukti</li></ul>`, {danger: true, icon: '🗑️', yes: 'Toliau', no: 'Palikti paskyrą'})) return;
+  if (!await ask('Paskutinis patvirtinimas', 'Tikrai pradėti paskyros trynimą?', {danger: true, icon: '⚠️', yes: 'Taip, ištrinti', no: 'Ne, palikti'})) return;
   try {
     const td = await trustedDate(), when = addDays(td.date, 20);
     await DB.insert('dsar_requests', {user_id: DB.uid(), email: DB.email(), type: 'delete', status: 'pending', delete_at: new Date(when + 'T03:00:00Z').toISOString(), due_at: new Date(when + 'T03:00:00Z').toISOString()});
@@ -1910,7 +2011,7 @@ A.requestDeletion = async () => {
   } catch (e) { toast('⚠️ ' + esc(e.message)); }
 };
 A.cancelDeletion = async () => {
-  if (!DELREQ || !confirm('Atšaukti paskyros trynimą? Viskas liks kaip buvo.')) return;
+  if (!DELREQ || !await ask('Atšaukti trynimą?', 'Paskyra liks, viskas bus kaip buvo.', {icon: '↩️', yes: 'Atšaukti trynimą', no: 'Ne'})) return;
   try { await DB.update('dsar_requests', `id=eq.${DELREQ.id}`, {status: 'cancelled'}); await loadAccountState(); render(); toast('↩ Trynimas atšauktas – sveikas sugrįžęs!', 'good'); }
   catch (e) { toast('⚠️ ' + esc(e.message)); }
 };
@@ -1942,9 +2043,9 @@ A.dsarMail = d => {
   navigator.clipboard?.writeText(txt).then(() => toast('✉️ Laiško šablonas nukopijuotas'));
   modal('✉️ Laiško šablonas', `<p class="hint">Nukopijuota. Siųsk adresu <b>${esc(r.email || '')}</b> su abiem failais.</p><pre class="mail">${esc(txt)}</pre>`);
 };
-A.dsarSent = async d => { if (!confirm('Pažymėti, kad duomenys išsiųsti?')) return; try { await DB.update('dsar_requests', `id=eq.${d.id}`, {status: 'sent', done_at: new Date().toISOString()}); await refreshInbox(); render(); toast('✅ Užklausa užbaigta'); } catch (e) { toast('⚠️ ' + esc(e.message)); } };
+A.dsarSent = async d => { if (!await ask('Pažymėti išsiųsta?', 'Užklausa bus užbaigta.', {icon: '✉️'})) return; try { await DB.update('dsar_requests', `id=eq.${d.id}`, {status: 'sent', done_at: new Date().toISOString()}); await refreshInbox(); render(); toast('✅ Užklausa užbaigta'); } catch (e) { toast('⚠️ ' + esc(e.message)); } };
 A.devRunDeletion = async d => {
-  if (cloudOn() || !confirm('TESTAS: ištrinti vietinius testinius duomenis dabar?')) return;
+  if (cloudOn() || !await ask('TESTAS: ištrinti dabar?', 'Bus ištrinti vietiniai testiniai duomenys.', {danger: true, yes: 'Ištrinti'})) return;
   await fetch('/api/data', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({baseRev: REV, data: {}, force: true})});
   await DB.update('dsar_requests', `id=eq.${d.id}`, {status: 'done', done_at: new Date().toISOString(), email: null});
   localStorage.removeItem(lsKey()); sessionStorage.removeItem(DEV_KEY); location.reload();
@@ -2038,7 +2139,7 @@ document.addEventListener('change', e => {
   if (el.dataset.c === 'mealSuggest') { S.foodPrefs.mealSuggest = el.checked; commit(); toast(el.checked ? '🍽️ „Šiandien“ skiltyje siūlysiu, ką valgyti' : 'Pasiūlymai išjungti'); }
   if (el.dataset.cat !== undefined && el.dataset.k) { const c = S.categories[+el.dataset.cat]; c[el.dataset.k] = el.dataset.k === 'type' ? +el.value : el.value; commit({noRender: true}); }
   if (el.dataset.c === 'shopCheck') { S.shopChecked = S.shopChecked || {}; S.shopChecked[el.dataset.id] = el.checked; el.closest('.shop').classList.toggle('on', el.checked); commit({noRender: true}); }
-  if (el.dataset.c === 'importData') { const f = el.files[0]; if (!f) return; f.text().then(t => { try { const d = JSON.parse(t); if (!d.profile) throw 0; if (!confirm('Pakeisti VISUS dabartinius duomenis šia kopija?')) return; S = migrate(d); commit(); toast('Duomenys įkelti ✓', 'good'); } catch (x) { alert('Netinkamas failas'); } }); }
+  if (el.dataset.c === 'importData') { const f = el.files[0]; if (!f) return; f.text().then(async t => { try { const d = JSON.parse(t); if (!d.profile) throw 0; if (!await ask('Pakeisti visus duomenis?', 'Dabartiniai duomenys bus pakeisti šia kopija.', {danger: true, yes: 'Pakeisti'})) return; S = migrate(d); commit(); toast('Duomenys įkelti ✓', 'good'); } catch (x) { alert('Netinkamas failas'); } }); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') A.closeModal(); });
 
@@ -2066,7 +2167,7 @@ document.addEventListener('submit', async e => {
     loginScreen('⚠️ ' + (m.includes('Invalid login') ? 'Neteisingas el. paštas arba slaptažodis' : m.includes('not confirmed') ? 'El. paštas dar nepatvirtintas – paspausk nuorodą laiške (pažiūrėk ir Spam)' : m.includes('already registered') ? 'Tokia paskyra jau yra – spausk „Prisijungti“' : m.includes('rate limit') ? 'Per daug bandymų – palauk valandą ir bandyk vėl (arba prisijunk, jei paskyra jau sukurta)' : esc(m)));
   }
 });
-A.logout = () => { if (!confirm('Atsijungti šiame įrenginyje?')) return; Auth.logout(); location.reload(); };
+A.logout = async () => { if (!await ask('Atsijungti?', 'Atsijungsi tik šiame įrenginyje.', {icon: '👋', yes: 'Atsijungti'})) return; Auth.logout(); location.reload(); };
 
 (async () => {
   if (!(await loadData())) { loginScreen(); return; }
@@ -2078,9 +2179,12 @@ A.logout = () => { if (!confirm('Atsijungti šiame įrenginyje?')) return; Auth.
   checkNewVersion(); setInterval(checkNewVersion, 300000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkNewVersion(); });
   if (S.settings.onboarded) showWhatsNew();
+  setTimeout(checkReplies, 2500); setInterval(checkReplies, 120000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(checkReplies, 1000); });
   // jei buvai kūrėjo režime ir perkrovei puslapį – liekam smėlio dėžėje
   try { const sb = sessionStorage.getItem(DEV_KEY); if (sb && isDeveloper()) { REAL = S; DEV = true; S = migrate(JSON.parse(sb)); } } catch (e) {}
   applyTheme(); render();
+  reportMeta(); setTimeout(applyAdjustments, 1500); setInterval(applyAdjustments, 300000);
   if (!S.settings.onboarded) A.onboard();
   checkReminders();
   setInterval(() => { checkReminders(); if (!$('#modal.open') && ['today', 'calendar'].includes(UI.view) && document.activeElement?.tagName !== 'INPUT') render(); }, 60000);

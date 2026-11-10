@@ -236,7 +236,7 @@ async function loadData() {
     ONLINE = true;
     if (cached && cached.DIRTY && cached.S && srv.data) {
       if (srv.rev === cached.REV) { S = migrate(cached.S); REV = srv.rev; DIRTY = true; await push(); return true; }
-      const useLocal = confirm('Šiame įrenginyje yra neišsaugotų pakeitimų, bet kitas įrenginys jau pakeitė duomenis.\n\nOK = palikti ŠIO įrenginio versiją\nAtšaukti = paimti naujausią versiją');
+      const useLocal = await ask('Kuri versija tikroji?', 'Šiame įrenginyje yra neišsaugotų pakeitimų, bet kitas įrenginys jau pakeitė duomenis.', {icon: '🔄', yes: 'Palikti šio įrenginio', no: 'Paimti naujausią'});
       if (useLocal) { S = migrate(cached.S); REV = srv.rev; DIRTY = true; await push(true); return true; }
     }
     if (srv.data) { S = migrate(srv.data); REV = srv.rev; DIRTY = false; storeLocal(); return true; }
@@ -245,7 +245,7 @@ async function loadData() {
     if (cloudOn() && !found) {
       try { const loc = await (await api('GET', '/api/data')).json(); if (loc && loc.profile) found = loc; } catch (e) {}
       if (!found) try { const old = JSON.parse(localStorage.getItem('manogyv_v1')); if (old && old.S) found = old.S; } catch (e) {}
-      if (found && !confirm('Radau šiame įrenginyje esančius duomenis. Perkelti juos į debesį?\n\nOK = perkelti\nAtšaukti = pradėti iš naujo')) found = null;
+      if (found && !await ask('Perkelti duomenis į debesį?', 'Radau šiame įrenginyje esančius duomenis.', {icon: '☁️', yes: 'Perkelti', no: 'Pradėti iš naujo'})) found = null;
     }
     S = found ? migrate(JSON.parse(JSON.stringify(found))) : defaultData(); REV = srv.rev; DIRTY = true; await push();
   } catch (e) {
@@ -271,7 +271,7 @@ async function push(force) {
     const res = await BK().put(JSON.parse(snapshot), REV, force);
     if (res.conflict) {
       PUSHING = false;
-      const useLocal = confirm('Duomenys buvo pakeisti kitame įrenginyje.\n\nOK = perrašyti ŠIO įrenginio versija\nAtšaukti = įkelti naujausią (šio įrenginio paskutinis pakeitimas bus prarastas)');
+      const useLocal = await ask('Duomenys pakeisti kitur', 'Duomenys buvo pakeisti kitame įrenginyje. Jei įkelsi naujausius, paskutinis šio įrenginio pakeitimas dings.', {icon: '🔄', yes: 'Palikti šio įrenginio', no: 'Įkelti naujausius'});
       if (useLocal) return push(true);
       const srv = await BK().get(); S = migrate(srv.data || defaultData()); REV = srv.rev; DIRTY = false; storeLocal(); render(); return;
     }
@@ -824,7 +824,9 @@ function gamification() {
   const sleepGood = S.sleep.filter(s => Math.abs(sleepMinutes(s) / 60 - (+S.profile.sleepGoal || 8)) <= 0.75).length;
   const checkins = countedCheckins();
   const parts = {tasksDone, workouts: S.workouts.length, daysLogged, sleepGood, checkins, weights: S.weights.length, cooks: S.cooks.length};
-  const xp = sum(XP_RULES.map(([k, , x]) => (parts[k] || 0) * x));
+  // komandos koregavimai (dovanos / pataisymai iš pagalbos konsolės)
+  const bonus = sum((S.xpAdjust || []).map(a => +a.amount || 0));
+  const xp = Math.max(0, sum(XP_RULES.map(([k, , x]) => (parts[k] || 0) * x)) + bonus);
   const level = Math.floor(Math.sqrt(xp / 40)) + 1;
   const cur = (level - 1) ** 2 * 40, next = level ** 2 * 40;
   const lost = S.weights.length ? round((+S.profile.startWeight || S.weights[0].kg) - currentWeight(), 1) : 0;
@@ -856,7 +858,7 @@ function gamification() {
   ];
   const badges = all.filter(b => b[4] || b[3]).map(b => b.slice(0, 4));
   const title = [...LEVEL_TITLES].reverse().find(t => level >= t[0]);
-  return {xp, level, cur, next, streak, badges, lost, title, parts};
+  return {xp, level, cur, next, streak, badges, lost, title, parts, bonus};
 }
 const LEVEL_TITLES = [[1, '🌱', 'Pradedantysis'], [3, '🚶', 'Įsivažiuojantis'], [5, '🏃', 'Nuoseklus'], [8, '💪', 'Disciplinuotas'], [12, '🔥', 'Nesustabdomas'], [17, '🦾', 'Mašina'], [25, '👑', 'Legenda']];
 // [raktas, pavadinimas, XP, kada rodyti]
