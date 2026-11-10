@@ -157,6 +157,7 @@ const ICON = {
   userplus: svg('<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M19 8v6M16 11h6"/>'), clip: svg('<path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8.5-8.5a3.5 3.5 0 0 1 5 5L10.5 18a2 2 0 0 1-3-3L15 7.5"/>'),
   sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
   moon: svg('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'), out: svg('<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>'), user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
+  users: svg('<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-5-6.7"/>'), copy: svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
   trash: svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'), tag: svg('<path d="M3 12V3h9l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>'),
 };
 
@@ -300,7 +301,7 @@ async function start() {
   render();
   window.addEventListener('hashchange', openFromHash);
   if (!(await openFromHash())) await pump();
-  setInterval(tick, 20000);
+  setInterval(tick, 5000);
 }
 async function tick() { if (document.hidden) return; await loadTickets(true); if (SEL) await loadMsgs(SEL, true); await pump(); if (VIEW === 'home' && !POP) render(true); }
 async function heartbeat() {
@@ -377,7 +378,7 @@ function render(keepScroll) {
   const t = T.find(x => x.id === SEL), standalone = PAGE_CUSTOMER || PAGE_KB;
   const th = $('.thread'), st = th ? th.scrollTop : null, nearBottom = th ? th.scrollHeight - th.scrollTop - th.clientHeight < 80 : true, prevN = th?.dataset.n, prevT = th?.dataset.t;
   const rp = $('#reply'); if (rp) DRAFT[rp.dataset.tid] = rp.value;
-  const body = PAGE_KB ? kbPage() : PAGE_CUSTOMER ? customerView() : EXTRA_VIEW[VIEW] ? EXTRA_VIEW[VIEW]() : VIEW === 'search' ? searchView() : VIEW === 'dev' ? devPage() : homeView(t);
+  const body = PAGE_KB ? kbPage() : PAGE_CUSTOMER ? customerView() : EXTRA_VIEW[VIEW] ? EXTRA_VIEW[VIEW]() : VIEW === 'search' ? searchView() : VIEW === 'admin' ? adminView() : VIEW === 'dev' ? devPage() : homeView(t);
   $('#root').innerHTML = standalone ? `<div class="solo"><div class="solohead"><b>🎧 Support Console</b>${TEST ? '<span class="test">TEST</span>' : ''}<span class="sp"></span><span class="muted">${PAGE_KB ? 'Knowledge base' : 'Customer profile'}</span></div>${body}</div>`
     : `<div class="app">${rail()}<div class="content">${body}</div></div>`;
   if ($('#reply') && t) $('#reply').value = DRAFT[t.id] || '';
@@ -388,7 +389,7 @@ const ROLE_NAMES = {agent: 'Agent', lead: 'Lead', developer: 'Developer'};
 const rb = (act, icon, title, on, extra = '') => `<button class="rb ${on ? 'on' : ''}" data-act="${act}" title="${title}" aria-label="${title}" ${extra}>${icon}</button>`;
 function rail() {
   const initials = (ME.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  return `<nav class="rail">${rb('home', ICON.home, 'Home', VIEW === 'home')}${rb('newcase', ICON.plus, 'New case', VIEW === 'newcase')}${rb('search', ICON.search, 'Search cases', VIEW === 'search')}
+  return `<nav class="rail">${rb('home', ICON.home, 'Home', VIEW === 'home')}${rb('newcase', ICON.plus, 'New case', VIEW === 'newcase')}${rb('search', ICON.search, 'Search cases', VIEW === 'search')}${rb('admin', ICON.users, 'Admin panel', VIEW === 'admin')}
     ${CAN_TOGGLE() ? rb('devview', ICON.layers, DEVVIEW ? 'All cases view (on)' : 'All cases view (off)', DEVVIEW) : ''}${IS_DEV() ? rb('devpage', ICON.code, 'Developer tools', VIEW === 'dev') : ''}
     <span class="sp"></span>${VIEW_AS() !== ROLE ? `<span class="asbadge" title="You are previewing the console as ${ROLE_NAMES[VIEW_AS()]}">as ${ROLE_NAMES[VIEW_AS()]}</span>` : ''}${TEST ? '<span class="test">TEST</span>' : ''}
     <div class="popwrap"><button class="avatar sm" data-act="pop" data-p="me" title="${esc(ME.name)}">${esc(initials)}</button>
@@ -429,7 +430,7 @@ function msgHtml(m, t) {
   const rt = m.author_role === 'system' && /^Customer rated the support: (\d)\/5 \((.+)\)/.exec(m.body || '');
   if (rt) return `<div class="msg customer rating"><small>${esc(customerName(t))} · ${dt(m.created_at)}</small><span class="stars">${'★'.repeat(+rt[1])}${'☆'.repeat(5 - +rt[1])}</span> ${RATE_EMO[rt[1] - 1] || ''} Rated the support: <b>${esc(rt[2])}</b> (${rt[1]}/5)</div>`;
   if (m.kind === 'event' || m.author_role === 'system') return CLEAN ? '' : `<div class="msg event">${esc(m.body)}${m.dev_note && VIEW_AS() !== 'agent' ? ` <span class="devnote" title="Visible to developers and leads only">${esc(m.dev_note)}</span>` : ''} <small>${m.author_name && !m.body.includes(m.author_name) ? esc(m.author_name) + ' · ' : ''}${dt(m.created_at)}</small></div>`;
-  if (m.kind === 'internal') return `<div class="msg internal"><small>Internal note · ${esc(m.author_name || '')} · ${dt(m.created_at)}</small>${esc(m.body)}${attHtml(m)}</div>`;
+  if (m.kind === 'internal') return `<div class="msg internal"><small>Internal note · ${esc(m.author_name || '')} · ${dt(m.created_at)}</small>${linkify(m.body)}${attHtml(m)}</div>`;
   const tr = TR[t.id], tx = m.author_role === 'customer' && tr?.on && tr.map[m.id];
   return `<div class="msg ${m.author_role === 'auto' ? 'agent' : m.author_role}"><small>${m.author_role === 'customer' ? esc(customerName(t)) : m.author_role === 'auto' ? 'Automatic message' : esc(m.author_name || 'Agent')} · ${dt(m.created_at)}${tx ? ` · <b class="trl">Translated from ${esc(DEEPL[tr.from] || tr.from || '?')}</b>` : ''}</small>${m.body === '📎' ? '' : esc(tx || m.body)}${attHtml(m)}${mailHtml(m)}</div>`;
 }
@@ -472,12 +473,17 @@ function convHtml(t) {
 }
 function sideHtml(t) {
   const c = CUST[t.user_id], p = c?.data?.profile || {}, m = META[t.user_id], ctx = t.context || {};
-  const name = p.name || (t.email || '').split('@')[0] || '—';
+  const email = t.channel === 'email', noAcc = !t.user_id || c?.error || (c && !c.id), name = noAcc ? (t.email || 'Unknown sender') : p.name || (t.email || '').split('@')[0] || '—';
+  const unverified = !noAcc && c && 'email_confirmed_at' in c && !c.email_confirmed_at, differs = !noAcc && c?.email && t.email && c.email.toLowerCase() !== t.email.toLowerCase();
   const others = T.filter(x => x.user_id && x.user_id === t.user_id && x.id !== t.id).sort((a, b) => a.created_at < b.created_at ? 1 : -1), shown = others.slice(0, MORE[t.id] ? 10 : 4);
-  return `<div class="side"><div class="card who"><div class="avatar">${esc(name[0]?.toUpperCase() || '?')}</div><div class="grow"><b>${esc(name)}</b>
-      ${c?.num ? `<a class="idlink" data-act="profile" data-u="${esc(t.user_id)}" title="Open customer profile">#${c.num} ↗</a>` : !t.user_id ? '<small>Account deleted</small>' : ''}
-      <small>${esc(t.email || '')}</small>${m?.version || ctx.version ? `<small>v${esc(m?.version || ctx.version)}</small>` : ''}</div></div>
-    <div class="sbtns"><button class="btn" data-act="kbside">${ICON.book} Knowledge base</button>${t.user_id ? `<button class="btn" data-act="quickcomment">${ICON.comment} Comment</button>` : ''}</div>
+  return `<div class="side">${email ? '<div class="chanbar">✉️ Email case <small>– replies go to the customer\'s inbox</small></div>' : ''}
+    <div class="card who"><div class="avatar">${noAcc ? '@' : esc(name[0]?.toUpperCase() || '?')}</div><div class="grow"><b>${esc(name)}</b>
+      ${noAcc ? '<small class="t-bad">No user found for this email</small>' : `${c?.num ? `<a class="idlink" data-act="profile" data-u="${esc(t.user_id)}" title="Open customer profile">#${c.num} ↗</a>` : ''}<small>${esc(t.email || '')}</small>`}
+      ${m?.version || ctx.version ? `<small>v${esc(m?.version || ctx.version)}</small>` : ''}</div>
+      ${!noAcc && t.user_id ? `<button class="ib sm" data-act="profile" data-u="${esc(t.user_id)}" title="Open account">${ICON.user}</button>` : ''}</div>
+    ${unverified ? '<div class="alertbox">⚠️ <b>Email not verified.</b> Make sure this is really the account owner before sharing or changing account details.</div>' : ''}
+    ${differs ? `<div class="alertbox">⚠️ <b>Different email.</b> The case came from ${esc(t.email)}, but the account uses ${esc(c.email)}.</div>` : ''}
+    <div class="sbtns"><button class="btn" data-act="kbside">${ICON.book} Knowledge base</button>${t.user_id && !noAcc ? `<button class="btn" data-act="quickcomment">${ICON.comment} Comment</button>` : ''}</div>
     ${t.type === 'dsar_export' && !['solved', 'closed'].includes(t.status) ? `<div class="card"><h3>Data copy</h3>${t.assignee === ME.id ? '<button class="btn primary full" data-act="dsarprep">📄 Prepare files</button>' : '<small>Assign to yourself first</small>'}</div>` : ''}
     <div class="card"><div class="kv"><span>Location</span><b>${esc(t.user_id ? placeOf(t.user_id) : '–')}</b><span>Language</span><b>${langName(t.language)}</b><span>Channel</span><b>${t.channel === 'email' ? '✉️ Email' : '📱 In app'}</b></div></div>
     <div class="card"><h3>Linked cases</h3>${shown.map(x => `<div class="lrow" data-t="${x.id}"><span>${ticketIcon(x)} ${esc(caseTitle(x))}</span>${stChip(x.status)}</div>`).join('') || '<small>None</small>'}
@@ -575,7 +581,7 @@ function caseData(t) {
     <label class="wide">Subject / preview<input id="c_subj" value="${esc(t.subject)}" maxlength="120"></label>
     <label>Conversation language<select id="c_lang">${LANGS.map(([v, l]) => `<option value="${v}" ${(t.language || 'lt') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <label>Priority<select id="c_prio">${PRIO.map(([v, l]) => `<option value="${v}" ${t.priority === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-    <label>Channel<select id="c_chan"><option value="app" ${t.channel !== 'email' ? 'selected' : ''}>📱 In app</option>${t.email ? `<option value="email" ${t.channel === 'email' ? 'selected' : ''}>✉️ Email</option>` : ''}</select></label>
+    <label>Channel<select id="c_chan" ${t.channel === 'email' ? 'disabled title="Email cases stay email"' : ''}>${t.channel === 'email' ? '<option value="email" selected>✉️ Email</option>' : `<option value="app" selected>📱 In app</option>${t.email ? '<option value="email">✉️ Email</option>' : ''}`}</select></label>
     <label>Known issue<select id="c_issue"><option value="">– none –</option>${ISSUES.filter(i => i.status !== 'fixed' || i.id === t.issue_id).map(i => `<option value="${i.id}" ${t.issue_id === i.id ? 'selected' : ''}>🧯 ${esc(i.title.slice(0, 50))}</option>`).join('')}<option value="__new">＋ New issue…</option></select></label></div>
     <div class="row"><span class="sp"></span><button class="btn" data-act="mclose">Cancel</button><button class="btn primary" data-act="casesave">Save</button></div>`);
 }
@@ -624,6 +630,7 @@ document.addEventListener('click', async e => {
   if (a === 'search') { VIEW = 'search'; POP = null; render(); $('#sq')?.focus(); return; }
   if (a === 'dosearch') { SR.q = $('#sq').value; SR.page = 0; return runSearch(); }
   if (a === 'spage') { SR.page = Math.max(0, SR.page + +el.dataset.d); return runSearch(); }
+  if (a === 'admin') { VIEW = 'admin'; POP = null; ADM.uid = null; render(); $('#aq')?.focus(); if (ADM.tab === 'deletions') loadDeletions(); return; }
   if (a === 'devpage') { VIEW = 'dev'; render(); if (DEVTAB === 'audit') await loadAudit(); return; }
   if (a === 'devtab') { DEVTAB = el.dataset.k; render(); if (DEVTAB === 'audit') await loadAudit(); else { await loadExtra(DEVTAB); render(); } return; }
   if (a === 'rename') { POP = null; render(true); return askName(ME.name).then(() => render(true)); }
@@ -719,6 +726,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { if (POP) { POP = null; render(true); } closeModal(); }
+  if (e.key === 'Enter' && e.target.id === 'aq') admSearch();
   if (e.key === 'Enter' && e.target.id === 'sq') { SR.q = e.target.value; SR.page = 0; runSearch(); }
   if (e.key === 'Enter' && e.target.id === 'tpq') { e.preventDefault(); const q = TP.q.trim().toLowerCase().replace(/\s+/g, '-'); if (q) { TP.sel.add(q); TP.q = ''; tagModal(); $('#tpq')?.focus(); } }
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.id === 'reply') $('[data-act="send"]')?.click();

@@ -34,7 +34,7 @@ function md(s) {
   }).join('');
 }
 // Comment text: case links (#case/12 or a full console link) become clickable
-const linkify = s => esc(s).replace(/(https?:\/\/[^\s<]*#case\/(\d+))|#case\/(\d+)/g, (m, url, n1, n2) => `<a href="./#case/${n1 || n2}" target="_blank">Case #${n1 || n2} ↗</a>`)
+const linkify = s => esc(s).replace(/https?:\/\/[^\s<]*\?customer=([\w-]+)[^\s<]*/g, (m, id) => `<a href="./?customer=${id}" target="_blank">👤 Customer profile ↗</a>`).replace(/(https?:\/\/[^\s<]*#case\/(\d+))|#case\/(\d+)/g, (m, url, n1, n2) => `<a href="./#case/${n1 || n2}" target="_blank">Case #${n1 || n2} ↗</a>`)
   .replace(/(^|\s)(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
 
 // Approximate XP from customer data (same rules as the app)
@@ -58,8 +58,8 @@ const modesTxt = d => d.settings?.modes ? [d.settings.modes.sport && 'sport', d.
 
 // ===================== CUSTOMER PROFILE (separate window: ?customer=<id>) =====================
 async function loadDsar(uid) { try { DSARS[uid] = await DB.list('dsar_requests', `user_id=eq.${uid}&order=created_at.desc`); } catch (e) { DSARS[uid] = []; } }
-async function openCustomer(uid) {
-  CUSTID = uid; VIEW = 'customer'; render();
+async function openCustomer(uid, inAdmin) {
+  CUSTID = uid; if (!inAdmin) VIEW = 'customer'; render();
   delete CUST[uid];
   await Promise.all([loadCustomer(uid), loadDsar(uid),
     DB.list('account_adjustments', `user_id=eq.${uid}&order=created_at.desc`).then(r => ADJ[uid] = r).catch(() => ADJ[uid] = []),
@@ -76,7 +76,8 @@ function customerView() {
   const d = c.data || {}, p = d.profile || {}, name = p.name || (c.email || '').split('@')[0] || '—', g = xpOf(d), del = pendingDeletion(uid);
   return `<div class="page"><div class="pwrap">
     <div class="phero"><div class="avatar big">${esc(name[0]?.toUpperCase() || '?')}</div>
-      <div class="grow"><h1>${esc(name)} <span class="cno">#${esc(c.num ?? '–')}</span></h1><div class="muted">${esc(c.email || '')}</div></div>
+      <div class="grow"><h1>${esc(name)} <span class="cno">#${esc(c.num ?? '–')}</span></h1><div class="muted">${esc(c.email || '')} ${verifiedChip(c)}</div></div>
+      <button class="btn" data-act="copyprof" data-u="${esc(uid)}" title="Copy a link to this profile – paste it into internal notes">${ICON.copy} Copy profile link</button>
       <div class="lvl"><b>${g.level}</b><small>level</small></div><div class="lvl"><b>${g.xp}</b><small>XP</small></div>
       ${del ? '' : `<button class="btn danger-o" data-act="deluser">${ICON.trash} Delete account</button>`}</div>
     ${del ? `<div class="delbanner"><div class="grow"><b>🗑️ Scheduled for deletion</b><div>Requested ${dt(del.created_at)} by <b>${del.requested_by_name ? esc(del.requested_by_name) + ' (team)' : 'the customer'}</b> · deleted on <b>${dt(del.delete_at)}</b></div></div>
@@ -84,11 +85,13 @@ function customerView() {
     <div class="ptabs">${PTABS.map(([k, l]) => `<button class="${PTAB === k ? 'on' : ''}" data-act="ptab" data-k="${k}">${l}${k === 'comments' && (COMMENTS[uid] || []).length ? ` <i>${COMMENTS[uid].length}</i>` : ''}</button>`).join('')}</div>
     <div class="pbody">${(PVIEW[PTAB] || PVIEW.profile)(uid, c, d, p, g)}</div></div></div>`;
 }
+const verifiedChip = c => !('email_confirmed_at' in c) ? '' : c.email_confirmed_at ? '<span class="chip c-good">✓ Verified</span>' : '<span class="chip c-bad">Not verified</span>';
+const profileLink = uid => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}?customer=${uid}`;
 const kv = rows => `<div class="kv">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div>`;
 const PVIEW = {
   profile: (uid, c, d, p) => {
     const age = p.birthYear ? new Date().getFullYear() - +p.birthYear : null;
-    return `<div class="pgrid"><div class="card"><h3>Basic info</h3>${kv([['Name', esc(p.name || '–')], ['Birth year', p.birthYear ? `${esc(p.birthYear)} <small>(≈ ${age})</small>` : '–'], ['Email', esc(c.email || '–')],
+    return `<div class="pgrid"><div class="card"><h3>Basic info</h3>${kv([['Name', esc(p.name || '–')], ['Birth year', p.birthYear ? `${esc(p.birthYear)} <small>(≈ ${age})</small>` : '–'], ['Email', `${esc(c.email || '–')} ${verifiedChip(c)}`],
         ['Customer #', esc(c.num ?? '–')], ['Internal ID', `<code class="idlink" data-act="copyuid" data-u="${esc(uid)}" title="Copy">${esc(uid)}</code>`], ['Customer since', dt(c.created_at)], ['Modes', modesTxt(d)], ['Time zone', esc(d.settings?.tz || '–')]])}</div>
       <div class="card"><h3>Edit profile</h3><div class="frm">
         <label>Name<input id="p_name" value="${esc(p.name || '')}" maxlength="60"></label>
@@ -284,6 +287,33 @@ async function createCase() {
   } catch (e) { toast('⚠️ ' + esc(e.message)); }
 }
 
+// ===================== ADMIN PANEL: tabs on the left, search on top =====================
+const ADM = {tab: 'users', q: '', rows: null, busy: false, uid: null, dels: null};
+const ADMTABS = [['users', '👥', 'Users'], ['deletions', '🗑️', 'Scheduled deletions']];
+function adminView() {
+  return `<div class="admin"><div class="anav"><h3>Admin</h3>${ADMTABS.map(([k, e, l]) => `<button class="${ADM.tab === k ? 'on' : ''}" data-act="admtab" data-k="${k}">${e} ${l}</button>`).join('')}</div>
+    <div class="amain">${ADM.uid ? `<div class="aback"><button class="btn sm" data-act="admback">← Back</button></div>${customerView()}` : ADM.tab === 'users' ? admUsers() : admDeletions()}</div></div>`;
+}
+function admUsers() {
+  return `<div class="page"><div class="pwrap"><h1>Users</h1><div class="sbar"><input id="aq" placeholder="Email, customer # or ID" value="${esc(ADM.q)}"><button class="btn primary" data-act="admsearch">${ICON.search} Search</button></div>
+    ${ADM.busy ? '<div class="empty">Searching…</div>' : ADM.rows == null ? '<div class="empty">Search for a customer by email, number or ID.</div>' : !ADM.rows.length ? '<div class="empty">No user found</div>'
+      : `<div class="card flush"><table class="tbl"><tr><th>Customer</th><th>Email</th><th>Created</th><th>Last sign-in</th><th></th></tr>${ADM.rows.map(u => `<tr><td><b>${esc(u.name || '–')}</b> <small>#${esc(u.num ?? '–')}</small></td>
+        <td>${esc(u.email || '')} ${verifiedChip(u)}</td><td>${dt(u.created_at)}</td><td>${dt(u.last_sign_in_at)}</td><td><button class="ib sm" data-act="admopen" data-u="${esc(u.id)}" title="View account">${ICON.edit}</button></td></tr>`).join('')}</table></div>`}</div></div>`;
+}
+function admDeletions() {
+  const r = ADM.dels;
+  return `<div class="page"><div class="pwrap"><h1>Scheduled deletions</h1>${r == null ? '<div class="empty">Loading…</div>' : !r.length ? '<div class="empty">No accounts are scheduled for deletion</div>'
+    : `<div class="card flush"><table class="tbl"><tr><th>Email</th><th>Requested</th><th>By</th><th>Deleted on</th><th></th></tr>${r.map(x => `<tr><td>${esc(x.email || '–')}</td><td>${dt(x.created_at)}</td><td>${x.requested_by_name ? esc(x.requested_by_name) + ' (team)' : 'customer'}</td><td>${dt(x.delete_at)}</td>
+      <td>${x.user_id ? `<button class="ib sm" data-act="admopen" data-u="${esc(x.user_id)}" title="View account">${ICON.edit}</button>` : ''}</td></tr>`).join('')}</table></div>`}</div></div>`;
+}
+async function admSearch() {
+  ADM.q = val('aq'); if (ADM.q.length < 2) return toast('Type at least 2 characters');
+  ADM.busy = true; render();
+  try { ADM.rows = await DB.rpc('console_find_users', {q: ADM.q}) || []; } catch (e) { ADM.rows = []; toast('⚠️ Search is not available yet – run SQL 10 in Supabase'); }
+  ADM.busy = false; render(); const i = $('#aq'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+}
+async function loadDeletions() { try { ADM.dels = await DB.list('dsar_requests', 'type=eq.delete&status=eq.pending&order=delete_at.asc'); } catch (e) { ADM.dels = []; } render(); }
+
 // Quick comment on the customer's profile from a case (case link added at the end)
 function quickComment(t) {
   modal(`<h3>Comment on ${esc(customerName(t))}'s profile</h3><p class="muted">A link to case #${t.case_no} is added automatically.</p>
@@ -296,9 +326,14 @@ function quickComment(t) {
 const EXTRA_VIEW = {customer: customerView, newcase: newCaseView};
 const EXTRA_ACT = {
   profile: el => window.open(`./?customer=${encodeURIComponent(el.dataset.u)}`, '_blank'),
+  copyprof: el => { navigator.clipboard?.writeText(profileLink(el.dataset.u)); toast('🔗 Profile link copied – paste it into an internal note'); },
   copyuid: el => { navigator.clipboard?.writeText(el.dataset.u); toast('ID copied'); },
   mclose: () => closeModal(true),
   ptab: el => { PTAB = el.dataset.k; render(); },
+  admtab: el => { ADM.tab = el.dataset.k; ADM.uid = null; render(); if (ADM.tab === 'deletions') loadDeletions(); },
+  admsearch: () => admSearch(),
+  admopen: el => { ADM.uid = el.dataset.u; PTAB = 'profile'; openCustomer(el.dataset.u, true); },
+  admback: () => { ADM.uid = null; CUSTID = null; render(); },
   saveprof: () => {
     const p = CUST[CUSTID]?.data?.profile || {}, name = val('p_name'), by = val('p_by'), payload = {};
     if (name && name !== (p.name || '')) payload.name = name;

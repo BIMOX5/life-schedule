@@ -184,3 +184,12 @@ input:focus, select:focus, textarea:focus { border-color:var(--accent); }
 .pop .viewas button.on { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
 .asbadge { font-size:10.5px; background:var(--accent); color:var(--on-accent); padding:2px 6px; border-radius:99px; font-weight:500; text-align:center; }
 .msg.rating .stars { color:var(--warn); letter-spacing:1px; font-size:16px; }
+
+/* Email cases, admin panel */
+.chanbar { background:color-mix(in srgb, var(--blue) 14%, transparent); color:var(--t-blue); border-radius:12px; padding:9px 12px; font-weight:500; } .chanbar small { color:inherit; opacity:.8; font-weight:400; }
+.alertbox { background:color-mix(in srgb, var(--bad) 13%, transparent); border:1px solid color-mix(in srgb, var(--bad) 45%, transparent); color:var(--text); border-radius:12px; padding:10px 12px; font-size:13.5px; }
+.admin { display:grid; grid-template-columns:230px minmax(0, 1fr); height:100%; }
+.anav { border-right:1px solid var(--line); background:var(--bg2); padding:18px 12px; display:flex; flex-direction:column; gap:4px; } .anav h3 { padding:0 10px; }
+.anav button { text-align:left; border:0; background:none; padding:10px 12px; border-radius:12px; cursor:pointer; color:var(--muted); font-weight:500; } .anav button:hover { background:var(--hover); } .anav button.on { background:var(--card2); color:var(--text); }
+.amain { min-width:0; min-height:0; display:flex; flex-direction:column; } .amain > .page { flex:1; } .aback { padding:16px 24px 0; }
+.msg.internal a { color:var(--accent); }
