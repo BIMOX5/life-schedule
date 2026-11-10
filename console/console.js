@@ -559,7 +559,7 @@ const reasonModal = (title, list, act, btn, note) => modal(`<h3>${title}</h3><di
 const holdModal = () => reasonModal('Put case on hold', HOLD_REASONS, 'holdgo', 'Put on hold', 'Reopens automatically in 3 days.');
 const pickedReason = () => { let r = document.querySelector('input[name="hr"]:checked')?.value; if (r === '__other') r = $('#hr_other').value.trim(); return r; };
 // Tags: search, tick, save. When closing without a tag – choose one or skip.
-const allTags = () => [...new Set(T.flatMap(x => issueTags(x)))].sort();
+const allTags = () => [...new Set([...T.flatMap(x => issueTags(x)), ...KB.flatMap(a => a.tags || [])])].filter(g => !SYS_TAGS.has(g)).sort();
 function tagPicker(t, closing) { TP = {t, sel: new Set(issueTags(t)), q: '', closing}; tagModal(); }
 function tagModal() {
   const q = TP.q.trim().toLowerCase().replace(/\s+/g, '-'), list = [...new Set([...allTags(), ...TP.sel])].filter(g => !q || g.includes(q));

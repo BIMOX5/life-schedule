@@ -25,19 +25,23 @@ const deviceName = d => { d = String(d || '').trim(); if (!d) return '–'; cons
 
 // Plain text -> HTML: # heading, - list, **bold**, links
 function md(s) {
+  // Line by line: "# " heading, "- " list, "1. " steps, "! " internal info box, rest – paragraphs (blank line = new paragraph)
   const inl = x => esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
-  return String(s || '').split(/\n{2,}/).map(b => {
-    const lines = b.split('\n');
-    if (lines.every(l => /^\s*[-•]\s+/.test(l))) return `<ul>${lines.map(l => `<li>${inl(l.replace(/^\s*[-•]\s+/, ''))}</li>`).join('')}</ul>`;
-    if (/^#{1,3}\s/.test(b)) return `<h3>${inl(b.replace(/^#{1,3}\s/, ''))}</h3>`;
-    return `<p>${lines.map(inl).join('<br>')}</p>`;
-  }).join('');
+  const kind = l => /^\s*$/.test(l) ? 'blank' : /^#{1,3}\s/.test(l) ? 'h' : /^\s*!/.test(l) ? 'note' : /^\s*[-•]\s+/.test(l) ? 'ul' : /^\s*\d+[.)]\s+/.test(l) ? 'ol' : 'p';
+  const strip = {h: l => l.replace(/^#{1,3}\s/, ''), note: l => l.replace(/^\s*!\s?/, ''), ul: l => l.replace(/^\s*[-•]\s+/, ''), ol: l => l.replace(/^\s*\d+[.)]\s+/, ''), p: l => l};
+  const groups = [];
+  for (const l of String(s || '').split('\n')) { const k = kind(l), g = groups[groups.length - 1]; if (k === 'blank') { groups.push({k: 'blank'}); continue; } if (g && g.k === k && k !== 'h') g.lines.push(strip[k](l)); else groups.push({k, lines: [strip[k](l)]}); }
+  return groups.filter(g => g.k !== 'blank').map(({k, lines}) => k === 'h' ? `<h3>${inl(lines[0])}</h3>`
+    : k === 'note' ? `<div class="kbnote"><span class="kbnt">⚠️ Internal info</span>${lines.map(l => `<div>${inl(l)}</div>`).join('')}</div>`
+    : k === 'ul' || k === 'ol' ? `<${k}>${lines.map(l => `<li>${inl(l)}</li>`).join('')}</${k}>` : `<p>${lines.map(inl).join('<br>')}</p>`).join('');
 }
 // Comment text: case links (#case/12 or a full console link) become clickable
 const linkify = s => esc(s).replace(/https?:\/\/[^\s<]*\?customer=([\w-]+)[^\s<]*/g, (m, id) => `<a href="./?customer=${id}" target="_blank">👤 Customer profile ↗</a>`).replace(/(https?:\/\/[^\s<]*#case\/(\d+))|#case\/(\d+)/g, (m, url, n1, n2) => `<a href="./#case/${n1 || n2}" target="_blank">Case #${n1 || n2} ↗</a>`)
   .replace(/(^|\s)(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
 
 // Approximate XP from customer data (same rules as the app)
+const XP_W = {daysLogged: 5, tasksDone: 10, sleepGood: 10, checkins: 30, workouts: 25, weights: 5, cooks: 15};
+const XP_RULES = [['daysLogged', 'Days with anything logged'], ['tasksDone', 'Tasks done'], ['sleepGood', 'Nights close to the sleep goal'], ['checkins', 'Weekly / monthly check-ins'], ['workouts', 'Workouts'], ['weights', 'Weigh-ins'], ['cooks', 'Meals cooked']];
 function xpOf(d) {
   const toM = t => /^\d{1,2}:\d{2}/.test(t || '') ? +t.slice(0, 2) * 60 + +t.slice(3, 5) : null;
   const sleepMin = s => { const a = toM(s.bed), b = toM(s.wake); if (a == null || b == null) return 0; let m = b - a; if (m <= 0) m += 1440; return m; };
@@ -49,7 +53,7 @@ function xpOf(d) {
     checkins: new Set(L('checkins').filter(c => c.verified !== false).map(c => c.type + '|' + (c.period || c.date))).size,
     workouts: L('workouts').length, weights: L('weights').length, cooks: L('cooks').length,
   };
-  const W = {daysLogged: 5, tasksDone: 10, sleepGood: 10, checkins: 30, workouts: 25, weights: 5, cooks: 15};
+  const W = XP_W;
   const bonus = (d.xpAdjust || []).reduce((s, a) => s + (+a.amount || 0), 0);
   const xp = Math.max(0, Object.keys(W).reduce((s, k) => s + parts[k] * W[k], 0) + bonus);
   return {xp, bonus, level: Math.floor(Math.sqrt(xp / 40)) + 1, parts};
@@ -104,6 +108,10 @@ const PVIEW = {
     return `<div class="pgrid"><div class="card"><h3>XP</h3>${kv([['Now', `${g.xp} XP · level ${g.level}`], ['From the team', `${g.bonus > 0 ? '+' : ''}${g.bonus} XP`], ...(pendXp ? [['Waiting to apply', `${pendXp > 0 ? '+' : ''}${pendXp} XP`]] : [])])}
         <div class="frm"><label>Amount (can be negative)<input id="x_amt" type="number" step="5" placeholder="50"></label><label class="wide">Reason – the customer sees it (their language)<input id="x_reason" placeholder="Ačiū, kad pranešei apie klaidą!"></label></div>
         <div class="row">${[25, 50, 100].map(n => `<button class="btn sm" data-act="xpq" data-n="${n}">+${n}</button>`).join('')}<span class="sp"></span><button class="btn primary" data-act="savexp">Add</button></div></div>
+      <div class="card"><h3>Where the XP came from</h3><table class="tbl xpt"><tr><th>For</th><th>Count</th><th>XP each</th><th>XP</th></tr>
+        ${XP_RULES.map(([k, l]) => `<tr><td>${l}</td><td>${g.parts[k]}</td><td>${XP_W[k]}</td><td><b>${g.parts[k] * XP_W[k]}</b></td></tr>`).join('')}
+        <tr><td>From the team</td><td colspan="2"><small>${(d.xpAdjust || []).length} change(s)</small></td><td><b>${g.bonus > 0 ? '+' : ''}${g.bonus}</b></td></tr>
+        <tr class="tot"><td>Total</td><td colspan="2"><small>level ${g.level} · next level at ${Math.pow(g.level, 2) * 40} XP</small></td><td><b>${g.xp}</b></td></tr></table></div>
       <div class="card"><h3>Stats</h3>${kv([['Days logged', g.parts.daysLogged], ['Tasks done', g.parts.tasksDone], ['Workouts', g.parts.workouts], ['Meals', (d.meals || []).length], ['Activities', (d.events || []).length], ['Check-ins', g.parts.checkins], ['Recipes', (d.recipes || []).length]])}</div>
       <div class="card wide"><h3>Team changes</h3>${adjList(adj)}</div></div>`;
   },
@@ -165,8 +173,8 @@ function kbEdit(a = {}) {
   modal(`<h3>${a.id ? 'Edit article' : 'New article'}</h3><div class="frm">
     <label class="wide">Title<input id="k_title" value="${esc(a.title || '')}"></label>
     <label>Category<select id="k_cat">${KB_CATS.map(([k, e, l]) => `<option value="${k}" ${a.category === k || (!a.id && KBCAT === k) ? 'selected' : ''}>${e} ${l}</option>`).join('')}</select></label>
-    <label>Tags (comma separated)<input id="k_tags" value="${esc((a.tags || []).join(', '))}"></label>
-    <label class="wide">Text <small># heading · - list · **bold**</small><textarea id="k_body" rows="14">${esc(a.body || '')}</textarea></label></div>
+    <label>Issue tags (comma separated – same tags you put on cases)<input id="k_tags" value="${esc((a.tags || []).join(', '))}"></label>
+    <label class="wide">Text <small># heading · - list · 1. steps · **bold** · ! internal info box</small><textarea id="k_body" rows="14">${esc(a.body || '')}</textarea></label></div>
     <div class="row"><span class="sp"></span><button class="btn" data-act="mclose">Cancel</button><button class="btn primary" data-act="kbsave" data-id="${a.id || ''}">Save</button></div>`);
   $('#k_title').focus();
 }

@@ -193,3 +193,8 @@ input:focus, select:focus, textarea:focus { border-color:var(--accent); }
 .anav button { text-align:left; border:0; background:none; padding:10px 12px; border-radius:12px; cursor:pointer; color:var(--muted); font-weight:500; } .anav button:hover { background:var(--hover); } .anav button.on { background:var(--card2); color:var(--text); }
 .amain { min-width:0; min-height:0; display:flex; flex-direction:column; } .amain > .page { flex:1; } .aback { padding:16px 24px 0; }
 .msg.internal a { color:var(--accent); }
+
+/* KB internal info box, XP breakdown */
+.kbnote { background:var(--notebg); border:1px solid var(--noteline); border-radius:14px; padding:12px 14px; margin:12px 0; } .kbnote .kbnt { display:block; color:var(--note); font-weight:600; margin-bottom:4px; }
+.kbbody ol, .kbbody ul { padding-left:22px; } .kbbody li { margin:4px 0; }
+.xpt td, .xpt th { padding:7px 8px; } .xpt tr.tot td { border-bottom:0; }
