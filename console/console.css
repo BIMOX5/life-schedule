@@ -2,13 +2,13 @@
 :root, [data-theme="dark"] {
   --bg:#000; --bg2:#0b0b0c; --card:#141416; --card2:#1d1d20; --hover:#252528; --line:#29292d; --text:#f3f3f5; --muted:#a3a3ab; --muted2:#6e6e76;
   --accent:#e8650f; --on-accent:#fff; --link:#f2873a; --custbg:#1d1d20; --agentbg:#2b1a0e; --note:#f0ab3c; --notebg:#261d0d; --noteline:#6a4b17;
-  --good:#5fc28b; --blue:#86a6ef; --warn:#ecc062; --bad:#e98585; --gray:#96969e;
-  --t-good:#95d8b1; --t-blue:#b1c6f5; --t-warn:#f3d590; --t-bad:#f1aaaa; --t-gray:#bdbdc4; --shadow:0 14px 36px rgba(0,0,0,.6); color-scheme:dark; }
+  --good:#2fbf71; --blue:#4c8dff; --warn:#f2c230; --bad:#f0616d; --gray:#8b8b93;
+  --t-good:#6fe0a3; --t-blue:#8fb8ff; --t-warn:#f6d66b; --t-bad:#ff9aa5; --t-gray:#b4b4bb; --shadow:0 14px 36px rgba(0,0,0,.6); color-scheme:dark; }
 [data-theme="light"] {
   --bg:#fffaf6; --bg2:#fbf3ec; --card:#ffffff; --card2:#f6eee7; --hover:#f0e5db; --line:#eadfd5; --text:#241a12; --muted:#6f6258; --muted2:#a2958a;
   --accent:#e8681a; --on-accent:#fff; --link:#c95410; --custbg:#f4ece5; --agentbg:#ffe6d3; --note:#a86a00; --notebg:#fff4dc; --noteline:#f1d28e;
-  --good:#3f9f6b; --blue:#4f72c9; --warn:#c99a1c; --bad:#cf5c5c; --gray:#958a80;
-  --t-good:#2a7a4f; --t-blue:#3a5aa8; --t-warn:#8c6a0a; --t-bad:#a83f3f; --t-gray:#6b6058; --shadow:0 14px 34px rgba(90,50,20,.12); color-scheme:light; }
+  --good:#1f9d5a; --blue:#2f6fe8; --warn:#d9a200; --bad:#e0505c; --gray:#8b8b93;
+  --t-good:#137a43; --t-blue:#1d55c2; --t-warn:#8a6400; --t-bad:#b8303c; --t-gray:#55555c; --shadow:0 14px 34px rgba(90,50,20,.12); color-scheme:light; }
 * { box-sizing:border-box; }
 html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:15px/1.5 'Rubik', system-ui, -apple-system, 'Segoe UI', sans-serif; }
 button, input, select, textarea { font:inherit; color:inherit; }
@@ -262,3 +262,14 @@ input:focus, select:focus, textarea:focus { border-color:var(--accent); }
 :root:not([data-theme="light"]) .btn.primary { box-shadow:none; } :root:not([data-theme="light"]) .rb.on { box-shadow:none; }
 :root:not([data-theme="light"]) .oreason { background:#141416; border-color:var(--accent); }
 :root:not([data-theme="light"]) .devnote { background:#1d1d20; color:var(--link); border:1px solid var(--accent); }
+
+/* ===== Messages: agent = grey bubble, customer = white outline on the page colour, internal note = dark orange ===== */
+.msg.agent, :root:not([data-theme="light"]) .msg.agent { background:var(--card2); color:var(--text); } :root:not([data-theme="light"]) .msg.agent small { color:var(--muted); }
+:root:not([data-theme="light"]) .msg.agent .ms.ok { color:var(--t-good); } :root:not([data-theme="light"]) .msg.agent .ms.bad { color:var(--t-bad); }
+.msg.customer { background:var(--bg); border:1.5px solid rgba(255,255,255,.85); } [data-theme="light"] .msg.customer { border-color:#2a2a2e; }
+:root:not([data-theme="light"]) .msg.internal { background:#5a2405; border:1.5px dashed #f07a2a; } :root:not([data-theme="light"]) .msg.internal small { color:#ffb37a; }
+:root:not([data-theme="light"]) .composer.internal textarea { background:#2a1204; border-color:#f07a2a; }
+[data-theme="light"] .msg.internal { background:#ffe2cc; border:1.5px dashed #e8681a; } [data-theme="light"] .msg.internal small { color:#a8470a; }
+/* Profile: delete on the left, save on the right – under the box */
+.pfoot { justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; } .pfoot .sp { flex:1; }
+.pbox { padding-top:20px; }

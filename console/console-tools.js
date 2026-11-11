@@ -139,7 +139,7 @@ const PVIEW = {
   },
   profile: (uid, c, d, p) => {
     const name = p.name || (c.email || '').split('@')[0] || '—', age = p.birthYear ? new Date().getFullYear() - +p.birthYear : null, del = pendingDeletion(uid);
-    return `<div class="card pbox"><button class="btn primary psave" data-act="saveprof">Save</button>
+    return `<div class="card pbox">
       <div class="fgrid">
         ${fbub('Name', `<input id="p_name" value="${esc(p.name || '')}" maxlength="60">`, p.name || '')}
         ${fbub('Birth year' + (age ? ` <i>· ${age} y.</i>` : ''), `<input id="p_by" type="number" min="1920" max="2020" value="${esc(p.birthYear || '')}">`, p.birthYear || '')}
@@ -152,8 +152,8 @@ const PVIEW = {
         ${fbub('Profile link', `<span class="ro muted">For internal notes</span>`, profileLink(uid))}
       </div></div>
     ${del ? `<div class="delbanner"><div class="grow"><b>🗑️ Scheduled for deletion</b><div>Requested ${dt(del.created_at)} by <b>${del.requested_by_name ? esc(del.requested_by_name) + ' (team)' : 'the customer'}</b> · deleted on <b>${dt(del.delete_at)}</b></div></div>
-      <button class="btn" data-act="canceldel" data-id="${del.id}">Cancel deletion</button></div>`
-      : `<div class="pfoot"><button class="btn danger-o" data-act="deluser">${ICON.trash} Delete account</button></div>`}`;
+      <button class="btn" data-act="canceldel" data-id="${del.id}">Cancel deletion</button></div>` : ''}
+    <div class="pfoot">${del ? '' : `<button class="btn danger-o" data-act="deluser">${ICON.trash} Delete account</button>`}<span class="sp"></span><button class="btn primary" data-act="saveprof">Save</button></div>`;
   },
   scores: (uid, c, d, p, g) => {
     const adj = ADJ[uid] || [], pendXp = adj.filter(a => !a.applied && a.kind === 'xp').reduce((s, a) => s + (+a.payload?.amount || 0), 0);
