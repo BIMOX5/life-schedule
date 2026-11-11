@@ -2,6 +2,11 @@
   "stable": "1.0.0",
   "versions": [
     {
+      "v": "1.6.0",
+      "date": "2026-11-11",
+      "notes": "✨ Parašyk, ką valgei – kalorijos apskaičiuojamos pačios; protingesni pasiūlymai ir kiekiai; pranešimai į telefoną; išsamesnis mėnesio kalendorius"
+    },
+    {
       "v": "1.5.6",
       "date": "2026-11-11",
       "notes": "Nauja skiltis 💚 Savijauta – pažymėk, kaip jautiesi, ir pamatyk, kas tau padeda"
@@ -35,11 +40,6 @@
       "v": "1.5.0",
       "date": "2026-11-11",
       "notes": "Nauja skiltis Savijauta: nuotaika, simptomai ir pastebėjimai"
-    },
-    {
-      "v": "1.4.2",
-      "date": "2026-11-11",
-      "notes": "Kalorijos rodomos tik kai įvesti duomenys; pokalbių laikas pagal pasirinktą laiko juostą"
     },
     {
       "v": "1.0.0",

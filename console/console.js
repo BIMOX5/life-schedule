@@ -306,7 +306,7 @@ async function start() {
   heartbeat(); setInterval(heartbeat, 60000);
   render();
   window.addEventListener('hashchange', openFromHash);
-  if (!(await openFromHash())) await pump();
+  const opened = await openFromHash(); HASH_READY = true; if (!opened) await pump();
   setInterval(tick, 5000);
 }
 let TICK_SIG = '';
@@ -322,13 +322,15 @@ async function heartbeat() {
 }
 async function loadTickets(quiet) {
   try {
-    const rows = (await DB.list('tickets', 'status=neq.closed&order=created_at.desc')).filter(t => (t.tier || 1) <= myTier());
+    const closed = CAN_TOGGLE() ? await DB.list('tickets', `status=eq.closed&closed_at=gte.${WEEK_AGO()}&order=closed_at.desc&limit=300`).catch(() => []) : [];
+    const rows = [...(await DB.list('tickets', 'status=neq.closed&order=created_at.desc')), ...closed].filter(t => (t.tier || 1) <= myTier());
     const keep = T.filter(t => !rows.some(r => r.id === t.id) && (t.status === 'closed' || t.id === SEL) && (t.tier || 1) <= myTier());   // closed cases opened via link / search
     T = [...rows, ...keep];
   } catch (e) { if (!quiet) toast('⚠️ Could not load cases: ' + esc(e.message)); }
 }
+const WEEK_AGO = () => new Date(Date.now() - 7 * 864e5).toISOString();
 async function loadClosed() {
-  try { const rows = await DB.list('tickets', 'status=eq.closed&order=closed_at.desc&limit=200'); for (const r of rows) { const i = T.findIndex(x => x.id === r.id); if (i < 0) T.push(r); else T[i] = r; } render(); }
+  try { const rows = await DB.list('tickets', `status=eq.closed&closed_at=gte.${WEEK_AGO()}&order=closed_at.desc&limit=300`); for (const r of rows) { const i = T.findIndex(x => x.id === r.id); if (i < 0) T.push(r); else T[i] = r; } render(); }
   catch (e) { toast('⚠️ ' + esc(e.message)); }
 }
 async function loadMsgs(id, quiet) {
@@ -352,7 +354,9 @@ async function openFromHash() {
   if (!t) { toast(`Case #${m[1]} not found`); return false; }
   await selectCase(t.id); return true;
 }
-async function selectCase(id) {
+let MANUAL_SEL = null;   // a case opened by hand (link, search, list) – the inbox does not switch away from it
+async function selectCase(id, auto) {
+  MANUAL_SEL = auto ? null : id;
   const t = T.find(x => x.id === id); if (!t) return;
   SEL = id; MODE = 'reply'; SIDE = 'customer'; VIEW = 'home'; POP = null; closeModal(true);
   history.replaceState(null, '', `${location.pathname}${location.search}#case/${t.case_no ?? ''}`);
@@ -361,7 +365,7 @@ async function selectCase(id) {
   render();
 }
 function goHome() {
-  VIEW = 'home'; POP = null;
+  VIEW = 'home'; POP = null; MANUAL_SEL = null;
   const work = T.find(x => x.id === SEL && x.assignee === ME.id && ['new', 'open'].includes(x.status)) || myOpen()[0];
   SEL = work ? work.id : null;
   history.replaceState(null, '', location.pathname + location.search + (work ? `#case/${work.case_no}` : ''));
@@ -378,18 +382,30 @@ async function pump() {
   PUMPING = true;
   try {
     const mine = myOpen();
-    if (mine.length) { if (!SEL || !T.some(x => x.id === SEL && x.assignee === ME.id && ['new', 'open'].includes(x.status))) await selectCase(mine[0].id); return; }
+    if (mine.length) { if ((!SEL || !T.some(x => x.id === SEL && x.assignee === ME.id && ['new', 'open'].includes(x.status))) && !(SEL && SEL === MANUAL_SEL)) await selectCase(mine[0].id, true); return; }
     for (const t of queue()) {
       const r = await DB.update('tickets', `id=eq.${t.id}&assignee=is.null`, {assignee: ME.id, assignee_name: ME.name, status: 'open', status_at: nowIso(), updated_at: nowIso()}).catch(() => []);
-      if (r && r.length) { Object.assign(t, r[0]); await logEvent(t, `Assigned to ${ME.name} (inbox)`); await audit('assigned from inbox', t); await selectCase(t.id); return; }
+      if (r && r.length) { Object.assign(t, r[0]); await logEvent(t, `Assigned to ${ME.name} (inbox)`); await audit('assigned from inbox', t); await selectCase(t.id, true); return; }
     }
     if (SEL && !T.some(x => x.id === SEL && x.assignee === ME.id)) SEL = null;
   } finally { PUMPING = false; }
 }
 
 // ----- Rendering -----
+let RENDER_FAILS = 0, HASH_READY = false;
 function render(keepScroll) {
+  try { renderNow(keepScroll); RENDER_FAILS = 0; }
+  catch (e) {
+    console.error(e); RENDER_FAILS++;
+    toast('⚠️ Could not show this view: ' + esc(e.message || e) + ' – please send this to the developer');
+    if (RENDER_FAILS < 3) { SEL = null; POP = null; VIEW = 'home'; closeModal(true); render(); }
+  }
+}
+window.addEventListener('error', e => { if (e.message && !/ResizeObserver/.test(e.message)) toast('⚠️ ' + esc(e.message)); });
+window.addEventListener('unhandledrejection', e => { const m = e.reason?.message || String(e.reason || ''); if (m) toast('⚠️ ' + esc(m)); });
+function renderNow(keepScroll) {
   const t = T.find(x => x.id === SEL), standalone = PAGE_ADMIN || PAGE_KB;
+  if (HASH_READY && !standalone && !t && /^#case\//.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
   const ae = document.activeElement, fid = ae?.id, s0 = ae?.selectionStart, s1 = ae?.selectionEnd;   // keep the cursor where the user is typing
   const th = $('.thread'), st = th ? th.scrollTop : null, nearBottom = th ? th.scrollHeight - th.scrollTop - th.clientHeight < 80 : true, prevN = th?.dataset.n, prevT = th?.dataset.t;
   const rp = $('#reply'); if (rp) DRAFT[rp.dataset.tid] = rp.value;
@@ -428,9 +444,9 @@ function agentQueue() {
     ${mp.length ? `<h4>Pending</h4>${mp.map(x => qi(x, ' · waiting for reply')).join('')}` : ''}</div>` : '<div class="qlist"></div>'}</div>`;
 }
 const FILTERS = [['backlog', 'Backlog', t => !t.assignee && ['new', 'open'].includes(t.status) && !isSkipped(t)], ['tier2', 'Tier 2', t => (t.tier || 1) >= 2 && !['solved', 'closed'].includes(t.status), 'tier2'], ['mine', 'Mine', t => t.assignee === ME.id && ['new', 'open', 'pending', 'hold'].includes(t.status)],
-  ['waiting', 'Pending / On hold', t => ['pending', 'hold'].includes(t.status)], ['solved', 'Solved', t => t.status === 'solved'], ['outgoing', 'Outgoing', t => t.outgoing && t.status !== 'closed'], ['all', 'All', t => t.status !== 'closed'], ['closed', 'Closed', t => t.status === 'closed', 'dev']];
+  ['waiting', 'Pending / On hold', t => ['pending', 'hold'].includes(t.status)], ['solved', 'Solved', t => t.status === 'solved'], ['outgoing', 'Outgoing', t => t.outgoing && t.status !== 'closed'], ['all', 'All', t => t.status !== 'closed'], ['closed', 'Closed (7 d.)', t => t.status === 'closed' && (t.closed_at || t.updated_at || '') >= WEEK_AGO(), 'lead']];
 function devQueue() {
-  const q = QTEXT.toLowerCase(), fl = FILTERS.filter(x => !x[3] || (x[3] === 'tier2' ? myTier() >= 2 : IS_DEV())), f = fl.find(x => x[0] === FILTER) || fl[0];
+  const q = QTEXT.toLowerCase(), fl = FILTERS.filter(x => !x[3] || (x[3] === 'tier2' ? myTier() >= 2 : x[3] === 'lead' ? CAN_TOGGLE() : IS_DEV())), f = fl.find(x => x[0] === FILTER) || fl[0];
   const list = T.filter(f[2]).filter(t => !q || [caseTitle(t), t.subject, t.email, (t.tags || []).join(' '), '#' + t.case_no].join(' ').toLowerCase().includes(q)).sort(FILTER === 'backlog' ? byPrio : (a, b) => a.created_at < b.created_at ? 1 : -1);
   return `<div class="queue"><div class="qhead"><input id="q" placeholder="Filter" value="${esc(QTEXT)}">
     <div class="filters">${fl.map(([k, l, fn]) => `<button class="${FILTER === k ? 'on' : ''}" data-f="${k}">${l} <i>${T.filter(fn).length}</i></button>`).join('')}</div></div>
@@ -489,7 +505,8 @@ async function suggestionModal(t) {
     <label class="wide">Title<input id="sg_title" maxlength="120" placeholder="Wellbeing tracking (mood, migraines)"></label>
     <label class="wide">What the customer wants<textarea id="sg_body" rows="5">${esc(first?.body || '')}</textarea></label></div>
     <div class="row"><span class="sp"></span><button class="btn" data-act="mclose">Cancel</button><button class="btn primary" data-act="sgsave">Save</button></div>`);
-}['😞', '🙁', '😐', '🙂', '😍'];
+}
+const RATE_EMO = ['😞', '🙁', '😐', '🙂', '😍'];
 function msgHtml(m, t) {
   const rt = m.author_role === 'system' && /^Customer rated the support: (\d)\/5 \((.+)\)/.exec(m.body || '');
   if (rt) return `<div class="msg customer rating"><small>${esc(customerName(t))} · ${dt(m.created_at)}</small><span class="stars">${'★'.repeat(+rt[1])}${'☆'.repeat(5 - +rt[1])}</span> ${RATE_EMO[rt[1] - 1] || ''} Rated the support: <b>${esc(rt[2])}</b> (${rt[1]}/5)</div>`;
@@ -607,7 +624,7 @@ async function updTicket(t, patch, label, ev, devNote) {
     await audit(label, t, {...patch, ...(devNote ? {reason: devNote} : {})}); if (ev) await logEvent(t, ev, devNote); render(true); }
   catch (e) { toast('⚠️ ' + esc(e.message)); }
 }
-async function nextCase(t) { if (!DEVVIEW && SEL === t.id) { SEL = null; render(); await pump(); if (!SEL) history.replaceState(null, '', location.pathname + location.search); render(); } }
+async function nextCase(t) { MANUAL_SEL = null; if (!DEVVIEW && SEL === t.id) { SEL = null; render(); await pump(); if (!SEL) history.replaceState(null, '', location.pathname + location.search); render(); } }
 async function setStatus(t, s, why, extra = {}) {
   if (t.status === s) return;
   const until = s === 'pending' ? inHours(48) : s === 'hold' ? inHours(72) : null;
