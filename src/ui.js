@@ -1699,7 +1699,7 @@ A.delNote = async d => { if (!await ask('Ištrinti užrašą?', '', {danger: tru
 // Profilio laukai – rodomi tik tie, kurių reikia pasirinktiems režimams
 function profileFields(p, m = S.settings.modes) {
   const body = m.sport || m.food, req = body ? 'required' : '';
-  return `<div class="row">${fld('Vardas', inp('name', p.name, 'text', 'placeholder="kaip į tave kreiptis"'))}</div>
+  return `<div class="row">${!body ? fld('Lytis', sel('sex', [['m', 'Vyras'], ['f', 'Moteris']], p.sex)) : ''}${fld('Vardas', inp('name', p.name, 'text', 'placeholder="kaip į tave kreiptis"'))}</div>
   ${body ? `<h4>🧍 Kūnas</h4>
   <div class="row">${fld('Lytis', sel('sex', [['m', 'Vyras'], ['f', 'Moteris']], p.sex))}${fld('Gimimo metai', inp('birthYear', p.birthYear, 'number', `min="1940" max="2015" ${req}`))}${fld('Ūgis (cm)', inp('height', p.height, 'number', `min="120" max="230" ${req}`))}${fld('Svoris (kg)', inp('weightNow', currentWeight() || p.startWeight, 'number', `step="0.1" ${req}`))}</div>
   <div class="row">${fld('Tikslas', sel('goalRate', [[0.5, '📉 Numesti svorio (~0,5 kg/sav.)'], [0.25, '📉 Numesti lėtai (~0,25 kg/sav.)'], [0.75, '📉 Numesti greičiau (~0,75 kg/sav.)'], [0, '⚖️ Palaikyti svorį'], [-0.25, '📈 Priaugti (raumenims)']], p.goalRate))}${fld('Tikslo svoris (kg, nebūtina)', inp('targetWeight', p.targetWeight, 'number', 'step="0.1"'))}
@@ -2287,13 +2287,15 @@ A.logout = async () => { if (!await ask('Atsijungti?', 'Atsijungsi tik šiame į
 // Dienos savijauta – vienas jaustukas visai dienai (paspaudus kitą – tik pasikeičia, naujas įrašas neatsiranda).
 // Akimirkos – nebūtinos: „šiuo metu jaučiuosi…“. Jei paskutinė buvo < 30 min. – atnaujinama; daugiausia 6 per dieną.
 const MOODS = [['😫', 'Labai blogai'], ['😕', 'Prastai'], ['😐', 'Normaliai'], ['🙂', 'Gerai'], ['😁', 'Puikiai']];
-const FEEL_GOOD = [['energija', '⚡ Daug energijos'], ['ramus', '😌 Ramus'], ['laimingas', '🥰 Laimingas'], ['produktyvus', '🎯 Produktyvus'], ['issimiegojes', '😴 Išsimiegojęs'], ['stiprus', '💪 Stiprus']];
-const FEEL_BAD = [['nuovargis', '🥱 Pavargęs'], ['stresas', '😣 Stresas'], ['nerimas', '😟 Nerimas'], ['galva', '🤕 Skauda galvą'], ['migrena', '🤯 Migrena'], ['pilvas', '🤢 Skauda pilvą'], ['raumenys', '💢 Skauda raumenis'], ['persalimas', '🤧 Peršalęs']];
+const FEEL_GOOD = [['energija', '⚡ Daug energijos'], ['ramus', '😌 Ramus|Rami'], ['laimingas', '🥰 Laimingas|Laiminga'], ['produktyvus', '🎯 Produktyvus|Produktyvi'], ['issimiegojes', '😴 Išsimiegojęs|Išsimiegojusi'], ['stiprus', '💪 Stiprus|Stipri']];
+const FEEL_BAD = [['nuovargis', '🥱 Pavargęs|Pavargusi'], ['stresas', '😣 Stresas'], ['nerimas', '😟 Nerimas'], ['galva', '🤕 Skauda galvą'], ['migrena', '🤯 Migrena'], ['pilvas', '🤢 Skauda pilvą'], ['raumenys', '💢 Skauda raumenis'], ['persalimas', '🤧 Peršalęs|Peršalusi']];
 const GOOD_KEYS = new Set(FEEL_GOOD.map(x => x[0]));
+// „Ramus|Rami“ -> pagal lytį profilyje (Vyras / Moteris)
+const gtxt = t => String(t).replace(/([^\s|]+)\|([^\s|.,!?]+)/g, (m, a, b) => S?.profile?.sex === 'f' ? b : a);
 const WHY = [['miegas', '😴 Miegas'], ['darbas', '💼 Darbas / mokslai'], ['artimieji', '🫂 Artimieji'], ['sportas', '🏃 Sportas'], ['maistas', '🍽️ Maistas'],
   ['poilsis', '🌿 Poilsis'], ['sveikata', '🩺 Sveikata'], ['oras', '🌦️ Oras'], ['pinigai', '💶 Pinigai'], ['laisvalaikis', '🎉 Laisvalaikis']];
 const whyName = k => (WHY.find(x => x[0] === k) || [k, k])[1];
-const symName = k => String(k).startsWith('c:') ? '✏️ ' + k.slice(2) : ([...FEEL_GOOD, ...FEEL_BAD].find(x => x[0] === k) || [k, k])[1];
+const symName = k => String(k).startsWith('c:') ? '✏️ ' + k.slice(2) : gtxt(([...FEEL_GOOD, ...FEEL_BAD].find(x => x[0] === k) || [k, k])[1]);
 const MOMENT_GAP = 30, MOMENT_MAX = 6;
 const wellOn = d => S.wellbeing.filter(w => w.date === d);
 const dayWell = d => S.wellbeing.find(w => w.date === d && w.kind === 'day');
@@ -2307,7 +2309,7 @@ function saveWell(rec, moment) {
   if (last && (nowMin() - toMin(last.time || '00:00') < MOMENT_GAP || ms.length >= MOMENT_MAX)) Object.assign(last, rec, {time: now});
   else S.wellbeing.push({id: uid(), date: d, kind: 'moment', time: now, ...rec});
 }
-const feelChips = (list, cur) => list.map(([k, l]) => `<label class="chipbtn"><input type="checkbox" name="sym[]" value="${k}" ${cur.includes(k) ? 'checked' : ''}><span>${l}</span></label>`).join('');
+const feelChips = (list, cur) => list.map(([k, l]) => `<label class="chipbtn"><input type="checkbox" name="sym[]" value="${k}" ${cur.includes(k) ? 'checked' : ''}><span>${gtxt(l)}</span></label>`).join('');
 A.addWell = (d = {}) => {
   const w = d.id ? S.wellbeing.find(x => x.id === d.id) : (d.ctx === 'workout' ? null : dayWell(today())), ctx = d.ctx || w?.ctx || '', cur = w?.sym || [], own = cur.filter(k => String(k).startsWith('c:')).map(k => k.slice(2)).join(', ');
   const momentDefault = ctx === 'workout' || (w && w.kind !== 'day');
@@ -2339,13 +2341,13 @@ A.quickMood = d => {
 // Švelnus palaikymas sunkesnei dienai / džiaugsmas geresnei
 // Trumpos, šiltos žinutės – kasdien vis kitokios (be patarimų)
 const MOOD_LINES = {
-  hard: ['Sunkios dienos irgi praeina. Tu laikaisi 💜', 'Būti ne pačios geriausios formos – visai normalu.', 'Šiandien gali būti švelnesnis sau.', 'Ačiū, kad pasidalinai, kaip jautiesi.', 'Ir tokia diena yra tavo kelio dalis.', 'Rytoj – nauja pradžia 🌱', 'Nebūtina šiandien būti stipriam.', 'Tu darai daugiau, nei manai.'],
+  hard: ['Sunkios dienos irgi praeina. Tu laikaisi 💜', 'Būti ne pačios geriausios formos – visai normalu.', 'Šiandien gali būti švelnesnis|švelnesnė sau.', 'Ačiū, kad pasidalinai, kaip jautiesi.', 'Ir tokia diena yra tavo kelio dalis.', 'Rytoj – nauja pradžia 🌱', 'Nebūtina šiandien būti stipriam|stipriai.', 'Tu darai daugiau, nei manai.'],
   ok: ['Rami diena – irgi gera diena.', 'Stabilu ir ramu – puiku 🙂', 'Ne kiekviena diena turi būti ypatinga.', 'Ramybė – irgi jėga.', 'Lygiai ir ramiai – smagu.', 'Gera, kad randi laiko pažymėti, kaip jautiesi.'],
   good: ['Smagu tai matyti! 🌞', 'Tokių dienų – daugiau!', 'Džiaugiamės kartu su tavimi 🎉', 'Puiki energija – mėgaukis!', 'Šypsena tinka tau 😊', 'Ši diena – tavo!', 'Gera nuotaika užkrečia 💛', 'Taip ir toliau!'],
 };
 function moodLine(d, m) {
   const set = MOOD_LINES[m <= 2 ? 'hard' : m === 3 ? 'ok' : 'good'], n = Math.round(parseD(d).getTime() / 864e5);
-  return set[((n % set.length) + set.length + (m === 5 ? 3 : m === 1 ? 2 : 0)) % set.length];
+  return gtxt(set[((n % set.length) + set.length + (m === 5 ? 3 : m === 1 ? 2 : 0)) % set.length]);
 }
 function moodCard(d) {
   const m = dayMood(d); if (!m) return '';
@@ -2387,7 +2389,7 @@ function vWellbeing() {
     ${card('💚 Šiandien', `<div class="emo big quick">${MOODS.map(([e, l], i) => `<button type="button" class="emob ${m === i + 1 ? 'on' : ''}" data-a="quickMood" data-m="${i + 1}" title="${l}">${e}<small>${l}</small></button>`).join('')}</div>
       ${moodCard(d)}
       ${dw?.mood ? `<div class="quickwhy"><h4>Kas lėmė? <small>vienu paspaudimu</small></h4><div class="chips big">${WHY.map(([k, l]) => `<button type="button" class="chipbtn ${(dw.why || []).includes(k) ? 'on' : ''}" data-a="toggleWhy" data-k="${k}">${l}</button>`).join('')}</div>
-        <h4>Kaip jautiesi?</h4><div class="chips big">${(dw.mood >= 3 ? [...FEEL_GOOD, ...FEEL_BAD] : [...FEEL_BAD, ...FEEL_GOOD]).map(([k, l]) => `<button type="button" class="chipbtn ${(dw.sym || []).includes(k) ? 'on' : ''}" data-a="toggleFeel" data-k="${k}">${l}</button>`).join('')}</div></div>` : ''}
+        <h4>Kaip jautiesi?</h4><div class="chips big">${(dw.mood >= 3 ? [...FEEL_GOOD, ...FEEL_BAD] : [...FEEL_BAD, ...FEEL_GOOD]).map(([k, l]) => `<button type="button" class="chipbtn ${(dw.sym || []).includes(k) ? 'on' : ''}" data-a="toggleFeel" data-k="${k}">${gtxt(l)}</button>`).join('')}</div></div>` : ''}
       <div class="choice row">${btn(dw ? '✏️ Pastaba ar savi žodžiai' : '+ Pojūčiai ar pastaba', 'addWell', {}, 'sm')}${btn('⏱️ Akimirka', 'addMoment', {}, 'sm')}</div>
       ${ms.length ? `<div class="moments">${ms.map(w => `<span class="mom" data-a="addWell" data-id="${w.id}">${w.time} ${MOODS[w.mood - 1]?.[0] || ''}${(w.sym || []).length ? ' ' + esc(w.sym.map(symName).join(', ')) : ''}</span>`).join('')}</div>` : dw ? '' : '<p class="hint">Paspausk jaustuką – tai šiandienos savijauta. Persigalvojai? Tiesiog paspausk kitą.</p>'}`)}
     </div><div>

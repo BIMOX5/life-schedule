@@ -2,6 +2,11 @@
   "stable": "1.0.0",
   "versions": [
     {
+      "v": "1.5.3",
+      "date": "2026-11-11",
+      "notes": "Savijautos žodžiai pagal lytį; lytį galima nurodyti visada"
+    },
+    {
       "v": "1.5.2",
       "date": "2026-11-11",
       "notes": "Savijauta: mėnesio kalendorius, šiltos žinutės, kas lėmė vienu paspaudimu"
@@ -35,11 +40,6 @@
       "v": "1.3.0",
       "date": "2026-11-10",
       "notes": "Pokalbiai su komanda: gali atsakyti programėlėje, aiškūs pavadinimai; nauja pagalbos konsolė"
-    },
-    {
-      "v": "1.2.1",
-      "date": "2026-11-10",
-      "notes": "Visi langai programėlės stiliumi, mažiau nereikalingų užuominų konsolėje"
     },
     {
       "v": "1.0.0",
