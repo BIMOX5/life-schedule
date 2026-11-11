@@ -2,6 +2,11 @@
   "stable": "1.0.0",
   "versions": [
     {
+      "v": "1.5.6",
+      "date": "2026-11-11",
+      "notes": "Nauja skiltis 💚 Savijauta – pažymėk, kaip jautiesi, ir pamatyk, kas tau padeda"
+    },
+    {
       "v": "1.5.5",
       "date": "2026-11-11",
       "notes": "Komandos profilio pakeitimai pritaikomi tyliai ir greitai"
@@ -35,11 +40,6 @@
       "v": "1.4.2",
       "date": "2026-11-11",
       "notes": "Kalorijos rodomos tik kai įvesti duomenys; pokalbių laikas pagal pasirinktą laiko juostą"
-    },
-    {
-      "v": "1.4.1",
-      "date": "2026-11-11",
-      "notes": "Atsakymai ateina greičiau; pokalbių langas atsinaujina pats"
     },
     {
       "v": "1.0.0",

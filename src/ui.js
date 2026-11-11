@@ -1793,13 +1793,15 @@ async function checkNewVersion() {
   if (window.CLOUD?.test || verOverride()) return;
   let rel = null; try { rel = await (await fetch('releases.json', {cache: 'no-cache'})).json(); } catch (e) { return; }
   let pub = rel.stable;
-  if (cloudOn()) { try { const j = await (await fetch(`${CLOUD.url}/rest/v1/app_config?key=eq.stable&select=value`, {headers: {apikey: CLOUD.key}, cache: 'no-store'})).json(); if (j[0]?.value?.version) pub = j[0].value.version; } catch (e) {} }
-  if (pub && pub !== window.APP_VERSION && rel.versions.some(x => x.v === pub)) { window.RELEASES = rel; if (UI.newVer !== pub) { UI.newVer = pub; render(); } }
+  let info = null;
+  if (cloudOn()) { try { const j = await (await fetch(`${CLOUD.url}/rest/v1/app_config?key=eq.stable&select=value`, {headers: {apikey: CLOUD.key}, cache: 'no-store'})).json(); if (j[0]?.value?.version) { pub = j[0].value.version; info = j[0].value; } } catch (e) {} }
+  if (info?.silent) return;   // tylus atnaujinimas – nieko nerodom, įsijungs kitą kartą atsidarius
+  if (pub && pub !== window.APP_VERSION && rel.versions.some(x => x.v === pub)) { window.RELEASES = rel; UI.newInfo = info; if (UI.newVer !== pub) { UI.newVer = pub; render(); } }
 }
 function updateBanner() {
   if (!UI.newVer) return '';
-  const n = verNotes(UI.newVer);
-  return `<div class="banner update">✨ <div><b>Atsirado nauja versija ${esc(UI.newVer)}</b>${n ? `<br><small>${esc(n)}</small>` : ''}</div><span class="sp"></span>${btn('🔄 Atnaujinti', 'reloadApp', {}, 'sm primary')}</div>`;
+  const n = UI.newInfo?.version === UI.newVer && UI.newInfo.notes != null ? UI.newInfo.notes : verNotes(UI.newVer);
+  return `<div class="banner update">✨ <div><b>Atsirado nauja versija ${esc(UI.newVer)}</b>${n ? `<br><small>${esc(n.split('\n')[0])}</small>` : ''}</div><span class="sp"></span>${btn('🔄 Atnaujinti', 'reloadApp', {}, 'sm primary')}</div>`;
 }
 A.reloadApp = () => location.reload();
 // po atnaujinimo vieną kartą parodom, kas pasikeitė
@@ -1807,8 +1809,11 @@ function showWhatsNew() {
   if (window.CLOUD?.test || verOverride() || !window.APP_VERSION) return;
   let seen = null; try { seen = localStorage.getItem('ls_seen_ver'); localStorage.setItem('ls_seen_ver', window.APP_VERSION); } catch (e) { return; }
   if (seen && seen !== window.APP_VERSION) {
-    const n = verNotes(window.APP_VERSION);
-    modal(`✨ Kas naujo – versija ${esc(window.APP_VERSION)}`, `${n ? `<p>${esc(n)}</p>` : '<p>Programėlė atnaujinta.</p>'}<p class="hint">Radai klaidą? Spausk 💬 viršuje.</p>`);
+    const info = window.PUBLIC_INFO, mine = info && info.version === window.APP_VERSION;
+    if (mine && info.silent) return;
+    const n = mine && info.notes != null ? info.notes : verNotes(window.APP_VERSION);
+    if (!n) return;
+    modal(`✨ Kas naujo`, `${n.split('\n').filter(Boolean).map(l => `<p>${esc(l)}</p>`).join('')}<p class="hint">Radai klaidą? Spausk 💬 viršuje.</p>`);
   }
 }
 
@@ -1824,11 +1829,19 @@ function versionsCard() {
 }
 A.tryVersion = d => { try { if (d.v && d.v !== window.PUBLIC_VERSION) { localStorage.setItem('ls_ver_override', d.v); localStorage.setItem('ls_ver_override_pub', window.PUBLIC_VERSION || ''); } else localStorage.removeItem('ls_ver_override'); } catch (e) {} location.reload(); };
 A.publishVersion = async d => {
-  if (!isDeveloper() || !await ask(`Paleisti ${esc(d.v)} viešai?`, 'Versija iškart atsiras visiems naudotojams.', {icon: '🚀', yes: 'Paleisti'})) return;
-  try {
-    await DB.upsert('app_config', {key: 'stable', value: {version: d.v}, updated_at: new Date().toISOString(), ...(cloudOn() ? {updated_by: DB.uid()} : {})}, 'key');
-    window.PUBLIC_VERSION = d.v; render(); toast(`🚀 Versija ${d.v} dabar vieša`, 'good');
-  } catch (e) { toast('⚠️ Nepavyko: ' + esc(e.message)); }
+  if (!isDeveloper()) return;
+  // pasiūlom tekstą: visų naujesnių nei dabar vieša versijų aprašymai
+  const vs = ((window.RELEASES || {}).versions || []), iNew = vs.findIndex(x => x.v === d.v), iPub = vs.findIndex(x => x.v === window.PUBLIC_VERSION);
+  const draft = vs.slice(iNew, iPub < 0 ? iNew + 1 : iPub).map(x => x.notes).filter(Boolean).join('\n');
+  modal(`🚀 Paleisti ${esc(d.v)} viešai`, `${fld('Ką parodyti naudotojams („Kas naujo“)', `<textarea name="notes" rows="5" placeholder="pvz. Nauja skiltis 💚 Savijauta – pažymėk, kaip jautiesi">${esc(draft)}</textarea>`)}
+    <p class="hint">Rašyk naudotojams suprantamai – kiekviena eilutė bus atskira pastraipa. Juostoje „Atsirado nauja versija“ rodoma pirma eilutė.</p>
+    <label class="cb"><input type="checkbox" name="silent"> 🙈 Tylus atnaujinimas – naudotojams nieko nerodyti (įsijungs kitą kartą atsidarius)</label>`, async o => {
+    try {
+      const value = {version: d.v, notes: o.silent ? '' : (o.notes || '').trim(), silent: !!o.silent};
+      await DB.upsert('app_config', {key: 'stable', value, updated_at: new Date().toISOString(), ...(cloudOn() ? {updated_by: DB.uid()} : {})}, 'key');
+      window.PUBLIC_VERSION = d.v; window.PUBLIC_INFO = value; render(); toast(`🚀 Versija ${d.v} dabar vieša${value.silent ? ' (tyliai)' : ''}`, 'good');
+    } catch (e) { toast('⚠️ Nepavyko: ' + esc(e.message)); }
+  }, {submit: '🚀 Paleisti viešai', wide: true});
 };
 
 // ================= ATSILIEPIMAI =================

@@ -13,7 +13,7 @@
       const r = await fetch(`${C.url}/rest/v1/app_config?key=eq.stable&select=value`, {headers: {apikey: C.key}, cache: 'no-store'});
       const j = r.ok ? await r.json() : [];
       const v = j[0] && j[0].value && j[0].value.version;
-      if (v && exists(v)) pub = v;
+      if (v && exists(v)) { pub = v; window.PUBLIC_INFO = j[0].value; }   // {version, notes, silent}
     } catch (e) {}
   }
   let ver = pub;
