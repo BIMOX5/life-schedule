@@ -187,12 +187,13 @@ async function boot() {
   const s = sess(); if (!s || !C.url) return notFound();
   try {
     const tok = await token();
-    let r = await fetch(`${C.url}/rest/v1/user_roles?select=role,tier&user_id=eq.${s.user.id}`, {headers: {apikey: C.key, Authorization: 'Bearer ' + tok}});
+    let r = await fetch(`${C.url}/rest/v1/user_roles?select=role,tier,full_name&user_id=eq.${s.user.id}`, {headers: {apikey: C.key, Authorization: 'Bearer ' + tok}});
+    if (!r.ok) r = await fetch(`${C.url}/rest/v1/user_roles?select=role,tier&user_id=eq.${s.user.id}`, {headers: {apikey: C.key, Authorization: 'Bearer ' + tok}});
     if (!r.ok) r = await fetch(`${C.url}/rest/v1/user_roles?select=role&user_id=eq.${s.user.id}`, {headers: {apikey: C.key, Authorization: 'Bearer ' + tok}});   // before SQL 14
     const rr = r.ok ? (await r.json())[0] : null; ROLE = rr?.role || null; MYTIER = ROLE === 'developer' ? 2 : Math.max(1, +rr?.tier || 1);
     if (!['developer', 'lead', 'agent'].includes(ROLE)) return notFound();
     ME = {id: s.user.id, email: s.user.email, name: s.user.email.split('@')[0]};
-    try { ME.full = (await authCall('user', null, 'GET', tok)).user_metadata?.full_name || ''; } catch (e) {}
+    try { ME.full = rr?.full_name || (await authCall('user', null, 'GET', tok)).user_metadata?.full_name || ''; } catch (e) { ME.full = rr?.full_name || ''; }
     return enter(jwt(tok).aal === 'aal2', false);
   } catch (e) { return notFound(); }
 }
@@ -361,9 +362,10 @@ async function selectCase(id) {
 }
 function goHome() {
   VIEW = 'home'; POP = null;
-  if (SEL && !T.some(x => x.id === SEL)) SEL = null;
-  if (!SEL) history.replaceState(null, '', location.pathname + location.search);
-  render(); pump().then(() => render(true));
+  const work = T.find(x => x.id === SEL && x.assignee === ME.id && ['new', 'open'].includes(x.status)) || myOpen()[0];
+  SEL = work ? work.id : null;
+  history.replaceState(null, '', location.pathname + location.search + (work ? `#case/${work.case_no}` : ''));
+  render(); if (work) selectCase(work.id); else pump().then(() => render(true));
 }
 // Cases I unassigned myself never come back to me through the inbox
 const SKIPPED = () => { try { return JSON.parse(LS.get('console_skip') || '[]'); } catch (e) { return []; } };
@@ -392,7 +394,7 @@ function render(keepScroll) {
   const th = $('.thread'), st = th ? th.scrollTop : null, nearBottom = th ? th.scrollHeight - th.scrollTop - th.clientHeight < 80 : true, prevN = th?.dataset.n, prevT = th?.dataset.t;
   const rp = $('#reply'); if (rp) DRAFT[rp.dataset.tid] = rp.value;
   const body = PAGE_KB ? kbPage() : PAGE_ADMIN ? adminView() : EXTRA_VIEW[VIEW] ? EXTRA_VIEW[VIEW]() : VIEW === 'search' ? searchView() : VIEW === 'admin' ? adminView() : VIEW === 'dev' ? devPage() : homeView(t);
-  $('#root').innerHTML = standalone ? `<div class="solo"><div class="solohead"><b>🎧 Support Console</b>${TEST ? '<span class="test">TEST</span>' : ''}<span class="sp"></span><span class="muted">${PAGE_KB ? 'Knowledge base' : 'Admin panel'}</span></div>${body}</div>`
+  $('#root').innerHTML = PAGE_ADMIN ? `<div class="solo">${body}</div>` : standalone ? `<div class="solo"><div class="solohead"><b>🎧 Support Console</b>${TEST ? '<span class="test">TEST</span>' : ''}<span class="sp"></span><span class="muted">${PAGE_KB ? 'Knowledge base' : 'Admin panel'}</span></div>${body}</div>`
     : `<div class="app">${rail()}<div class="content">${body}</div></div>`;
   if ($('#reply') && t) { $('#reply').value = DRAFT[t.id] || ''; autoGrow($('#reply')); }
   if (fid && !$('#modal').contains(ae)) { const el = document.getElementById(fid); if (el && el !== document.activeElement) { el.focus(); try { if (s0 != null) el.setSelectionRange(s0, s1); } catch (e) {} } }
@@ -403,13 +405,13 @@ const ROLE_NAMES = {agent: 'Agent', lead: 'Lead', developer: 'Developer'};
 const rb = (act, icon, title, on, extra = '') => `<button class="rb ${on ? 'on' : ''}" data-act="${act}" title="${title}" aria-label="${title}" ${extra}>${icon}</button>`;
 function rail() {
   const initials = (ME.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  return `<nav class="rail">${rb('home', ICON.home, 'Home', VIEW === 'home')}${rb('newcase', ICON.plus, 'New case', VIEW === 'newcase')}${rb('search', ICON.search, 'Search cases', VIEW === 'search')}${rb('admin', ICON.users, 'Admin panel (new tab)', false)}
+  return `<nav class="rail">${rb('home', '<span class="logo">🌱</span>', 'Home', false)}${rb('newcase', ICON.plus, 'New case', VIEW === 'newcase')}${rb('search', ICON.search, 'Search cases', VIEW === 'search')}${rb('admin', ICON.users, 'Admin panel (new tab)', false)}
     ${CAN_TOGGLE() ? rb('devview', ICON.layers, DEVVIEW ? 'All cases view (on)' : 'All cases view (off)', DEVVIEW) : ''}${IS_DEV() ? rb('devpage', ICON.code, 'Developer tools', VIEW === 'dev') : ''}
     <span class="sp"></span>${VIEW_AS() !== ROLE ? `<span class="asbadge" title="You are previewing the console as ${ROLE_NAMES[VIEW_AS()]}">as ${ROLE_NAMES[VIEW_AS()]}</span>` : ''}${TEST ? '<span class="test">TEST</span>' : ''}
     <div class="popwrap"><button class="avatar sm" data-act="pop" data-p="me" title="${esc(ME.name)}">${esc(initials)}</button>
     ${POP === 'me' ? `<div class="pop up"><div class="pophead"><b>${esc(ME.name)}</b><small>${esc(ROLE_NAMES[ROLE] || ROLE)} · 🔐 MFA</small></div>
       ${ROLE === 'developer' ? `<div class="viewas"><small>View console as</small><div>${Object.entries(ROLE_NAMES).map(([k, l]) => `<button class="${VIEW_AS() === k ? 'on' : ''}" data-act="viewas" data-r="${k}">${l}</button>`).join('')}</div></div>` : ''}
-      <button data-act="rename">${ICON.user} Change name</button>
+      ${ROLE === 'developer' ? `<button data-act="rename">${ICON.user} Change name</button>` : ''}
       <button data-act="theme">${document.documentElement.dataset.theme === 'light' ? ICON.moon + ' Dark mode' : ICON.sun + ' Light mode'}</button>
       <button data-act="signout" class="t-bad">${ICON.out} Sign out</button></div>` : ''}</div></nav>`;
 }
@@ -437,7 +439,7 @@ function devQueue() {
 function idleHtml() {
   const first = esc((ME.name || '').split(' ')[0]);
   const small = DEVVIEW ? 'Select a case on the left.' : !INBOX_ON ? '' : queue().length ? 'Getting your next case…' : 'All caught up – new cases appear here automatically.';
-  return `<div class="wv">👋</div><h1>Welcome back, ${first}!</h1><p>Let's give the best support to everyone today 💙</p>${small ? `<small>${small}</small>` : ''}`;
+  return `<div class="wv">👋</div><h1>Welcome back, ${first}!</h1><p>Let's give the best support to everyone today 🧡</p>${small ? `<small>${small}</small>` : ''}`;
 }
 const trOf = (m, t) => TR[t.id]?.on ? TR[t.id].map[m.id] || null : null;
 const trLabel = x => x ? ` · <b class="trl">Translated from ${esc(DEEPL[x.from] || x.from || '?')}</b>` : '';
@@ -454,9 +456,9 @@ let ESC_KIND = 'problem';
 function escalateModal(t) {
   modal(`<h3>Escalate to Tier 2</h3><p class="muted">The case leaves your queue and goes to Tier 2. Fill in the note so Tier 2 understands the case without reading everything again.</p>
     <div class="esctpl"><button class="on" data-act="esctpl" data-k="suggestion">💡 Suggestion</button><button data-act="esctpl" data-k="problem">🔎 Unknown problem</button></div>
-    <textarea id="esc_note" rows="5" style="width:100%">${esc(ESC_TPL[issueTags(t).includes('suggestion') || t.tags?.includes('idea') ? 'suggestion' : 'problem'])}</textarea>
+    <textarea id="esc_note" rows="5" style="width:100%">${esc(ESC_TPL[issueTags(t).some(g => /suggestion/i.test(g)) || t.tags?.includes('idea') ? 'suggestion' : 'problem'])}</textarea>
     <div class="row"><small class="muted">See the KB article "Escalation guidelines".</small><span class="sp"></span><button class="btn" data-act="mclose">Cancel</button><button class="btn primary" data-act="escgo">Escalate</button></div>`);
-  const k = issueTags(t).includes('suggestion') || t.tags?.includes('idea') ? 'suggestion' : 'problem';
+  const k = issueTags(t).some(g => /suggestion/i.test(g)) || t.tags?.includes('idea') ? 'suggestion' : 'problem';
   ESC_KIND = k; document.querySelectorAll('.esctpl button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
   const n = $('#esc_note'); autoGrow(n); n.focus(); n.setSelectionRange(n.value.indexOf(':') + 2, n.value.indexOf(':') + 2);
 }
@@ -503,29 +505,37 @@ function stOptions(t) {
   const cur = t.status === 'new' ? 'open' : t.status;
   return [['open', 'Open'], ['pending', 'Pending'], ['hold', 'On hold'], ['solved', 'Close']].filter(([s]) => s !== cur);
 }
+// Whose case: the assignee; for a solved / closed case – the last agent who worked on it
+function caseAgent(t) {
+  if (t.assignee) return t.assignee_name || 'Someone';
+  const ms = (MSGS[t.id] || []).filter(m => m.author_role === 'agent' && m.author_name);
+  return ms.length ? ms[ms.length - 1].author_name : 'Unassigned';
+}
+// How many times the case was reopened after being solved
+const reopens = t => (MSGS[t.id] || []).filter(m => m.kind === 'event' && /Solved → Open|wants more help|case reopened/i.test(m.body || '')).length;
 function convHtml(t) {
   const mine = t.assignee === ME.id, msgs = MSGS[t.id] || [], note = MODE === 'internal', done = ['solved', 'closed'].includes(t.status), iss = ISSUES.find(i => i.id === t.issue_id), opts = stOptions(t);
   const block = t.status === 'closed' ? 'This case is closed – only internal notes can be added.' : t.status === 'solved' ? 'This case is solved. Reopen it to reply.' : !mine ? 'assign' : '';
   const until = ['pending', 'hold'].includes(t.status) && t.status_until ? `${t.status === 'pending' ? 'Auto-solves' : 'Reopens'} ${dt(t.status_until)}` : '';
   return `<div class="conv ${note ? 'internal' : ''}"><div class="chead">
-    <div class="hrow"><div class="popwrap"><button class="stpill c-${ST_COLOR[t.status]}" ${opts.length ? 'data-act="pop" data-p="status"' : ''} title="${esc(until)}"><i class="sq"></i>${stName(t.status)}${opts.length ? ICON.chev : ''}</button>
-        ${POP === 'status' ? `<div class="pop">${opts.map(([s, l]) => `<button data-act="setst" data-s="${s}"><i class="sq c-${ST_COLOR[s === 'open' ? 'open' : s]}"></i>${l}</button>`).join('')}</div>` : ''}</div>
-      <button class="ib ${CLEAN ? 'on' : ''}" data-act="clean" title="${CLEAN ? 'Show' : 'Hide'} activity">${ICON.eye}</button>
+    <div class="hrow"><div class="ctitle"><b>${esc(caseTitle(t))}</b><small>#${t.case_no ?? ''}${reopens(t) ? ` · <span class="reo" title="Reopened ${reopens(t)} time${reopens(t) > 1 ? 's' : ''} after being solved">↺ ${reopens(t)}</span>` : ''}</small></div>
       <button class="ib ${TR[t.id]?.on ? 'on' : ''}" data-act="translate" title="${TR[t.id]?.on ? 'Show original' : 'Translate to English'}">${ICON.translate}</button>
-      <span class="sp"></span><div class="ctitle"><b>${esc(caseTitle(t))}</b><small>#${t.case_no ?? ''}</small></div>
-      ${(t.tier || 1) >= 2 ? '<span class="chip c-blue" title="Escalated case">Tier 2</span>' : ''}${t.priority && t.priority !== 'normal' ? `<span class="chip ${t.priority === 'urgent' ? 'c-bad' : t.priority === 'high' ? 'c-warn' : ''}">${stPrio(t.priority)}</span>` : ''}${slaChip(t)}
-      <div class="popwrap"><button class="ib" data-act="pop" data-p="menu" title="More">${ICON.menu}</button>
+      <button class="ib ${CLEAN ? 'on' : ''}" data-act="clean" title="${CLEAN ? 'Show' : 'Hide'} activity">${ICON.eye}</button>
+      <span class="sp"></span>${t.priority && t.priority !== 'normal' ? `<span class="chip ${t.priority === 'urgent' ? 'c-bad' : t.priority === 'high' ? 'c-warn' : ''}">${stPrio(t.priority)}</span>` : ''}${slaChip(t)}
+      <div class="popwrap"><button class="ib" data-act="pop" data-p="menu" title="Case actions">${ICON.menu}</button>
         ${POP === 'menu' ? `<div class="pop right"><button data-act="casedata">${ICON.edit} Edit case</button>
           ${!done && !mine ? `<button data-act="assign">${ICON.userplus} Assign to me</button>` : ''}${mine && !done ? `<button data-act="unassign">${ICON.usermin} Unassign case</button>` : ''}
           ${t.status !== 'closed' && (t.tier || 1) < 2 ? `<button data-act="escalate">${ICON.up} Escalate to Tier 2</button>` : ''}
           ${t.status !== 'closed' && (t.tier || 1) >= 2 ? `<button data-act="deescalate">${ICON.down} Send back to Tier 1</button>` : ''}
           ${IS_DEV() ? `<button data-act="addsugg">${ICON.bulb} Add to suggestions list</button>` : ''}
-          <button data-act="copylink">${ICON.link} Copy case link</button></div>` : ''}</div></div>
-    <div class="irow">${t.assignee ? `<span class="muted">👤 ${mine ? 'You' : esc(t.assignee_name || 'Someone')}</span>` : '<span class="muted">Unassigned</span>'}
+          <button data-act="copylink">${ICON.link} Copy case link</button></div>` : ''}</div>
+      <div class="popwrap"><button class="stpill c-${ST_COLOR[t.status]}" ${opts.length ? 'data-act="pop" data-p="status"' : ''} title="${esc(until)}"><i class="sq"></i>${stName(t.status)}${opts.length ? ICON.chev : ''}</button>
+        ${POP === 'status' ? `<div class="pop right">${opts.map(([s, l]) => `<button data-act="setst" data-s="${s}"><i class="sq c-${ST_COLOR[s === 'open' ? 'open' : s]}"></i>${l}</button>`).join('')}</div>` : ''}</div></div>
+    <div class="irow"><span class="who" title="${t.assignee ? 'Assigned to' : 'Last agent'}">👤 ${esc(caseAgent(t))}${mine ? ' <small>(you)</small>' : ''}</span>
       ${t.status === 'hold' && t.hold_reason ? `<span class="chip c-warn">${esc(t.hold_reason)}</span>` : ''}
       ${t.due_at && !done ? `<span class="chip ${Date.parse(t.due_at) - Date.now() < 7 * 864e5 ? 'c-warn' : ''}">Due ${dt(t.due_at)}</span>` : ''}
       ${iss ? `<span class="chip">🧯 ${esc(iss.title.slice(0, 40))}</span>` : ''}${t.rating ? `<span class="chip ${t.rating >= 4 ? 'c-good' : t.rating <= 2 ? 'c-bad' : 'c-warn'}" title="Customer rating">★ ${t.rating}/5 · ${['Very bad', 'Bad', 'Okay', 'Good', 'Very good'][t.rating - 1]}</span>` : ''}
-      ${issueTags(t).map(g => `<span class="tag">${esc(g)}<b data-act="rmtag" data-v="${esc(g)}" title="Remove">✕</b></span>`).join('')}<button class="btn sm" data-act="tag">${ICON.tag} Tags</button></div>
+      ${issueTags(t).map(g => `<span class="tag">${esc(g)}<b data-act="rmtag" data-v="${esc(g)}" title="Remove">✕</b></span>`).join('')}<button class="tagadd" data-act="tag" title="Add an issue tag">＋</button></div>
     ${t.outgoing && VIEW_AS() !== 'agent' && t.created_reason ? `<div class="oreason"><b>Created by ${esc(t.created_by_name || '?')}</b> · ${esc(t.created_reason)}</div>` : ''}</div>
     <div class="thread" data-n="${msgs.length}" data-t="${t.id}">${msgs.map(m => msgHtml(m, t)).join('') || '<div class="empty">No messages</div>'}</div>
     <div class="composer ${note ? 'internal' : ''}"><div class="ctabs"><button data-mode="reply" class="${!note ? 'on' : ''}">Reply</button><button data-mode="internal" class="note ${note ? 'on' : ''}">Internal note</button></div>
@@ -545,12 +555,11 @@ function sideHtml(t) {
     <div class="card who"><div class="avatar">${noAcc ? '@' : esc(name[0]?.toUpperCase() || '?')}</div><div class="grow"><b>${esc(name)}</b>
       ${noAcc ? '<small class="t-bad">No user found for this email</small>' : `${c?.num ? `<a class="idlink" data-act="profile" data-u="${esc(t.user_id)}" title="Open customer profile">#${c.num} ↗</a>` : ''}<small>${esc(t.email || '')}</small>`}
       ${m?.version || ctx.version ? `<small>v${esc(m?.version || ctx.version)}</small>` : ''}</div>
-      ${!noAcc && t.user_id ? `<button class="ib sm" data-act="profile" data-u="${esc(t.user_id)}" title="Open account">${ICON.user}</button>` : ''}</div>
+      <div class="whoact"><button class="rbub" data-act="kbside" title="Knowledge base">${ICON.book}</button>${t.user_id && !noAcc ? `<button class="rbub" data-act="quickcomment" title="Comment on the customer's profile">${ICON.comment}</button>` : ''}</div></div>
     ${unverified ? '<div class="alertbox">⚠️ <b>Email not verified.</b> Make sure this is really the account owner before sharing or changing account details.</div>' : ''}
     ${differs ? `<div class="alertbox">⚠️ <b>Different email.</b> The case came from ${esc(t.email)}, but the account uses ${esc(c.email)}.</div>` : ''}
-    <div class="sbtns"><button class="btn" data-act="kbside">${ICON.book} Knowledge base</button>${t.user_id && !noAcc ? `<button class="btn" data-act="quickcomment">${ICON.comment} Comment</button>` : ''}</div>
     ${t.type === 'dsar_export' && !['solved', 'closed'].includes(t.status) ? `<div class="card"><h3>Data copy</h3>${t.assignee === ME.id ? '<button class="btn primary full" data-act="dsarprep">📄 Prepare files</button>' : '<small>Assign to yourself first</small>'}</div>` : ''}
-    <div class="card"><div class="kv"><span>Location</span><b>${esc(t.user_id ? placeOf(t.user_id) : '–')}</b><span>Language</span><b>${langName(t.language)}</b><span>Channel</span><b>${t.channel === 'email' ? '✉️ Email' : '📱 In app'}</b><span>Tier</span><b>${(t.tier || 1) >= 2 ? '<span class="chip c-blue">Tier 2</span> <small>escalated</small>' : 'Tier 1'}</b></div></div>
+    <div class="card"><div class="kv"><span>Location</span><b>${esc(t.user_id ? placeOf(t.user_id) : '–')}</b><span>Language</span><b>${langName(t.language)}</b><span>Channel</span><b>${t.channel === 'email' ? '✉️ Email' : '📱 In app'}</b><span>Tier</span><b>${(t.tier || 1) >= 2 ? 'Tier 2' : 'Tier 1'}</b></div></div>
     <div class="card"><h3>Linked cases</h3>${shown.map(x => `<div class="lrow" data-t="${x.id}"><span>${ticketIcon(x)} ${esc(caseTitle(x))}</span>${stChip(x.status)}</div>`).join('') || '<small>None</small>'}
       ${others.length > 4 ? `<button class="btn sm full" data-act="more">${MORE[t.id] ? 'Show less' : `See more (${Math.min(others.length, 10) - 4})`}</button>` : ''}</div></div>`;
 }
@@ -628,12 +637,12 @@ const pickedReason = () => { let r = document.querySelector('input[name="hr"]:ch
 const allTags = () => [...new Set([...T.flatMap(x => issueTags(x)), ...KB.flatMap(a => a.tags || [])])].filter(g => !SYS_TAGS.has(g)).sort();
 function tagPicker(t, closing) { TP = {t, sel: new Set(issueTags(t)), q: '', closing}; tagModal(); }
 function tagModal() {
-  const q = TP.q.trim().toLowerCase().replace(/\s+/g, '-'), list = [...new Set([...allTags(), ...TP.sel])].filter(g => !q || g.includes(q));
+  const q = TP.q.trim(), ql = q.toLowerCase(), list = [...new Set([...allTags(), ...TP.sel])].filter(g => !ql || g.toLowerCase().includes(ql));
   modal(`<h3>${TP.closing ? 'Add an issue tag before closing' : 'Tags'}</h3>
     <div class="tagsel">${[...TP.sel].map(g => `<span class="tag">${esc(g)}<b data-act="tptoggle" data-v="${esc(g)}">✕</b></span>`).join('') || '<small class="muted">No tags selected</small>'}</div>
-    <input id="tpq" placeholder="Search or create a tag" value="${esc(TP.q)}">
+    <input id="tpq" placeholder="${ROLE === 'developer' ? 'Search or create an issue tag' : 'Search issue tags'}" value="${esc(TP.q)}">
     <div class="taglist">${list.map(g => `<label class="tli"><input type="checkbox" data-act="tptoggle" data-v="${esc(g)}" ${TP.sel.has(g) ? 'checked' : ''}> ${esc(g)}</label>`).join('')}
-      ${q && !list.includes(q) ? `<button class="tli new" data-act="tptoggle" data-v="${esc(q)}">＋ Create “${esc(q)}”</button>` : ''}${!list.length && !q ? '<small class="muted">No tags yet – type to create one</small>' : ''}</div>
+      ${q && ROLE === 'developer' && !list.some(g => g.toLowerCase() === ql) ? `<button class="tli new" data-act="tptoggle" data-v="${esc(q)}">＋ Create “${esc(q)}”</button>` : ''}${!list.length ? `<small class="muted">${q ? 'No such issue tag' : 'No issue tags yet'}${ROLE === 'developer' ? '' : ' – ask the developer to add one'}</small>` : ''}</div>
     <div class="row"><span class="sp"></span>${TP.closing ? '<button class="btn" data-act="tpskip">Skip</button>' : '<button class="btn" data-act="mclose">Cancel</button>'}<button class="btn primary" data-act="tpsave">${TP.closing ? 'Save and close' : 'Save'}</button></div>`);
 }
 async function saveTags(t, sel) {
@@ -699,7 +708,7 @@ document.addEventListener('click', async e => {
   if (a === 'admin') { POP = null; render(true); window.open('./?view=admin', '_blank'); return; }
   if (a === 'devpage') { VIEW = 'dev'; render(); if (DEVTAB === 'audit') await loadAudit(); return; }
   if (a === 'devtab') { DEVTAB = el.dataset.k; render(); if (DEVTAB === 'audit') await loadAudit(); else { await loadExtra(DEVTAB); render(); } return; }
-  if (a === 'rename') { POP = null; render(true); return askName(ME.name).then(() => render(true)); }
+  if (a === 'rename' && ROLE === 'developer') { POP = null; render(true); return askName(ME.name).then(() => render(true)); }
   if (a === 'viewas') { LS.set('console_viewas', el.dataset.r); POP = null; await loadTickets(true); DEVVIEW = CAN_TOGGLE() && LS.get('console_devview') === '1'; if (FILTER === 'closed' && !IS_DEV()) FILTER = 'backlog'; if (VIEW === 'dev' && !IS_DEV()) VIEW = 'home'; render(); await pump(); render(true); return; }
   if (a === 'theme') { LS.set('console_theme', document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'); applyTheme(); render(true); return; }
   if (a === 'signout') return signOut();
@@ -802,7 +811,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && /^aq_/.test(e.target.id)) admSearch(e.target.id.slice(3));
   if (e.key === 'Enter' && e.target.id === 'atool') { const m = admTabsFiltered()[0]; if (m) { ADM.tab = m[0]; ADM.uid = null; ADM.tq = ''; render(); } }
   if (e.key === 'Enter' && e.target.id === 'sq') { SR.q = e.target.value; SR.page = 0; runSearch(); }
-  if (e.key === 'Enter' && e.target.id === 'tpq') { e.preventDefault(); const q = TP.q.trim().toLowerCase().replace(/\s+/g, '-'); if (q) { TP.sel.add(q); TP.q = ''; tagModal(); $('#tpq')?.focus(); } }
+  if (e.key === 'Enter' && e.target.id === 'tpq') { e.preventDefault(); const q = TP.q.trim(), m = allTags().find(g => g.toLowerCase().includes(q.toLowerCase())); const v = m || (ROLE === 'developer' ? q : ''); if (q && v) { TP.sel.add(v); TP.q = ''; tagModal(); $('#tpq')?.focus(); } }
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.id === 'reply') $('[data-act="send"]')?.click();
 });
 

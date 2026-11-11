@@ -71,7 +71,7 @@ async function openCustomer(uid, inAdmin) {
     DB.list('tickets', `user_id=eq.${uid}&order=created_at.desc`).then(r => { for (const t of r) if (!T.some(x => x.id === t.id)) T.push(t); }).catch(() => {})]);
   render();
 }
-const PTABS = [['profile', 'Profile'], ['body', 'Body & calories'], ['wellbeing', 'Wellbeing'], ['scores', 'Scores'], ['comments', 'Comments'], ['devices', 'Devices'], ['security', 'Activity & security'], ['cases', 'Cases']];
+const PTABS = [['profile', 'Profile'], ['body', 'Body & calories'], ['wellbeing', 'Wellbeing'], ['scores', 'Scores'], ['devices', 'Devices'], ['security', 'Activity & security'], ['cases', 'Cases'], ['comments', 'Comments']];
 const pendingDeletion = uid => (DSARS[uid] || []).find(r => r.type === 'delete' && r.status === 'pending');
 const pendProfile = uid => [...(ADJ[uid] || [])].filter(a => a.kind === 'profile' && !a.applied).sort((a, b) => a.created_at < b.created_at ? -1 : 1);
 const effProfile = (uid, p) => Object.assign({}, p, ...pendProfile(uid).map(a => a.payload || {}));
@@ -81,18 +81,14 @@ function customerView() {
   const uid = CUSTID, c = CUST[uid];
   if (!c) return `<div class="page"><div class="empty">Loading…</div></div>`;
   if (c.error) return `<div class="page"><div class="empty">⚠️ ${esc(c.error)}</div></div>`;
-  const d0 = c.data || {}, p = effProfile(uid, d0.profile || {}), d = {...d0, profile: p}, name = p.name || (c.email || '').split('@')[0] || '—', g = xpOf(d), del = pendingDeletion(uid);
+  const d0 = c.data || {}, p = effProfile(uid, d0.profile || {}), d = {...d0, profile: p}, g = xpOf(d);
   return `<div class="page"><div class="pwrap">
-    <div class="phero"><div class="avatar big">${esc(name[0]?.toUpperCase() || '?')}</div>
-      <div class="grow"><h1>${esc(name)} <span class="cno">#${esc(c.num ?? '–')}</span></h1><div class="muted">${esc(c.email || '')} ${verifiedChip(c)}</div></div>
-      <button class="btn" data-act="copyprof" data-u="${esc(uid)}" title="Copy a link to this profile – paste it into internal notes">${ICON.copy} Copy profile link</button>
-      <div class="lvl"><b>${g.level}</b><small>level</small></div><div class="lvl"><b>${g.xp}</b><small>XP</small></div>
-      ${del ? '' : `<button class="btn danger-o" data-act="deluser">${ICON.trash} Delete account</button>`}</div>
-    ${del ? `<div class="delbanner"><div class="grow"><b>🗑️ Scheduled for deletion</b><div>Requested ${dt(del.created_at)} by <b>${del.requested_by_name ? esc(del.requested_by_name) + ' (team)' : 'the customer'}</b> · deleted on <b>${dt(del.delete_at)}</b></div></div>
-      <button class="btn" data-act="canceldel" data-id="${del.id}">Cancel deletion</button></div>` : ''}
     <div class="ptabs">${PTABS.map(([k, l]) => `<button class="${PTAB === k ? 'on' : ''}" data-act="ptab" data-k="${k}">${l}${k === 'comments' && (COMMENTS[uid] || []).length ? ` <i>${COMMENTS[uid].length}</i>` : ''}</button>`).join('')}</div>
     <div class="pbody">${(PVIEW[PTAB] || PVIEW.profile)(uid, c, d, p, g)}</div></div></div>`;
 }
+// One field = one bubble with a copy button
+const fbub = (label, inner, copy) => `<div class="fbub"><small>${label}</small><div class="fbin">${inner}${copy != null && copy !== '' ? `<button class="cpy" data-act="copyval" data-v="${esc(copy)}" title="Copy">${ICON.copy}</button>` : ''}</div></div>`;
+
 const verifiedChip = c => !('email_confirmed_at' in c) ? '' : c.email_confirmed_at ? '<span class="chip c-good">✓ Verified</span>' : '<span class="chip c-bad">Not verified</span>';
 const profileLink = uid => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}?view=admin&customer=${uid}`;
 const kv = rows => `<div class="kv">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div>`;
@@ -129,7 +125,7 @@ const PVIEW = {
   },
   body: (uid, c, d) => {   // d.profile already includes pending team changes
     const x = calcTargets(d), on = d.settings?.modes || {}, used = on.sport || on.food;
-    return `<div class="pgrid"><div class="card"><h3>What the customer entered</h3>${kv([['Sex', `<span class="sexed"><select id="b_sex"><option value="m" ${x.p.sex !== 'f' ? 'selected' : ''}>Male</option><option value="f" ${x.p.sex === 'f' ? 'selected' : ''}>Female</option></select><button class="btn sm savebtn" data-act="savesex">Save</button>${pendChip(uid, 'sex')}</span>`], ['Birth year', x.p.birthYear ? `${esc(x.p.birthYear)} <small>(${x.age} y.)</small>` : '<b class="t-bad">missing</b>'],
+    return `<div class="pgrid"><div class="card"><h3>What the customer entered</h3>${kv([['Sex', `<span class="sexed"><select id="b_sex"><option value="m" ${x.p.sex !== 'f' ? 'selected' : ''}>Male</option><option value="f" ${x.p.sex === 'f' ? 'selected' : ''}>Female</option></select><button class="btn sm primary" data-act="savesex">Save</button></span>`], ['Birth year', x.p.birthYear ? `${esc(x.p.birthYear)} <small>(${x.age} y.)</small>` : '<b class="t-bad">missing</b>'],
         ['Height', x.h ? `${x.h} cm` : '<b class="t-bad">missing</b>'], ['Weight', x.kg ? `${x.kg} kg <small>${x.kgDate ? 'weighed ' + esc(x.kgDate) : 'start weight'}</small>` : '<b class="t-bad">missing</b>'],
         ['Target weight', x.p.targetWeight ? `${esc(x.p.targetWeight)} kg` : '–'], ['Activity', esc(ACT_NAMES[x.act] || '×' + x.act)], ['Goal', esc(GOAL_NAMES[String(x.rate)] || x.rate + ' kg/week')], ['Modes', modesTxt(d)]])}
         ${!used ? '<div class="warnbox">Sport and nutrition modes are off – the app does not show calories to this customer.</div>' : x.missing.length ? `<div class="warnbox">Missing: <b>${x.missing.join(', ')}</b> – the app asks the customer to fill them in instead of showing calories.</div>` : ''}</div>
@@ -142,15 +138,22 @@ const PVIEW = {
         <tr><td>Water<small>35 ml × kg</small></td><td><b>${x.water} l</b></td></tr><tr><td>BMI</td><td><b>${x.bmi || '–'}</b></td></tr></table></div></div>`;
   },
   profile: (uid, c, d, p) => {
-    const age = p.birthYear ? new Date().getFullYear() - +p.birthYear : null;
-    return `<div class="pgrid"><div class="card"><h3>Basic info</h3>${kv([['Name', esc(p.name || '–') + pendChip(uid, 'name')], ['Sex', (p.sex === 'f' ? 'Female' : p.sex === 'm' ? 'Male' : '–') + pendChip(uid, 'sex')], ['Birth year', (p.birthYear ? `${esc(p.birthYear)} <small>(≈ ${age})</small>` : '–') + pendChip(uid, 'birthYear')], ['Email', `${esc(c.email || '–')} ${verifiedChip(c)}`],
-        ['Customer #', esc(c.num ?? '–')], ['Internal ID', `<code class="idlink" data-act="copyuid" data-u="${esc(uid)}" title="Copy">${esc(uid)}</code>`], ['Customer since', dt(c.created_at)], ['Modes', modesTxt(d)], ['Time zone', esc(d.settings?.tz || '–')]])}</div>
-      <div class="card"><h3>Edit profile</h3><div class="frm">
-        <label>Name<input id="p_name" value="${esc(p.name || '')}" maxlength="60"></label>
-        <label>Birth year<input id="p_by" type="number" min="1920" max="2020" value="${esc(p.birthYear || '')}"></label>
-        <label>Sex<select id="p_sex"><option value="m" ${p.sex !== 'f' ? 'selected' : ''}>Male</option><option value="f" ${p.sex === 'f' ? 'selected' : ''}>Female</option></select></label>
-        <label class="wide">Reason<input id="p_reason" placeholder="Customer asked to fix the name"></label></div>
-        <div class="row"><span class="sp"></span><button class="btn savebtn" data-act="saveprof">Save</button></div></div></div>`;
+    const name = p.name || (c.email || '').split('@')[0] || '—', age = p.birthYear ? new Date().getFullYear() - +p.birthYear : null, del = pendingDeletion(uid);
+    return `<div class="card pbox"><button class="btn primary psave" data-act="saveprof">Save</button>
+      <div class="fgrid">
+        ${fbub('Name', `<input id="p_name" value="${esc(p.name || '')}" maxlength="60">`, p.name || '')}
+        ${fbub('Birth year' + (age ? ` <i>· ${age} y.</i>` : ''), `<input id="p_by" type="number" min="1920" max="2020" value="${esc(p.birthYear || '')}">`, p.birthYear || '')}
+        ${fbub('Sex', `<select id="p_sex"><option value="m" ${p.sex !== 'f' ? 'selected' : ''}>Male</option><option value="f" ${p.sex === 'f' ? 'selected' : ''}>Female</option></select>`, p.sex === 'f' ? 'Female' : 'Male')}
+        ${fbub('Email ' + verifiedChip(c), `<span class="ro">${esc(c.email || '–')}</span>`, c.email || '')}
+        ${fbub('ID', `<span class="ro">${esc(c.num ?? '–')}</span>`, c.num ?? '')}
+        ${fbub('Time zone', `<span class="ro">${esc(d.settings?.tz || '–')}</span>`, '')}
+        ${fbub('Customer since', `<span class="ro">${dt(c.created_at)}</span>`, '')}
+        ${fbub('Modes', `<span class="ro">${modesTxt(d)}</span>`, '')}
+        ${fbub('Profile link', `<span class="ro muted">For internal notes</span>`, profileLink(uid))}
+      </div></div>
+    ${del ? `<div class="delbanner"><div class="grow"><b>🗑️ Scheduled for deletion</b><div>Requested ${dt(del.created_at)} by <b>${del.requested_by_name ? esc(del.requested_by_name) + ' (team)' : 'the customer'}</b> · deleted on <b>${dt(del.delete_at)}</b></div></div>
+      <button class="btn" data-act="canceldel" data-id="${del.id}">Cancel deletion</button></div>`
+      : `<div class="pfoot"><button class="btn danger-o" data-act="deluser">${ICON.trash} Delete account</button></div>`}`;
   },
   scores: (uid, c, d, p, g) => {
     const adj = ADJ[uid] || [], pendXp = adj.filter(a => !a.applied && a.kind === 'xp').reduce((s, a) => s + (+a.payload?.amount || 0), 0);
@@ -186,6 +189,14 @@ const PVIEW = {
 };
 const adjList = adj => adj.length ? adj.map(a => `<div class="li"><span>${a.kind === 'xp' ? `⭐ ${+a.payload?.amount > 0 ? '+' : ''}${esc(a.payload?.amount)} XP` : `👤 ${esc(Object.entries(a.payload || {}).map(([k, v]) => `${k === 'name' ? 'name' : k === 'sex' ? 'sex' : 'birth year'}: ${k === 'sex' ? (v === 'f' ? 'female' : 'male') : v}`).join(', '))}`}
   <small>${esc(a.reason || '')} · ${esc(a.actor_name || '')} · ${dt(a.created_at)}</small></span>${a.applied ? '<span class="chip c-good">applied</span>' : `<span class="chip c-blue">waiting</span><b class="x" data-act="deladj" data-id="${a.id}" title="Cancel">✕</b>`}</div>`).join('') : '<div class="empty sm">No changes</div>';
+async function saveProfile(payload) {
+  try {
+    const r = await DB.rpc('console_update_profile', {target: CUSTID, patch: payload, reason: 'changed in console', actor_name: ME.name});
+    const d = CUST[CUSTID].data = CUST[CUSTID].data || {}; d.profile = {...(d.profile || {}), ...(r || payload)};
+    ADJ[CUSTID] = await DB.list('account_adjustments', `user_id=eq.${CUSTID}&order=created_at.desc`).catch(() => ADJ[CUSTID]);
+    render(); toast('Saved');
+  } catch (e) { addAdj('profile', payload, 'changed in console', 'changed customer profile'); }   // before SQL 16: applied when the app opens
+}
 async function addAdj(kind, payload, reason, label) {
   try {
     await DB.insert('account_adjustments', {user_id: CUSTID, kind, payload, reason: reason || null, actor_id: ME.id, actor_name: ME.name});
@@ -345,13 +356,14 @@ async function createCase() {
 }
 
 // ===================== ADMIN PANEL (own page: ?view=admin) – tools on the left, tool search on top =====================
-const ADM = {tab: 'consumers', tq: '', rows: null, busy: false, uid: null, dels: null};
+const ADM = {tab: 'consumers', tq: '', rows: null, busy: false, uid: null, dels: null, col: (() => { try { return localStorage.getItem('console_admcol') === '1'; } catch (e) { return false; } })()};
 const ADMTABS = [['consumers', '👥', 'Consumers'], ['scores', '⭐', 'Scores'], ['deletions', '🗑️', 'Scheduled deletions'], ['suggestions', '💡', 'Suggestions', 'dev']];
 const admTabsFiltered = () => ADMTABS.filter(([, , l, only]) => (!only || ROLE === 'developer') && (!ADM.tq || l.toLowerCase().includes(ADM.tq.toLowerCase())));
 function adminView() {
-  return `<div class="admin"><div class="anav"><h3>Tools</h3>${admTabsFiltered().map(([k, e, l]) => `<button class="${ADM.tab === k ? 'on' : ''}" data-act="admtab" data-k="${k}">${e} ${l}</button>`).join('') || '<small class="muted">No tool found</small>'}</div>
-    <div class="amain"><div class="atop"><input id="atool" placeholder="🔍 Search tools" value="${esc(ADM.tq)}"></div>
-    ${ADM.uid && ADM.tab === 'scores' ? admScores() : ADM.uid ? `<div class="aback"><button class="btn sm" data-act="admback">← Back</button></div>${customerView()}` : ADM.tab === 'deletions' ? admDeletions() : ADM.tab === 'suggestions' ? admSuggestions() : admFind()}</div></div>`;
+  const main = ADM.uid && ADM.tab === 'scores' ? admScores() : ADM.uid ? customerView() : ADM.tab === 'deletions' ? admDeletions() : ADM.tab === 'suggestions' ? admSuggestions() : admFind();
+  return `<div class="admin ${ADM.col ? 'col' : ''}"><div class="anav"><div class="anavtop">${ADM.col ? '' : `<input id="atool" placeholder="🔍 Search tools" value="${esc(ADM.tq)}">`}<button class="ib sm" data-act="admcol" title="${ADM.col ? 'Show tools' : 'Hide tools'}">${ADM.col ? '»' : '«'}</button></div>
+    ${admTabsFiltered().map(([k, e, l]) => `<button class="${ADM.tab === k ? 'on' : ''}" data-act="admtab" data-k="${k}" title="${l}">${e}${ADM.col ? '' : ' ' + l}</button>`).join('') || '<small class="muted">No tool found</small>'}</div>
+    <div class="amain">${main}</div></div>`;
 }
 // Find a customer: by ID, email or phone (phone – later)
 function admFind() {
@@ -369,7 +381,7 @@ function admScores() {
   const c = CUST[ADM.uid];
   if (!c) return '<div class="page"><div class="empty">Loading…</div></div>';
   const d = c.data || {}, p = d.profile || {}, g = xpOf(d);
-  return `<div class="page"><div class="pwrap"><div class="row" style="margin:0 0 14px"><button class="btn sm" data-act="admback">← Back</button><h1 style="margin:0">⭐ ${esc(p.name || c.email || '')} <span class="cno">#${esc(c.num ?? '–')}</span></h1></div>
+  return `<div class="page"><div class="pwrap"><h1>⭐ ${esc(p.name || c.email || '')} <span class="cno">#${esc(c.num ?? '–')}</span></h1>
     ${PVIEW.scores(ADM.uid, c, d, p, g)}</div></div>`;
 }
 function admDeletions() {
@@ -414,7 +426,8 @@ const EXTRA_ACT = {
   copyuid: el => { navigator.clipboard?.writeText(el.dataset.u); toast('ID copied'); },
   mclose: () => closeModal(true),
   ptab: el => { PTAB = el.dataset.k; render(); },
-  admtab: async el => { ADM.tab = el.dataset.k; ADM.uid = null; ADM.rows = null; render(); if (ADM.tab === 'deletions') loadDeletions(); if (ADM.tab === 'suggestions') { await loadSugg(); render(); } },
+  admcol: () => { ADM.col = !ADM.col; try { localStorage.setItem('console_admcol', ADM.col ? '1' : '0'); } catch (e) {} render(); },
+  admtab: async el => { ADM.tab = el.dataset.k; ADM.uid = null; CUSTID = null; ADM.rows = null; history.replaceState(null, '', './?view=admin'); render(); if (ADM.tab === 'deletions') loadDeletions(); if (ADM.tab === 'suggestions') { await loadSugg(); render(); } },
   sgsave: async () => {
     const t = T.find(x => x.id === SEL), ex = val('sg_existing'), title = val('sg_title'), body = $('#sg_body').value.trim();
     try {
@@ -427,18 +440,19 @@ const EXTRA_ACT = {
   admsearch: () => admSearch(),
   admopen: el => { ADM.uid = el.dataset.u; PTAB = 'profile'; history.replaceState(null, '', adminLink(el.dataset.u)); openCustomer(el.dataset.u, true); },
   admback: () => { ADM.uid = null; CUSTID = null; history.replaceState(null, '', './?view=admin'); render(); },
+  copyval: el => { navigator.clipboard?.writeText(el.dataset.v); toast('Copied'); },
   savesex: () => {
     const p = effProfile(CUSTID, CUST[CUSTID]?.data?.profile || {}), sex = val('b_sex');
     if (sex === (p.sex || 'm')) return toast('Nothing changed');
-    addAdj('profile', {sex}, 'changed in console', 'changed customer sex');
+    saveProfile({sex});
   },
   saveprof: () => {
     const p = effProfile(CUSTID, CUST[CUSTID]?.data?.profile || {}), name = val('p_name'), by = val('p_by'), sex = val('p_sex'), payload = {};
-    if (sex && sex !== (p.sex || 'm')) payload.sex = sex;
     if (name && name !== (p.name || '')) payload.name = name;
+    if (sex && sex !== (p.sex || 'm')) payload.sex = sex;
     if (by && +by !== +(p.birthYear || 0)) { if (+by < 1920 || +by > new Date().getFullYear() - 5) return toast('Invalid birth year'); payload.birthYear = +by; }
     if (!Object.keys(payload).length) return toast('Nothing changed');
-    addAdj('profile', payload, val('p_reason'), 'changed customer profile');
+    saveProfile(payload);
   },
   xpq: el => { $('#x_amt').value = el.dataset.n; $('#x_reason').focus(); },
   savexp: () => {
