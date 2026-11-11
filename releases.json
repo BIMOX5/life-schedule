@@ -2,6 +2,11 @@
   "stable": "1.0.0",
   "versions": [
     {
+      "v": "1.5.4",
+      "date": "2026-11-11",
+      "notes": "Savijauta: akimirkos su priežastimis, dienos redagavimas kalendoriuje, šilta eilutė pagrindiniame ekrane"
+    },
+    {
       "v": "1.5.3",
       "date": "2026-11-11",
       "notes": "Savijautos žodžiai pagal lytį; lytį galima nurodyti visada"
@@ -35,11 +40,6 @@
       "v": "1.4.0",
       "date": "2026-11-11",
       "notes": "Naujas šriftas ir juodas tamsus režimas; Užduotys, Veikla, Maistas; pokalbį gali pažymėti išspręstu ir įvertinti pagalbą"
-    },
-    {
-      "v": "1.3.0",
-      "date": "2026-11-10",
-      "notes": "Pokalbiai su komanda: gali atsakyti programėlėje, aiškūs pavadinimai; nauja pagalbos konsolė"
     },
     {
       "v": "1.0.0",

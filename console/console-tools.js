@@ -120,11 +120,12 @@ const PVIEW = {
   },
   profile: (uid, c, d, p) => {
     const age = p.birthYear ? new Date().getFullYear() - +p.birthYear : null;
-    return `<div class="pgrid"><div class="card"><h3>Basic info</h3>${kv([['Name', esc(p.name || '–')], ['Birth year', p.birthYear ? `${esc(p.birthYear)} <small>(≈ ${age})</small>` : '–'], ['Email', `${esc(c.email || '–')} ${verifiedChip(c)}`],
+    return `<div class="pgrid"><div class="card"><h3>Basic info</h3>${kv([['Name', esc(p.name || '–')], ['Sex', p.sex === 'f' ? 'Female' : p.sex === 'm' ? 'Male' : '–'], ['Birth year', p.birthYear ? `${esc(p.birthYear)} <small>(≈ ${age})</small>` : '–'], ['Email', `${esc(c.email || '–')} ${verifiedChip(c)}`],
         ['Customer #', esc(c.num ?? '–')], ['Internal ID', `<code class="idlink" data-act="copyuid" data-u="${esc(uid)}" title="Copy">${esc(uid)}</code>`], ['Customer since', dt(c.created_at)], ['Modes', modesTxt(d)], ['Time zone', esc(d.settings?.tz || '–')]])}</div>
       <div class="card"><h3>Edit profile</h3><div class="frm">
         <label>Name<input id="p_name" value="${esc(p.name || '')}" maxlength="60"></label>
         <label>Birth year<input id="p_by" type="number" min="1920" max="2020" value="${esc(p.birthYear || '')}"></label>
+        <label>Sex<select id="p_sex"><option value="m" ${p.sex !== 'f' ? 'selected' : ''}>Male</option><option value="f" ${p.sex === 'f' ? 'selected' : ''}>Female</option></select></label>
         <label class="wide">Reason<input id="p_reason" placeholder="Customer asked to fix the name"></label></div>
         <div class="row"><span class="sp"></span><button class="btn primary" data-act="saveprof">Save</button></div></div></div>`;
   },
@@ -160,7 +161,7 @@ const PVIEW = {
   cases: uid => { const tix = T.filter(x => x.user_id === uid).sort((a, b) => a.created_at < b.created_at ? 1 : -1);
     return `<div class="card">${tix.map(x => `<a class="li caselink" href="./#case/${x.case_no}" target="_blank"><span>${ticketIcon(x)} ${esc(caseTitle(x))}<small>${dt(x.created_at)}</small></span>${stChip(x.status)}</a>`).join('') || '<div class="empty sm">None</div>'}</div>`; },
 };
-const adjList = adj => adj.length ? adj.map(a => `<div class="li"><span>${a.kind === 'xp' ? `⭐ ${+a.payload?.amount > 0 ? '+' : ''}${esc(a.payload?.amount)} XP` : `👤 ${esc(Object.entries(a.payload || {}).map(([k, v]) => `${k === 'name' ? 'name' : 'birth year'}: ${v}`).join(', '))}`}
+const adjList = adj => adj.length ? adj.map(a => `<div class="li"><span>${a.kind === 'xp' ? `⭐ ${+a.payload?.amount > 0 ? '+' : ''}${esc(a.payload?.amount)} XP` : `👤 ${esc(Object.entries(a.payload || {}).map(([k, v]) => `${k === 'name' ? 'name' : k === 'sex' ? 'sex' : 'birth year'}: ${k === 'sex' ? (v === 'f' ? 'female' : 'male') : v}`).join(', '))}`}
   <small>${esc(a.reason || '')} · ${esc(a.actor_name || '')} · ${dt(a.created_at)}</small></span>${a.applied ? '<span class="chip c-good">applied</span>' : `<span class="chip c-blue">waiting</span><b class="x" data-act="deladj" data-id="${a.id}" title="Cancel">✕</b>`}</div>`).join('') : '<div class="empty sm">No changes</div>';
 async function addAdj(kind, payload, reason, label) {
   try {
@@ -404,7 +405,8 @@ const EXTRA_ACT = {
   admopen: el => { ADM.uid = el.dataset.u; PTAB = 'profile'; history.replaceState(null, '', adminLink(el.dataset.u)); openCustomer(el.dataset.u, true); },
   admback: () => { ADM.uid = null; CUSTID = null; history.replaceState(null, '', './?view=admin'); render(); },
   saveprof: () => {
-    const p = CUST[CUSTID]?.data?.profile || {}, name = val('p_name'), by = val('p_by'), payload = {};
+    const p = CUST[CUSTID]?.data?.profile || {}, name = val('p_name'), by = val('p_by'), sex = val('p_sex'), payload = {};
+    if (sex && sex !== (p.sex || 'm')) payload.sex = sex;
     if (name && name !== (p.name || '')) payload.name = name;
     if (by && +by !== +(p.birthYear || 0)) { if (+by < 1920 || +by > new Date().getFullYear() - 5) return toast('Invalid birth year'); payload.birthYear = +by; }
     if (!Object.keys(payload).length) return toast('Nothing changed');

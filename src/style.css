@@ -493,3 +493,8 @@ pre.mail { white-space:pre-wrap; background:var(--card); border:1px solid var(--
 .moodcard.ok { background:color-mix(in srgb, var(--accent) 10%, transparent); border:1px solid color-mix(in srgb, var(--accent) 30%, transparent); } .moodcard b { font-weight:500; }
 .quickwhy h4 { margin:14px 0 6px; } .chips.big .chipbtn { padding:9px 14px; font-size:14px; }
 button.chipbtn.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+.tline { display:flex; flex-direction:column; gap:6px; margin-top:10px; } .tl { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:12px; background:var(--card2); cursor:pointer; }
+.tl:hover { outline:1px solid var(--accent); } .tl b { font-size:13px; color:var(--muted); min-width:42px; } .tl .te { font-size:22px; } .tl small { display:block; color:var(--muted); }
+.wcell[data-a] { cursor:pointer; } .wcell[data-a]:hover { outline:2px solid var(--accent); } .tl.nohover { cursor:default; } .tl.nohover:hover { outline:0; } .tl .grow { flex:1; min-width:0; }
+.wellline { margin:-4px 0 14px; padding:10px 14px; border-radius:14px; cursor:pointer; font-size:14.5px; } .wellline.hard { background:color-mix(in srgb, #a78bfa 14%, transparent); } .wellline.ok { background:color-mix(in srgb, var(--accent) 10%, transparent); } .wellline.good { background:color-mix(in srgb, var(--good) 12%, transparent); }
