@@ -1950,7 +1950,6 @@ async function applyAdjustments() {
   const tot = sum(xp.map(x => x.n));
   if (tot > 0) await ask(`🎁 Gavai +${tot} XP!`, xp.map(x => x.reason ? `<p>${esc(x.reason)}</p>` : '').join('') || '<p>Dovana nuo Life Schedule komandos.</p>', {icon: '⭐', yes: 'Ačiū!', no: false});
   else if (tot < 0) await info('XP pataisyti', `<p>Tavo XP pakeisti: <b>${tot}</b>.</p>${xp.map(x => x.reason ? `<p>${esc(x.reason)}</p>` : '').join('')}`);
-  if (prof) toast('👤 Komanda atnaujino tavo profilį', 'good');
 }
 // Komandos atsiųstas failas – trumpalaikė saugi nuoroda (5 min.)
 A.openAtt = async d => {
@@ -2273,7 +2272,7 @@ A.logout = async () => { if (!await ask('Atsijungti?', 'Atsijungsi tik šiame į
   // jei buvai kūrėjo režime ir perkrovei puslapį – liekam smėlio dėžėje
   try { const sb = sessionStorage.getItem(DEV_KEY); if (sb && isDeveloper()) { REAL = S; DEV = true; S = migrate(JSON.parse(sb)); } } catch (e) {}
   applyTheme(); render();
-  reportMeta(); setTimeout(applyAdjustments, 1500); setInterval(applyAdjustments, 300000);
+  reportMeta(); setTimeout(applyAdjustments, 1500); setInterval(() => { if (!document.hidden) applyAdjustments(); }, 10000);
   if (!S.settings.onboarded) A.onboard();
   checkReminders();
   setInterval(() => { checkReminders(); if (!$('#modal.open') && ['today', 'calendar'].includes(UI.view) && document.activeElement?.tagName !== 'INPUT') render(); }, 60000);

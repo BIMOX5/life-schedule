@@ -73,11 +73,15 @@ async function openCustomer(uid, inAdmin) {
 }
 const PTABS = [['profile', 'Profile'], ['body', 'Body & calories'], ['wellbeing', 'Wellbeing'], ['scores', 'Scores'], ['comments', 'Comments'], ['devices', 'Devices'], ['security', 'Activity & security'], ['cases', 'Cases']];
 const pendingDeletion = uid => (DSARS[uid] || []).find(r => r.type === 'delete' && r.status === 'pending');
+const pendProfile = uid => [...(ADJ[uid] || [])].filter(a => a.kind === 'profile' && !a.applied).sort((a, b) => a.created_at < b.created_at ? -1 : 1);
+const effProfile = (uid, p) => Object.assign({}, p, ...pendProfile(uid).map(a => a.payload || {}));
+const pendKey = (uid, k) => pendProfile(uid).some(a => k in (a.payload || {}));
+const pendChip = (uid, k) => pendKey(uid, k) ? ' <span class="chip c-blue" title="Saved – the app applies it as soon as the customer has it open">⏳ pending</span>' : '';
 function customerView() {
   const uid = CUSTID, c = CUST[uid];
   if (!c) return `<div class="page"><div class="empty">Loading…</div></div>`;
   if (c.error) return `<div class="page"><div class="empty">⚠️ ${esc(c.error)}</div></div>`;
-  const d = c.data || {}, p = d.profile || {}, name = p.name || (c.email || '').split('@')[0] || '—', g = xpOf(d), del = pendingDeletion(uid);
+  const d0 = c.data || {}, p = effProfile(uid, d0.profile || {}), d = {...d0, profile: p}, name = p.name || (c.email || '').split('@')[0] || '—', g = xpOf(d), del = pendingDeletion(uid);
   return `<div class="page"><div class="pwrap">
     <div class="phero"><div class="avatar big">${esc(name[0]?.toUpperCase() || '?')}</div>
       <div class="grow"><h1>${esc(name)} <span class="cno">#${esc(c.num ?? '–')}</span></h1><div class="muted">${esc(c.email || '')} ${verifiedChip(c)}</div></div>
@@ -123,9 +127,9 @@ const PVIEW = {
         return `<div class="wday"><div class="wdh"><b>${m ? W_MOODS[m - 1][0] : '•'} ${esc(x)}</b><small>${ws.length} entr${ws.length === 1 ? 'y' : 'ies'}</small></div>
           ${ws.map(w => `<div class="wrow"><small>${esc(w.time || 'day')}</small><span>${W_MOODS[w.mood - 1]?.[0] || '•'}</span><span>${esc([...(w.why || []), ...(w.sym || [])].map(wLabel).join(' · ') || W_MOODS[w.mood - 1]?.[1] || '')}${w.ctx === 'workout' ? ' <small>(after workout)</small>' : ''}${w.note ? `<small>“${esc(w.note)}”</small>` : ''}</span></div>`).join('')}</div>`; }).join('')}</div></div>`;
   },
-  body: (uid, c, d) => {
+  body: (uid, c, d) => {   // d.profile already includes pending team changes
     const x = calcTargets(d), on = d.settings?.modes || {}, used = on.sport || on.food;
-    return `<div class="pgrid"><div class="card"><h3>What the customer entered</h3>${kv([['Sex', `<span class="sexed"><select id="b_sex"><option value="m" ${x.p.sex !== 'f' ? 'selected' : ''}>Male</option><option value="f" ${x.p.sex === 'f' ? 'selected' : ''}>Female</option></select><button class="btn sm" data-act="savesex">Save</button></span>`], ['Birth year', x.p.birthYear ? `${esc(x.p.birthYear)} <small>(${x.age} y.)</small>` : '<b class="t-bad">missing</b>'],
+    return `<div class="pgrid"><div class="card"><h3>What the customer entered</h3>${kv([['Sex', `<span class="sexed"><select id="b_sex"><option value="m" ${x.p.sex !== 'f' ? 'selected' : ''}>Male</option><option value="f" ${x.p.sex === 'f' ? 'selected' : ''}>Female</option></select><button class="btn sm savebtn" data-act="savesex">Save</button>${pendChip(uid, 'sex')}</span>`], ['Birth year', x.p.birthYear ? `${esc(x.p.birthYear)} <small>(${x.age} y.)</small>` : '<b class="t-bad">missing</b>'],
         ['Height', x.h ? `${x.h} cm` : '<b class="t-bad">missing</b>'], ['Weight', x.kg ? `${x.kg} kg <small>${x.kgDate ? 'weighed ' + esc(x.kgDate) : 'start weight'}</small>` : '<b class="t-bad">missing</b>'],
         ['Target weight', x.p.targetWeight ? `${esc(x.p.targetWeight)} kg` : '–'], ['Activity', esc(ACT_NAMES[x.act] || '×' + x.act)], ['Goal', esc(GOAL_NAMES[String(x.rate)] || x.rate + ' kg/week')], ['Modes', modesTxt(d)]])}
         ${!used ? '<div class="warnbox">Sport and nutrition modes are off – the app does not show calories to this customer.</div>' : x.missing.length ? `<div class="warnbox">Missing: <b>${x.missing.join(', ')}</b> – the app asks the customer to fill them in instead of showing calories.</div>` : ''}</div>
@@ -139,14 +143,14 @@ const PVIEW = {
   },
   profile: (uid, c, d, p) => {
     const age = p.birthYear ? new Date().getFullYear() - +p.birthYear : null;
-    return `<div class="pgrid"><div class="card"><h3>Basic info</h3>${kv([['Name', esc(p.name || '–')], ['Sex', p.sex === 'f' ? 'Female' : p.sex === 'm' ? 'Male' : '–'], ['Birth year', p.birthYear ? `${esc(p.birthYear)} <small>(≈ ${age})</small>` : '–'], ['Email', `${esc(c.email || '–')} ${verifiedChip(c)}`],
+    return `<div class="pgrid"><div class="card"><h3>Basic info</h3>${kv([['Name', esc(p.name || '–') + pendChip(uid, 'name')], ['Sex', (p.sex === 'f' ? 'Female' : p.sex === 'm' ? 'Male' : '–') + pendChip(uid, 'sex')], ['Birth year', (p.birthYear ? `${esc(p.birthYear)} <small>(≈ ${age})</small>` : '–') + pendChip(uid, 'birthYear')], ['Email', `${esc(c.email || '–')} ${verifiedChip(c)}`],
         ['Customer #', esc(c.num ?? '–')], ['Internal ID', `<code class="idlink" data-act="copyuid" data-u="${esc(uid)}" title="Copy">${esc(uid)}</code>`], ['Customer since', dt(c.created_at)], ['Modes', modesTxt(d)], ['Time zone', esc(d.settings?.tz || '–')]])}</div>
       <div class="card"><h3>Edit profile</h3><div class="frm">
         <label>Name<input id="p_name" value="${esc(p.name || '')}" maxlength="60"></label>
         <label>Birth year<input id="p_by" type="number" min="1920" max="2020" value="${esc(p.birthYear || '')}"></label>
         <label>Sex<select id="p_sex"><option value="m" ${p.sex !== 'f' ? 'selected' : ''}>Male</option><option value="f" ${p.sex === 'f' ? 'selected' : ''}>Female</option></select></label>
         <label class="wide">Reason<input id="p_reason" placeholder="Customer asked to fix the name"></label></div>
-        <div class="row"><span class="sp"></span><button class="btn primary" data-act="saveprof">Save</button></div></div></div>`;
+        <div class="row"><span class="sp"></span><button class="btn savebtn" data-act="saveprof">Save</button></div></div></div>`;
   },
   scores: (uid, c, d, p, g) => {
     const adj = ADJ[uid] || [], pendXp = adj.filter(a => !a.applied && a.kind === 'xp').reduce((s, a) => s + (+a.payload?.amount || 0), 0);
@@ -424,12 +428,12 @@ const EXTRA_ACT = {
   admopen: el => { ADM.uid = el.dataset.u; PTAB = 'profile'; history.replaceState(null, '', adminLink(el.dataset.u)); openCustomer(el.dataset.u, true); },
   admback: () => { ADM.uid = null; CUSTID = null; history.replaceState(null, '', './?view=admin'); render(); },
   savesex: () => {
-    const p = CUST[CUSTID]?.data?.profile || {}, sex = val('b_sex');
+    const p = effProfile(CUSTID, CUST[CUSTID]?.data?.profile || {}), sex = val('b_sex');
     if (sex === (p.sex || 'm')) return toast('Nothing changed');
     addAdj('profile', {sex}, 'changed in console', 'changed customer sex');
   },
   saveprof: () => {
-    const p = CUST[CUSTID]?.data?.profile || {}, name = val('p_name'), by = val('p_by'), sex = val('p_sex'), payload = {};
+    const p = effProfile(CUSTID, CUST[CUSTID]?.data?.profile || {}), name = val('p_name'), by = val('p_by'), sex = val('p_sex'), payload = {};
     if (sex && sex !== (p.sex || 'm')) payload.sex = sex;
     if (name && name !== (p.name || '')) payload.name = name;
     if (by && +by !== +(p.birthYear || 0)) { if (+by < 1920 || +by > new Date().getFullYear() - 5) return toast('Invalid birth year'); payload.birthYear = +by; }
@@ -542,3 +546,10 @@ document.addEventListener('change', async e => {
   try { await DB.update('suggestions', `id=eq.${id}`, {status: e.target.value, updated_at: nowIso()}); const x = (SUGG || []).find(y => y.id === id); if (x) x.status = e.target.value; toast('Status saved'); }
   catch (er) { toast('⚠️ ' + esc(er.message)); }
 });
+
+document.addEventListener('input', e => markDirty(e.target));
+document.addEventListener('change', e => markDirty(e.target));
+function markDirty(el) {
+  const act = ['p_name', 'p_by', 'p_sex'].includes(el.id) ? 'saveprof' : el.id === 'b_sex' ? 'savesex' : null;
+  if (act) document.querySelector(`[data-act="${act}"]`)?.classList.add('dirty');
+}

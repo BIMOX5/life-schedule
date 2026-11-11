@@ -215,3 +215,4 @@ input:focus, select:focus, textarea:focus { border-color:var(--accent); }
 .sexed { display:inline-flex; gap:6px; align-items:center; } .sexed select { padding:4px 8px; }
 .wday { padding:10px 0; border-top:1px solid var(--line); } .wday:first-of-type { border-top:0; } .wdh { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
 .wrow { display:grid; grid-template-columns:48px 28px 1fr; gap:6px; align-items:start; padding:3px 0; font-size:14px; } .wrow small { color:var(--muted); } .wrow span small { display:block; }
+.btn.savebtn { opacity:.7; } .btn.savebtn.dirty { opacity:1; background:#fff; color:#000; border-color:#fff; font-weight:600; } [data-theme="light"] .btn.savebtn.dirty { background:#111; color:#fff; border-color:#111; }
