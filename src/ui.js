@@ -430,8 +430,9 @@ function vToday() {
   </div>
   ${ci ? `<div class="banner" data-a="checkin" data-t="${ci}">🪞 <b>${ci === 'week' ? 'Kaip praėjo savaitė?' : 'Kaip praėjo mėnuo?'}</b> Trumpa apžvalga su tavo statistika. <span class="sp"></span><button class="btn sm primary">Pradėti</button></div>` : ''}
   <div class="rings">
-    <div class="rc" data-a="go" data-v="food">${ring(nu.kcal, tg.kcal, '#4f8cff', nu.kcal, `/ ${tg.kcal} kcal`)}<span>Kalorijos</span></div>
-    <div class="rc" data-a="go" data-v="food">${ring(nu.p, tg.protein, '#a78bfa', Math.round(nu.p) + ' g', `/ ${tg.protein} g`)}<span>Baltymai</span></div>
+    ${!(foodOn() || sportOn()) ? '' : tg.missing.length ? `<div class="rc missing" data-a="go" data-v="settings" title="Kalorijos apskaičiuojamos automatiškai pagal tavo duomenis">${ring(0, 1, '#4f8cff', '?', 'kcal')}<span>Įrašyk: ${esc(tg.missing.join(', '))}</span></div>`
+      : `<div class="rc" data-a="go" data-v="food">${ring(nu.kcal, tg.kcal, '#4f8cff', nu.kcal, `/ ${tg.kcal} kcal`)}<span>Kalorijos</span></div>
+    <div class="rc" data-a="go" data-v="food">${ring(nu.p, tg.protein, '#a78bfa', Math.round(nu.p) + ' g', `/ ${tg.protein} g`)}<span>Baltymai</span></div>`}
     <div class="rc" data-a="go" data-v="time">${ring(t.prod, (+p.prodGoalH || 6) * 60, '#22c55e', fmtH(t.prod).replace(' val', 'h'), `/ ${p.prodGoalH} h`)}<span>Produktyvu</span></div>
     <div class="rc" data-a="go" data-v="time">${ring(t.screen, +p.screenLimitMin || 90, '#ef4444', fmtDur(t.screen).replace(' min', 'm'), `/ ${p.screenLimitMin} min`)}<span>Ekranas</span></div>
     <div class="rc" data-a="addSleep">${ring(sl ? sleepMinutes(sl) : 0, (+p.sleepGoal || 8) * 60, '#06b6d4', sl ? round(sleepMinutes(sl) / 60, 1) + 'h' : '–', `/ ${p.sleepGoal} h`)}<span>Miegas</span></div>
@@ -1719,7 +1720,8 @@ function vSettings() {
   const m = S.settings.modes;
   return `<div class="grid2"><div>${card('🧭 Kam naudoju programėlę', modeCards(m, 'setMode') + `<p class="hint">Gali keisti bet kada – įrašai niekur nedingsta.</p>`)}
   ${card('👤 Mano duomenys', `<form id="pform">${profileFields(S.profile)}<div class="choice row"><button class="btn primary" type="submit">Išsaugoti</button></div></form>`)}</div>
-  <div>${m.sport || m.food ? card('📊 Tavo normos', `<div class="kv"><span>Kalorijų tikslas</span><b>${tg.kcal} kcal</b><span>Sudegini per dieną</span><b>~${tg.tdee} kcal</b><span>Baltymai</span><b>${tg.protein} g / d.</b><span>Vanduo</span><b>~${tg.water} l</b><span>KMI</span><b>${tg.bmi || '–'}</b></div>`) : ''}
+  <div>${(m.sport || m.food) && tg.missing.length ? card('📊 Tavo normos', `<p class="hint">Kalorijos ir baltymai apskaičiuojami <b>automatiškai</b>. Kad skaičiavimas būtų tikslus, kairėje įrašyk: <b>${esc(tg.missing.join(', '))}</b>.</p>`) : ''}
+  ${m.sport || m.food ? card('📊 Tavo normos', `<div class="kv"><span>Kalorijų tikslas</span><b>${tg.kcal} kcal</b><span>Sudegini per dieną</span><b>~${tg.tdee} kcal</b><span>Baltymai</span><b>${tg.protein} g / d.</b><span>Vanduo</span><b>~${tg.water} l</b><span>KMI</span><b>${tg.bmi || '–'}</b></div>`) : ''}
   ${card('🕒 Laiko juosta', `${fld('Laikas skaičiuojamas pagal', sel('tz', [['', `Įrenginį (${deviceTZ() || '?'})`], ...TZ_OPTS], S.settings.tz, 'data-set="tz"'))}${S.settings.tz && deviceTZ() && S.settings.tz !== deviceTZ() ? `<p class="hint">Įrenginys šiuo metu rodo <b>${esc(deviceTZ())}</b> (gali būti dėl VPN) – programėlė naudoja tavo pasirinktą.</p>` : ''}`)}
   ${card('🪞 Patikrinimai', fld('Priminti apie apžvalgą', sel('review', [['week', 'Kas savaitę ir mėnesį'], ['month', 'Tik kas mėnesį'], ['off', 'Nepriminti']], S.settings.review, 'data-set="review"')))}
   ${card('🏷️ Veiklų kategorijos', S.categories.map((c, i) => `<div class="catrow"><input value="${esc(c.emoji)}" data-cat="${i}" data-k="emoji" maxlength="4"><input value="${esc(c.name)}" data-cat="${i}" data-k="name"><input type="color" value="${c.color}" data-cat="${i}" data-k="color">${sel('t', [[1, '✅ produktyvu'], [0, '⚪ neutralu'], [-1, '📺 ekranas/laisvalaikis']], c.type, `data-cat="${i}" data-k="type"`)}<button class="x" data-a="delCat" data-i="${i}">✕</button></div>`).join('') + btn('+ Kategorija', 'addCat', {}, 'sm'))}
@@ -1869,8 +1871,8 @@ A.myFeedback = async () => {
       const typed = {}; document.querySelectorAll('.fbreply textarea').forEach(x => { if (x.value) typed[x.id] = x.value; });
       const focus = document.activeElement?.id;
       CONV_SIG = convSig(list);
-      modal('Mano pokalbiai', list.length ? list.map(t => `<div class="fbconv"><div class="fbhead"><b>${caseIcon(t)} ${esc(caseName(t))}</b><small>${new Date(t.created_at).toLocaleDateString('lt-LT')}</small></div>
-        ${t.msgs.map(m => `<div class="fbmsg ${isTeam(m) ? 'agent' : 'me'}"><small>${isTeam(m) ? '🎧 Life Schedule komanda' : 'Tu'} · ${new Date(m.created_at).toLocaleString('lt-LT', {dateStyle: 'short', timeStyle: 'short'})}</small>${m.body === '📎' ? '' : esc(m.body)}${(m.attachments || []).map(a => `<a class="fbatt" data-a="openAtt" data-p="${esc(a.path)}">📎 ${esc(a.name)}</a>`).join('')}</div>`).join('')}
+      modal('Mano pokalbiai', list.length ? list.map(t => `<div class="fbconv"><div class="fbhead"><b>${caseIcon(t)} ${esc(caseName(t))}</b><small>${new Date(t.created_at).toLocaleDateString('lt-LT', {timeZone: appTZ() || undefined})}</small></div>
+        ${t.msgs.map(m => `<div class="fbmsg ${isTeam(m) ? 'agent' : 'me'}"><small>${isTeam(m) ? '🎧 Life Schedule komanda' : 'Tu'} · ${new Date(m.created_at).toLocaleString('lt-LT', {dateStyle: 'short', timeStyle: 'short', timeZone: appTZ() || undefined})}</small>${m.body === '📎' ? '' : esc(m.body)}${(m.attachments || []).map(a => `<a class="fbatt" data-a="openAtt" data-p="${esc(a.path)}">📎 ${esc(a.name)}</a>`).join('')}</div>`).join('')}
         ${convFoot(t)}</div>`).join('') : empty('Dar nieko nesiuntei'));
       for (const [id, v] of Object.entries(typed)) { const x = document.getElementById(id); if (x) x.value = v; }
       if (focus) document.getElementById(focus)?.focus();

@@ -5,7 +5,7 @@ const C = window.CLOUD || {}, TEST = !!C.test;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const AUTH_KEY = 'manogyv_auth';
-const PAGE = new URLSearchParams(location.search), PAGE_CUSTOMER = PAGE.get('customer'), PAGE_KB = PAGE.get('view') === 'kb';
+const PAGE = new URLSearchParams(location.search), PAGE_CUSTOMER = PAGE.get('customer'), PAGE_KB = PAGE.get('view') === 'kb', PAGE_ADMIN = PAGE.get('view') === 'admin' || !!PAGE_CUSTOMER;
 const LS = {get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }};
 const ago = iso => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 const dt = iso => iso ? new Date(iso).toLocaleString('en-GB', {day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'}) : '–';
@@ -233,7 +233,7 @@ async function idleCheck() {
     await setInbox(false); await returnCases('Session expired after 6 h of inactivity');
     LS.set('console_active', '1'); return location.reload();   // -> code needed again
   }
-  if (idle > IDLE_INBOX && INBOX_ON && !PAGE_CUSTOMER && !PAGE_KB) {
+  if (idle > IDLE_INBOX && INBOX_ON && !PAGE_ADMIN && !PAGE_KB) {
     await setInbox(false); await returnCases('Inbox turned off after 2 h of inactivity');
     await loadTickets(true); SEL = null; render();
   }
@@ -289,12 +289,12 @@ function askName(cur = '') {
 
 // ===== 2. Console =====
 async function start() {
-  document.title = PAGE_CUSTOMER ? 'Customer · Console' : PAGE_KB ? 'Knowledge base · Console' : 'Support Console';
+  document.title = PAGE_ADMIN ? 'Admin · Console' : PAGE_KB ? 'Knowledge base · Console' : 'Support Console';
   STARTED = true; markActive(true); setInterval(idleCheck, 30000);
   const nm = TEST ? LS.get('console_name') : ME.full;
   if (nm) ME.name = nm; else { $('#root').innerHTML = ''; await askName(); }
   DEVVIEW = CAN_TOGGLE() && LS.get('console_devview') === '1';
-  if (PAGE_CUSTOMER) return openCustomer(PAGE_CUSTOMER);
+  if (PAGE_ADMIN) { VIEW = 'admin'; if (PAGE_CUSTOMER) { ADM.uid = PAGE_CUSTOMER; return openCustomer(PAGE_CUSTOMER, true); } render(); $('#aq_email')?.focus(); return; }
   if (PAGE_KB) { VIEW = 'kbpage'; render(); await loadExtra('kb'); return render(); }
   await Promise.all([loadTickets(), loadExtra()]);
   heartbeat(); setInterval(heartbeat, 60000);
@@ -303,7 +303,12 @@ async function start() {
   if (!(await openFromHash())) await pump();
   setInterval(tick, 5000);
 }
-async function tick() { if (document.hidden) return; await loadTickets(true); if (SEL) await loadMsgs(SEL, true); await pump(); if (VIEW === 'home' && !POP) render(true); }
+let TICK_SIG = '';
+async function tick() {
+  if (document.hidden) return; await loadTickets(true); if (SEL) await loadMsgs(SEL, true); await pump();
+  const sig = T.map(x => x.id + x.status + x.updated_at + x.assignee).join() + '|' + SEL + '|' + (MSGS[SEL] || []).length;
+  if (sig !== TICK_SIG && VIEW === 'home' && !POP) render(true); TICK_SIG = sig;
+}
 async function heartbeat() {
   if (!ME || !STARTED || idleMs() > IDLE_INBOX) return;   // inactive agents look offline -> server returns their cases
   try { await DB.req('POST', 'agent_presence', 'on_conflict=user_id', {user_id: ME.id, name: ME.name, inbox_on: INBOX_ON, last_seen: nowIso()}, 'resolution=merge-duplicates'); } catch (e) {}
@@ -360,7 +365,7 @@ const skipCase = id => LS.set('console_skip', JSON.stringify([...SKIPPED(), id].
 // Automatic inbox: one case at a time, most important first (only while the inbox is on)
 let PUMPING = false;
 async function pump() {
-  if (DEVVIEW || PUMPING || PAGE_CUSTOMER || PAGE_KB || !INBOX_ON || VIEW !== 'home') return;
+  if (DEVVIEW || PUMPING || PAGE_ADMIN || PAGE_KB || !INBOX_ON || VIEW !== 'home') return;
   PUMPING = true;
   try {
     const mine = myOpen();
@@ -375,13 +380,15 @@ async function pump() {
 
 // ----- Rendering -----
 function render(keepScroll) {
-  const t = T.find(x => x.id === SEL), standalone = PAGE_CUSTOMER || PAGE_KB;
+  const t = T.find(x => x.id === SEL), standalone = PAGE_ADMIN || PAGE_KB;
+  const ae = document.activeElement, fid = ae?.id, s0 = ae?.selectionStart, s1 = ae?.selectionEnd;   // keep the cursor where the user is typing
   const th = $('.thread'), st = th ? th.scrollTop : null, nearBottom = th ? th.scrollHeight - th.scrollTop - th.clientHeight < 80 : true, prevN = th?.dataset.n, prevT = th?.dataset.t;
   const rp = $('#reply'); if (rp) DRAFT[rp.dataset.tid] = rp.value;
-  const body = PAGE_KB ? kbPage() : PAGE_CUSTOMER ? customerView() : EXTRA_VIEW[VIEW] ? EXTRA_VIEW[VIEW]() : VIEW === 'search' ? searchView() : VIEW === 'admin' ? adminView() : VIEW === 'dev' ? devPage() : homeView(t);
-  $('#root').innerHTML = standalone ? `<div class="solo"><div class="solohead"><b>🎧 Support Console</b>${TEST ? '<span class="test">TEST</span>' : ''}<span class="sp"></span><span class="muted">${PAGE_KB ? 'Knowledge base' : 'Customer profile'}</span></div>${body}</div>`
+  const body = PAGE_KB ? kbPage() : PAGE_ADMIN ? adminView() : EXTRA_VIEW[VIEW] ? EXTRA_VIEW[VIEW]() : VIEW === 'search' ? searchView() : VIEW === 'admin' ? adminView() : VIEW === 'dev' ? devPage() : homeView(t);
+  $('#root').innerHTML = standalone ? `<div class="solo"><div class="solohead"><b>🎧 Support Console</b>${TEST ? '<span class="test">TEST</span>' : ''}<span class="sp"></span><span class="muted">${PAGE_KB ? 'Knowledge base' : 'Admin panel'}</span></div>${body}</div>`
     : `<div class="app">${rail()}<div class="content">${body}</div></div>`;
   if ($('#reply') && t) $('#reply').value = DRAFT[t.id] || '';
+  if (fid && !$('#modal').contains(ae)) { const el = document.getElementById(fid); if (el && el !== document.activeElement) { el.focus(); try { if (s0 != null) el.setSelectionRange(s0, s1); } catch (e) {} } }
   const th2 = $('.thread');
   if (th2) th2.scrollTop = keepScroll && st != null && !nearBottom && th2.dataset.n === prevN && th2.dataset.t === prevT ? st : th2.scrollHeight;
 }
@@ -389,7 +396,7 @@ const ROLE_NAMES = {agent: 'Agent', lead: 'Lead', developer: 'Developer'};
 const rb = (act, icon, title, on, extra = '') => `<button class="rb ${on ? 'on' : ''}" data-act="${act}" title="${title}" aria-label="${title}" ${extra}>${icon}</button>`;
 function rail() {
   const initials = (ME.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  return `<nav class="rail">${rb('home', ICON.home, 'Home', VIEW === 'home')}${rb('newcase', ICON.plus, 'New case', VIEW === 'newcase')}${rb('search', ICON.search, 'Search cases', VIEW === 'search')}${rb('admin', ICON.users, 'Admin panel', VIEW === 'admin')}
+  return `<nav class="rail">${rb('home', ICON.home, 'Home', VIEW === 'home')}${rb('newcase', ICON.plus, 'New case', VIEW === 'newcase')}${rb('search', ICON.search, 'Search cases', VIEW === 'search')}${rb('admin', ICON.users, 'Admin panel (new tab)', false)}
     ${CAN_TOGGLE() ? rb('devview', ICON.layers, DEVVIEW ? 'All cases view (on)' : 'All cases view (off)', DEVVIEW) : ''}${IS_DEV() ? rb('devpage', ICON.code, 'Developer tools', VIEW === 'dev') : ''}
     <span class="sp"></span>${VIEW_AS() !== ROLE ? `<span class="asbadge" title="You are previewing the console as ${ROLE_NAMES[VIEW_AS()]}">as ${ROLE_NAMES[VIEW_AS()]}</span>` : ''}${TEST ? '<span class="test">TEST</span>' : ''}
     <div class="popwrap"><button class="avatar sm" data-act="pop" data-p="me" title="${esc(ME.name)}">${esc(initials)}</button>
@@ -623,14 +630,14 @@ document.addEventListener('click', async e => {
   if (el.dataset.file) { const w = window.open('', '_blank'); try { w.location = await STORE.url(el.dataset.file); } catch (x) { w?.close(); toast('⚠️ ' + esc(x.message)); } return; }
   if (el.dataset.f) { FILTER = el.dataset.f; render(); if (FILTER === 'closed') await loadClosed(); return; }
   if (el.dataset.mode) { MODE = el.dataset.mode; render(true); return; }
-  if (el.dataset.t && !el.dataset.act) { if (PAGE_CUSTOMER) return; return selectCase(el.dataset.t); }
+  if (el.dataset.t && !el.dataset.act) { if (PAGE_ADMIN) return; return selectCase(el.dataset.t); }
   const a = el.dataset.act;
   if (a === 'pop') { POP = POP === el.dataset.p ? null : el.dataset.p; render(true); return; }
   if (a === 'home') return goHome();
   if (a === 'search') { VIEW = 'search'; POP = null; render(); $('#sq')?.focus(); return; }
   if (a === 'dosearch') { SR.q = $('#sq').value; SR.page = 0; return runSearch(); }
   if (a === 'spage') { SR.page = Math.max(0, SR.page + +el.dataset.d); return runSearch(); }
-  if (a === 'admin') { VIEW = 'admin'; POP = null; ADM.uid = null; render(); $('#aq')?.focus(); if (ADM.tab === 'deletions') loadDeletions(); return; }
+  if (a === 'admin') { POP = null; render(true); window.open('./?view=admin', '_blank'); return; }
   if (a === 'devpage') { VIEW = 'dev'; render(); if (DEVTAB === 'audit') await loadAudit(); return; }
   if (a === 'devtab') { DEVTAB = el.dataset.k; render(); if (DEVTAB === 'audit') await loadAudit(); else { await loadExtra(DEVTAB); render(); } return; }
   if (a === 'rename') { POP = null; render(true); return askName(ME.name).then(() => render(true)); }
@@ -721,12 +728,14 @@ document.addEventListener('change', e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.id === 'atool') { ADM.tq = e.target.value; render(); return; }
   if (e.target.id === 'q') { QTEXT = e.target.value; const pos = e.target.selectionStart; render(true); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); }
   if (e.target.id === 'tpq') { TP.q = e.target.value; const pos = e.target.selectionStart; tagModal(); const q = $('#tpq'); q.focus(); q.setSelectionRange(pos, pos); }
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { if (POP) { POP = null; render(true); } closeModal(); }
-  if (e.key === 'Enter' && e.target.id === 'aq') admSearch();
+  if (e.key === 'Enter' && /^aq_/.test(e.target.id)) admSearch(e.target.id.slice(3));
+  if (e.key === 'Enter' && e.target.id === 'atool') { const m = admTabsFiltered()[0]; if (m) { ADM.tab = m[0]; ADM.uid = null; ADM.tq = ''; render(); } }
   if (e.key === 'Enter' && e.target.id === 'sq') { SR.q = e.target.value; SR.page = 0; runSearch(); }
   if (e.key === 'Enter' && e.target.id === 'tpq') { e.preventDefault(); const q = TP.q.trim().toLowerCase().replace(/\s+/g, '-'); if (q) { TP.sel.add(q); TP.q = ''; tagModal(); $('#tpq')?.focus(); } }
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.id === 'reply') $('[data-act="send"]')?.click();

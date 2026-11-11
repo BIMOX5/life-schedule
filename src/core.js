@@ -336,7 +336,8 @@ function currentWeight() {
 function age() { const y = +S.profile.birthYear; return y ? new Date().getFullYear() - y : 25; }
 function targets() {
   const p = S.profile, kg = currentWeight(), h = +p.height || 175;
-  if (!kg) return {kcal: 2000, protein: 140, bmr: 0, tdee: 0, water: 2.5, bmi: 0};
+  const missing = [!kg && 'svoris', !+p.height && 'ūgis', !+p.birthYear && 'gimimo metai'].filter(Boolean);
+  if (!kg) return {kcal: 2000, protein: 140, bmr: 0, tdee: 0, water: 2.5, bmi: 0, missing};
   const bmr = 10 * kg + 6.25 * h - 5 * age() + (p.sex === 'f' ? -161 : 5);
   const tdee = bmr * (+p.activity || 1.375);
   const deficit = (+p.goalRate || 0) * 7700 / 7;
@@ -345,7 +346,7 @@ function targets() {
   const refKg = +p.targetWeight && +p.targetWeight < kg ? (+p.targetWeight + kg) / 2 : kg;
   const protein = Math.round(refKg * 2.0);
   const bmi = kg / ((h / 100) ** 2);
-  return {kcal, protein, bmr: Math.round(bmr), tdee: Math.round(tdee), water: round(kg * 0.035, 1), bmi: round(bmi, 1), deficit: Math.round(tdee - kcal)};
+  return {kcal, protein, bmr: Math.round(bmr), tdee: Math.round(tdee), water: round(kg * 0.035, 1), bmi: round(bmi, 1), deficit: Math.round(tdee - kcal), missing};
 }
 
 // ===== Receptų maistinė vertė =====

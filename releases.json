@@ -2,6 +2,11 @@
   "stable": "1.0.0",
   "versions": [
     {
+      "v": "1.4.2",
+      "date": "2026-11-11",
+      "notes": "Kalorijos rodomos tik kai įvesti duomenys; pokalbių laikas pagal pasirinktą laiko juostą"
+    },
+    {
       "v": "1.4.1",
       "date": "2026-11-11",
       "notes": "Atsakymai ateina greičiau; pokalbių langas atsinaujina pats"

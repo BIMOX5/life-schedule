@@ -71,7 +71,7 @@ async function openCustomer(uid, inAdmin) {
     DB.list('tickets', `user_id=eq.${uid}&order=created_at.desc`).then(r => { for (const t of r) if (!T.some(x => x.id === t.id)) T.push(t); }).catch(() => {})]);
   render();
 }
-const PTABS = [['profile', 'Profile'], ['scores', 'Scores'], ['comments', 'Comments'], ['devices', 'Devices'], ['security', 'Activity & security'], ['cases', 'Cases']];
+const PTABS = [['profile', 'Profile'], ['body', 'Body & calories'], ['scores', 'Scores'], ['comments', 'Comments'], ['devices', 'Devices'], ['security', 'Activity & security'], ['cases', 'Cases']];
 const pendingDeletion = uid => (DSARS[uid] || []).find(r => r.type === 'delete' && r.status === 'pending');
 function customerView() {
   const uid = CUSTID, c = CUST[uid];
@@ -90,9 +90,34 @@ function customerView() {
     <div class="pbody">${(PVIEW[PTAB] || PVIEW.profile)(uid, c, d, p, g)}</div></div></div>`;
 }
 const verifiedChip = c => !('email_confirmed_at' in c) ? '' : c.email_confirmed_at ? '<span class="chip c-good">✓ Verified</span>' : '<span class="chip c-bad">Not verified</span>';
-const profileLink = uid => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}?customer=${uid}`;
+const profileLink = uid => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}?view=admin&customer=${uid}`;
 const kv = rows => `<div class="kv">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div>`;
+// Same formula as the app (Mifflin–St Jeor): shows each step so we can explain it
+const ACT_NAMES = {1.2: 'Mostly sitting (×1.2)', 1.375: 'Moves a little (×1.375)', 1.55: 'Moves a lot (×1.55)', 1.725: 'Very active (×1.725)'};
+const GOAL_NAMES = {0.75: 'Lose faster (~0.75 kg/week)', 0.5: 'Lose (~0.5 kg/week)', 0.25: 'Lose slowly (~0.25 kg/week)', 0: 'Keep weight', '-0.25': 'Gain (muscle)'};
+function calcTargets(d) {
+  const p = d.profile || {}, ws = [...(d.weights || [])].sort((a, b) => a.date < b.date ? -1 : 1), kg = ws.length ? +ws[ws.length - 1].kg : +p.startWeight || 0;
+  const h = +p.height || 0, by = +p.birthYear || 0, age = by ? new Date().getFullYear() - by : 0, act = +p.activity || 1.375, rate = +p.goalRate || 0;
+  const missing = [!kg && 'weight', !h && 'height', !by && 'birth year'].filter(Boolean);
+  const bmr = 10 * kg + 6.25 * (h || 175) - 5 * (age || 25) + (p.sex === 'f' ? -161 : 5), tdee = bmr * act, deficit = rate * 7700 / 7, minK = p.sex === 'f' ? 1300 : 1600;
+  const kcal = Math.round(Math.max(minK, tdee - deficit) / 10) * 10, refKg = +p.targetWeight && +p.targetWeight < kg ? (+p.targetWeight + kg) / 2 : kg;
+  return {p, kg, kgDate: ws.length ? ws[ws.length - 1].date : null, h, age, act, rate, missing, bmr: Math.round(bmr), tdee: Math.round(tdee), deficit: Math.round(deficit), minK, kcal, floor: tdee - deficit < minK, protein: Math.round(refKg * 2), water: Math.round(kg * 0.035 * 10) / 10, bmi: h ? Math.round(kg / ((h / 100) ** 2) * 10) / 10 : 0};
+}
 const PVIEW = {
+  body: (uid, c, d) => {
+    const x = calcTargets(d), on = d.settings?.modes || {}, used = on.sport || on.food;
+    return `<div class="pgrid"><div class="card"><h3>What the customer entered</h3>${kv([['Sex', x.p.sex === 'f' ? 'Female' : 'Male'], ['Birth year', x.p.birthYear ? `${esc(x.p.birthYear)} <small>(${x.age} y.)</small>` : '<b class="t-bad">missing</b>'],
+        ['Height', x.h ? `${x.h} cm` : '<b class="t-bad">missing</b>'], ['Weight', x.kg ? `${x.kg} kg <small>${x.kgDate ? 'weighed ' + esc(x.kgDate) : 'start weight'}</small>` : '<b class="t-bad">missing</b>'],
+        ['Target weight', x.p.targetWeight ? `${esc(x.p.targetWeight)} kg` : '–'], ['Activity', esc(ACT_NAMES[x.act] || '×' + x.act)], ['Goal', esc(GOAL_NAMES[String(x.rate)] || x.rate + ' kg/week')], ['Modes', modesTxt(d)]])}
+        ${!used ? '<div class="warnbox">Sport and nutrition modes are off – the app does not show calories to this customer.</div>' : x.missing.length ? `<div class="warnbox">Missing: <b>${x.missing.join(', ')}</b> – the app asks the customer to fill them in instead of showing calories.</div>` : ''}</div>
+      <div class="card"><h3>How the app calculates</h3><table class="tbl xpt">
+        <tr><td>1. Calories at rest (BMR)<small>10 × ${x.kg || '?'} kg + 6.25 × ${x.h || '?'} cm − 5 × ${x.age || '?'} y. ${x.p.sex === 'f' ? '− 161' : '+ 5'}</small></td><td><b>${x.bmr} kcal</b></td></tr>
+        <tr><td>2. Burns per day (TDEE)<small>BMR × activity ${x.act}</small></td><td><b>${x.tdee} kcal</b></td></tr>
+        <tr><td>3. Daily deficit<small>${x.rate} kg/week × 7700 kcal ÷ 7 days</small></td><td><b>${x.deficit > 0 ? '−' : x.deficit < 0 ? '+' : ''}${Math.abs(x.deficit)} kcal</b></td></tr>
+        <tr class="tot"><td>Daily calorie target<small>${x.floor ? `never below ${x.minK} kcal (safety minimum) – used here` : 'TDEE − deficit, rounded to 10'}</small></td><td><b>${x.kcal} kcal</b></td></tr>
+        <tr><td>Protein<small>2 g × ${x.p.targetWeight && +x.p.targetWeight < x.kg ? 'average of current and target weight' : 'current weight'}</small></td><td><b>${x.protein} g</b></td></tr>
+        <tr><td>Water<small>35 ml × kg</small></td><td><b>${x.water} l</b></td></tr><tr><td>BMI</td><td><b>${x.bmi || '–'}</b></td></tr></table></div></div>`;
+  },
   profile: (uid, c, d, p) => {
     const age = p.birthYear ? new Date().getFullYear() - +p.birthYear : null;
     return `<div class="pgrid"><div class="card"><h3>Basic info</h3>${kv([['Name', esc(p.name || '–')], ['Birth year', p.birthYear ? `${esc(p.birthYear)} <small>(≈ ${age})</small>` : '–'], ['Email', `${esc(c.email || '–')} ${verifiedChip(c)}`],
@@ -295,18 +320,33 @@ async function createCase() {
   } catch (e) { toast('⚠️ ' + esc(e.message)); }
 }
 
-// ===================== ADMIN PANEL: tabs on the left, search on top =====================
-const ADM = {tab: 'users', q: '', rows: null, busy: false, uid: null, dels: null};
-const ADMTABS = [['users', '👥', 'Users'], ['deletions', '🗑️', 'Scheduled deletions']];
+// ===================== ADMIN PANEL (own page: ?view=admin) – tools on the left, tool search on top =====================
+const ADM = {tab: 'consumers', tq: '', rows: null, busy: false, uid: null, dels: null};
+const ADMTABS = [['consumers', '👥', 'Consumers'], ['scores', '⭐', 'Scores'], ['deletions', '🗑️', 'Scheduled deletions']];
+const admTabsFiltered = () => ADMTABS.filter(([, , l]) => !ADM.tq || l.toLowerCase().includes(ADM.tq.toLowerCase()));
 function adminView() {
-  return `<div class="admin"><div class="anav"><h3>Admin</h3>${ADMTABS.map(([k, e, l]) => `<button class="${ADM.tab === k ? 'on' : ''}" data-act="admtab" data-k="${k}">${e} ${l}</button>`).join('')}</div>
-    <div class="amain">${ADM.uid ? `<div class="aback"><button class="btn sm" data-act="admback">← Back</button></div>${customerView()}` : ADM.tab === 'users' ? admUsers() : admDeletions()}</div></div>`;
+  return `<div class="admin"><div class="anav"><h3>Tools</h3>${admTabsFiltered().map(([k, e, l]) => `<button class="${ADM.tab === k ? 'on' : ''}" data-act="admtab" data-k="${k}">${e} ${l}</button>`).join('') || '<small class="muted">No tool found</small>'}</div>
+    <div class="amain"><div class="atop"><input id="atool" placeholder="🔍 Search tools" value="${esc(ADM.tq)}"></div>
+    ${ADM.uid && ADM.tab === 'scores' ? admScores() : ADM.uid ? `<div class="aback"><button class="btn sm" data-act="admback">← Back</button></div>${customerView()}` : ADM.tab === 'deletions' ? admDeletions() : admFind()}</div></div>`;
 }
-function admUsers() {
-  return `<div class="page"><div class="pwrap"><h1>Users</h1><div class="sbar"><input id="aq" placeholder="Email, customer # or ID" value="${esc(ADM.q)}"><button class="btn primary" data-act="admsearch">${ICON.search} Search</button></div>
-    ${ADM.busy ? '<div class="empty">Searching…</div>' : ADM.rows == null ? '<div class="empty">Search for a customer by email, number or ID.</div>' : !ADM.rows.length ? '<div class="empty">No user found</div>'
+// Find a customer: by ID, email or phone (phone – later)
+function admFind() {
+  const title = ADM.tab === 'scores' ? 'Scores' : 'Consumers', hint = ADM.tab === 'scores' ? 'Find the customer to check and add XP.' : 'Find a customer by any of the fields.';
+  return `<div class="page"><div class="pwrap"><h1>${title}</h1><p class="muted">${hint}</p>
+    <div class="card afind"><label>Customer ID or #<input id="aq_id" placeholder="#12 or 3f2a…" value="${esc(ADM.qf === 'id' ? ADM.q : '')}"></label>
+      <label>Email<input id="aq_email" placeholder="name@email.com" value="${esc(ADM.qf === 'email' ? ADM.q : '')}"></label>
+      <label>Phone<input id="aq_phone" placeholder="Coming later" disabled></label>
+      <button class="btn primary" data-act="admsearch">${ICON.search} Search</button></div>
+    ${ADM.busy ? '<div class="empty">Searching…</div>' : ADM.rows == null ? '' : !ADM.rows.length ? '<div class="empty">No user found</div>'
       : `<div class="card flush"><table class="tbl"><tr><th>Customer</th><th>Email</th><th>Created</th><th>Last sign-in</th><th></th></tr>${ADM.rows.map(u => `<tr><td><b>${esc(u.name || '–')}</b> <small>#${esc(u.num ?? '–')}</small></td>
-        <td>${esc(u.email || '')} ${verifiedChip(u)}</td><td>${dt(u.created_at)}</td><td>${dt(u.last_sign_in_at)}</td><td><button class="ib sm" data-act="admopen" data-u="${esc(u.id)}" title="View account">${ICON.edit}</button></td></tr>`).join('')}</table></div>`}</div></div>`;
+        <td>${esc(u.email || '')} ${verifiedChip(u)}</td><td>${dt(u.created_at)}</td><td>${dt(u.last_sign_in_at)}</td><td><button class="ib sm" data-act="admopen" data-u="${esc(u.id)}" title="${ADM.tab === 'scores' ? 'Open scores' : 'View account'}">${ICON.edit}</button></td></tr>`).join('')}</table></div>`}</div></div>`;
+}
+function admScores() {
+  const c = CUST[ADM.uid];
+  if (!c) return '<div class="page"><div class="empty">Loading…</div></div>';
+  const d = c.data || {}, p = d.profile || {}, g = xpOf(d);
+  return `<div class="page"><div class="pwrap"><div class="row" style="margin:0 0 14px"><button class="btn sm" data-act="admback">← Back</button><h1 style="margin:0">⭐ ${esc(p.name || c.email || '')} <span class="cno">#${esc(c.num ?? '–')}</span></h1></div>
+    ${PVIEW.scores(ADM.uid, c, d, p, g)}</div></div>`;
 }
 function admDeletions() {
   const r = ADM.dels;
@@ -314,13 +354,16 @@ function admDeletions() {
     : `<div class="card flush"><table class="tbl"><tr><th>Email</th><th>Requested</th><th>By</th><th>Deleted on</th><th></th></tr>${r.map(x => `<tr><td>${esc(x.email || '–')}</td><td>${dt(x.created_at)}</td><td>${x.requested_by_name ? esc(x.requested_by_name) + ' (team)' : 'customer'}</td><td>${dt(x.delete_at)}</td>
       <td>${x.user_id ? `<button class="ib sm" data-act="admopen" data-u="${esc(x.user_id)}" title="View account">${ICON.edit}</button>` : ''}</td></tr>`).join('')}</table></div>`}</div></div>`;
 }
-async function admSearch() {
-  ADM.q = val('aq'); if (ADM.q.length < 2) return toast('Type at least 2 characters');
-  ADM.busy = true; render();
-  try { ADM.rows = await DB.rpc('console_find_users', {q: ADM.q}) || []; } catch (e) { ADM.rows = []; toast('⚠️ Search is not available yet – run SQL 10 in Supabase'); }
-  ADM.busy = false; render(); const i = $('#aq'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+async function admSearch(field) {
+  if (!field) field = val('aq_id') ? 'id' : 'email';
+  const q = val('aq_' + field); if (q.length < 1) return toast('Type an ID, # or email');
+  ADM.q = q; ADM.qf = field; ADM.busy = true; render();
+  try { ADM.rows = await DB.rpc('console_find_users', {q}) || []; } catch (e) { ADM.rows = []; toast('⚠️ Search is not available – run SQL 10 in Supabase'); }
+  ADM.busy = false; render();
+  if (ADM.tab === 'scores' && ADM.rows.length === 1) EXTRA_ACT.admopen({dataset: {u: ADM.rows[0].id}});
 }
 async function loadDeletions() { try { ADM.dels = await DB.list('dsar_requests', 'type=eq.delete&status=eq.pending&order=delete_at.asc'); } catch (e) { ADM.dels = []; } render(); }
+const adminLink = uid => `./?view=admin&customer=${encodeURIComponent(uid)}`;
 
 // Quick comment on the customer's profile from a case (case link added at the end)
 function quickComment(t) {
@@ -333,15 +376,15 @@ function quickComment(t) {
 // ===================== Wiring =====================
 const EXTRA_VIEW = {customer: customerView, newcase: newCaseView};
 const EXTRA_ACT = {
-  profile: el => window.open(`./?customer=${encodeURIComponent(el.dataset.u)}`, '_blank'),
+  profile: el => window.open(adminLink(el.dataset.u), '_blank'),
   copyprof: el => { navigator.clipboard?.writeText(profileLink(el.dataset.u)); toast('🔗 Profile link copied – paste it into an internal note'); },
   copyuid: el => { navigator.clipboard?.writeText(el.dataset.u); toast('ID copied'); },
   mclose: () => closeModal(true),
   ptab: el => { PTAB = el.dataset.k; render(); },
-  admtab: el => { ADM.tab = el.dataset.k; ADM.uid = null; render(); if (ADM.tab === 'deletions') loadDeletions(); },
+  admtab: el => { ADM.tab = el.dataset.k; ADM.uid = null; ADM.rows = null; render(); if (ADM.tab === 'deletions') loadDeletions(); },
   admsearch: () => admSearch(),
-  admopen: el => { ADM.uid = el.dataset.u; PTAB = 'profile'; openCustomer(el.dataset.u, true); },
-  admback: () => { ADM.uid = null; CUSTID = null; render(); },
+  admopen: el => { ADM.uid = el.dataset.u; PTAB = 'profile'; history.replaceState(null, '', adminLink(el.dataset.u)); openCustomer(el.dataset.u, true); },
+  admback: () => { ADM.uid = null; CUSTID = null; history.replaceState(null, '', './?view=admin'); render(); },
   saveprof: () => {
     const p = CUST[CUSTID]?.data?.profile || {}, name = val('p_name'), by = val('p_by'), payload = {};
     if (name && name !== (p.name || '')) payload.name = name;
@@ -384,7 +427,7 @@ const EXTRA_ACT = {
   kbopen: el => { KBSEL = el.dataset.id; render(true); },
   kbback: () => { KBSEL = null; render(true); },
   kbside: async () => { SIDE = SIDE === 'kb' ? 'customer' : 'kb'; if (SIDE === 'kb' && !KB.length) await loadExtra('kb'); render(true); },
-  kbwin: () => window.open('./?view=kb', 'lskb', 'width=1150,height=820'),
+  kbwin: () => window.open('./?view=kb', '_blank'),
   kbnew: () => kbEdit(),
   kbedit: () => kbEdit(KB.find(x => x.id === KBSEL)),
   kbdel: async () => {

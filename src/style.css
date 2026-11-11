@@ -468,3 +468,4 @@ pre.mail { white-space:pre-wrap; background:var(--card); border:1px solid var(--
 .fbrate button small { font-size:11px; color:var(--muted); } .fbrate button:hover { border-color:var(--accent); transform:translateY(-1px); }
 .askbox .fbrate { background:none; border:0; padding:0; }
 .askbox .fbrate > div { flex-wrap:nowrap; } .askbox .fbrate button { min-width:0; flex:1; padding:8px 2px; } .askbox .fbrate button small { font-size:10px; white-space:nowrap; }
+.rc.missing { border-style:dashed; } .rc.missing > span { color:var(--warn); }
