@@ -210,3 +210,8 @@ input:focus, select:focus, textarea:focus { border-color:var(--accent); }
 .esctpl { display:flex; gap:6px; margin:4px 0 10px; } .esctpl button { border:1px solid var(--line); background:var(--card2); border-radius:99px; padding:6px 12px; cursor:pointer; }
 .esctpl button.on { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
 #esc_note { resize:none; line-height:1.6; }
+
+/* Customer wellbeing / sex edit */
+.sexed { display:inline-flex; gap:6px; align-items:center; } .sexed select { padding:4px 8px; }
+.wday { padding:10px 0; border-top:1px solid var(--line); } .wday:first-of-type { border-top:0; } .wdh { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+.wrow { display:grid; grid-template-columns:48px 28px 1fr; gap:6px; align-items:start; padding:3px 0; font-size:14px; } .wrow small { color:var(--muted); } .wrow span small { display:block; }

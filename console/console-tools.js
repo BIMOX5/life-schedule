@@ -71,7 +71,7 @@ async function openCustomer(uid, inAdmin) {
     DB.list('tickets', `user_id=eq.${uid}&order=created_at.desc`).then(r => { for (const t of r) if (!T.some(x => x.id === t.id)) T.push(t); }).catch(() => {})]);
   render();
 }
-const PTABS = [['profile', 'Profile'], ['body', 'Body & calories'], ['scores', 'Scores'], ['comments', 'Comments'], ['devices', 'Devices'], ['security', 'Activity & security'], ['cases', 'Cases']];
+const PTABS = [['profile', 'Profile'], ['body', 'Body & calories'], ['wellbeing', 'Wellbeing'], ['scores', 'Scores'], ['comments', 'Comments'], ['devices', 'Devices'], ['security', 'Activity & security'], ['cases', 'Cases']];
 const pendingDeletion = uid => (DSARS[uid] || []).find(r => r.type === 'delete' && r.status === 'pending');
 function customerView() {
   const uid = CUSTID, c = CUST[uid];
@@ -103,10 +103,29 @@ function calcTargets(d) {
   const kcal = Math.round(Math.max(minK, tdee - deficit) / 10) * 10, refKg = +p.targetWeight && +p.targetWeight < kg ? (+p.targetWeight + kg) / 2 : kg;
   return {p, kg, kgDate: ws.length ? ws[ws.length - 1].date : null, h, age, act, rate, missing, bmr: Math.round(bmr), tdee: Math.round(tdee), deficit: Math.round(deficit), minK, kcal, floor: tdee - deficit < minK, protein: Math.round(refKg * 2), water: Math.round(kg * 0.035 * 10) / 10, bmi: h ? Math.round(kg / ((h / 100) ** 2) * 10) / 10 : 0};
 }
+const W_MOODS = [['😫', 'Very bad'], ['😕', 'Bad'], ['😐', 'Okay'], ['🙂', 'Good'], ['😁', 'Great']];
+const W_LABELS = {energija: '⚡ Lots of energy', ramus: '😌 Calm', laimingas: '🥰 Happy', produktyvus: '🎯 Productive', issimiegojes: '😴 Well rested', stiprus: '💪 Strong',
+  nuovargis: '🥱 Tired', stresas: '😣 Stressed', nerimas: '😟 Anxious', galva: '🤕 Headache', migrena: '🤯 Migraine', pilvas: '🤢 Stomach ache', raumenys: '💢 Sore muscles', persalimas: '🤧 Cold',
+  miegas: '😴 Sleep', darbas: '💼 Work / studies', artimieji: '🫂 Loved ones', sportas: '🏃 Sport', maistas: '🍽️ Food', poilsis: '🌿 Rest', sveikata: '🩺 Health', oras: '🌦️ Weather', pinigai: '💶 Money', laisvalaikis: '🎉 Free time'};
+const wLabel = k => String(k).startsWith('c:') ? '✏️ ' + k.slice(2) : W_LABELS[k] || k;
 const PVIEW = {
+  wellbeing: (uid, c, d) => {
+    const all = d.wellbeing || [], byDay = {};
+    all.forEach(w => (byDay[w.date] = byDay[w.date] || []).push(w));
+    const days = Object.keys(byDay).sort().reverse(), dayMood = ws => { const m = ws.filter(w => w.mood); return m.length ? Math.round(m.reduce((s, w) => s + w.mood, 0) / m.length) : 0; };
+    const from = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10), recent = all.filter(w => w.date >= from && w.mood);
+    const count = key => { const c2 = {}; recent.forEach(w => (w[key] || []).forEach(k => c2[k] = (c2[k] || 0) + 1)); return Object.entries(c2).sort((a, b) => b[1] - a[1]).slice(0, 5); };
+    const avg = recent.length ? Math.round(recent.reduce((s, w) => s + w.mood, 0) / recent.length) : 0, hard = Object.keys(byDay).filter(x => x >= from && dayMood(byDay[x]) <= 2 && dayMood(byDay[x])).length;
+    if (!all.length) return '<div class="card"><div class="empty sm">The customer has not logged their wellbeing yet.</div></div>';
+    return `<div class="pgrid"><div class="card"><h3>Last 30 days</h3>${kv([['Days logged', Object.keys(byDay).filter(x => x >= from).length], ['Average mood', avg ? `${W_MOODS[avg - 1][0]} ${W_MOODS[avg - 1][1]}` : '–'], ['Hard days', hard]])}</div>
+      <div class="card"><h3>Most common (30 days)</h3>${kv([['Reasons', esc(count('why').map(([k, n]) => `${wLabel(k)} ×${n}`).join(', ') || '–')], ['Feelings', esc(count('sym').map(([k, n]) => `${wLabel(k)} ×${n}`).join(', ') || '–')]])}</div>
+      <div class="card wide"><h3>History</h3>${days.map(x => { const ws = byDay[x].sort((a, b) => (a.time || '') < (b.time || '') ? -1 : 1), m = dayMood(ws);
+        return `<div class="wday"><div class="wdh"><b>${m ? W_MOODS[m - 1][0] : '•'} ${esc(x)}</b><small>${ws.length} entr${ws.length === 1 ? 'y' : 'ies'}</small></div>
+          ${ws.map(w => `<div class="wrow"><small>${esc(w.time || 'day')}</small><span>${W_MOODS[w.mood - 1]?.[0] || '•'}</span><span>${esc([...(w.why || []), ...(w.sym || [])].map(wLabel).join(' · ') || W_MOODS[w.mood - 1]?.[1] || '')}${w.ctx === 'workout' ? ' <small>(after workout)</small>' : ''}${w.note ? `<small>“${esc(w.note)}”</small>` : ''}</span></div>`).join('')}</div>`; }).join('')}</div></div>`;
+  },
   body: (uid, c, d) => {
     const x = calcTargets(d), on = d.settings?.modes || {}, used = on.sport || on.food;
-    return `<div class="pgrid"><div class="card"><h3>What the customer entered</h3>${kv([['Sex', x.p.sex === 'f' ? 'Female' : 'Male'], ['Birth year', x.p.birthYear ? `${esc(x.p.birthYear)} <small>(${x.age} y.)</small>` : '<b class="t-bad">missing</b>'],
+    return `<div class="pgrid"><div class="card"><h3>What the customer entered</h3>${kv([['Sex', `<span class="sexed"><select id="b_sex"><option value="m" ${x.p.sex !== 'f' ? 'selected' : ''}>Male</option><option value="f" ${x.p.sex === 'f' ? 'selected' : ''}>Female</option></select><button class="btn sm" data-act="savesex">Save</button></span>`], ['Birth year', x.p.birthYear ? `${esc(x.p.birthYear)} <small>(${x.age} y.)</small>` : '<b class="t-bad">missing</b>'],
         ['Height', x.h ? `${x.h} cm` : '<b class="t-bad">missing</b>'], ['Weight', x.kg ? `${x.kg} kg <small>${x.kgDate ? 'weighed ' + esc(x.kgDate) : 'start weight'}</small>` : '<b class="t-bad">missing</b>'],
         ['Target weight', x.p.targetWeight ? `${esc(x.p.targetWeight)} kg` : '–'], ['Activity', esc(ACT_NAMES[x.act] || '×' + x.act)], ['Goal', esc(GOAL_NAMES[String(x.rate)] || x.rate + ' kg/week')], ['Modes', modesTxt(d)]])}
         ${!used ? '<div class="warnbox">Sport and nutrition modes are off – the app does not show calories to this customer.</div>' : x.missing.length ? `<div class="warnbox">Missing: <b>${x.missing.join(', ')}</b> – the app asks the customer to fill them in instead of showing calories.</div>` : ''}</div>
@@ -404,6 +423,11 @@ const EXTRA_ACT = {
   admsearch: () => admSearch(),
   admopen: el => { ADM.uid = el.dataset.u; PTAB = 'profile'; history.replaceState(null, '', adminLink(el.dataset.u)); openCustomer(el.dataset.u, true); },
   admback: () => { ADM.uid = null; CUSTID = null; history.replaceState(null, '', './?view=admin'); render(); },
+  savesex: () => {
+    const p = CUST[CUSTID]?.data?.profile || {}, sex = val('b_sex');
+    if (sex === (p.sex || 'm')) return toast('Nothing changed');
+    addAdj('profile', {sex}, 'changed in console', 'changed customer sex');
+  },
   saveprof: () => {
     const p = CUST[CUSTID]?.data?.profile || {}, name = val('p_name'), by = val('p_by'), sex = val('p_sex'), payload = {};
     if (sex && sex !== (p.sex || 'm')) payload.sex = sex;
