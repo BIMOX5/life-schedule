@@ -489,3 +489,7 @@ pre.mail { white-space:pre-wrap; background:var(--card); border:1px solid var(--
 .moodcard.hard { background:color-mix(in srgb, #a78bfa 14%, transparent); border:1px solid color-mix(in srgb, #a78bfa 40%, transparent); }
 .moodcard.good { background:color-mix(in srgb, var(--good) 12%, transparent); border:1px solid color-mix(in srgb, var(--good) 35%, transparent); }
 .wellrc { display:flex; flex-direction:column; align-items:center; justify-content:center; } .wellrc .wbig { font-size:44px; line-height:1.4; } small.inl { display:inline; }
+
+.moodcard.ok { background:color-mix(in srgb, var(--accent) 10%, transparent); border:1px solid color-mix(in srgb, var(--accent) 30%, transparent); } .moodcard b { font-weight:500; }
+.quickwhy h4 { margin:14px 0 6px; } .chips.big .chipbtn { padding:9px 14px; font-size:14px; }
+button.chipbtn.on { background:var(--accent); border-color:var(--accent); color:#fff; }
