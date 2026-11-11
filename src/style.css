@@ -472,11 +472,20 @@ pre.mail { white-space:pre-wrap; background:var(--card); border:1px solid var(--
 
 /* Savijauta */
 .emo.big span { font-size:34px; } .emo.quick { justify-content:space-between; flex-wrap:wrap; gap:6px; }
-.emob { border:1px solid var(--line); background:var(--card2); border-radius:14px; padding:8px 6px; font-size:30px; cursor:pointer; display:flex; flex-direction:column; align-items:center; flex:1; min-width:64px; color:var(--text); }
+.emob { border:1px solid var(--line); background:var(--card2); border-radius:14px; padding:8px 6px; font-size:30px; cursor:pointer; display:flex; flex-direction:column; align-items:center; flex:1; min-width:64px; color:var(--text); transition:.15s; }
 .emob small { font-size:11px; color:var(--muted); } .emob:hover { border-color:var(--accent); transform:translateY(-1px); }
-.chips .chipbtn input { display:none; } .chips .chipbtn input:checked + span { color:var(--text); } .chips label.chipbtn:has(input:checked) { background:var(--accent); border-color:var(--accent); color:#fff; }
-.moodcal { display:grid; grid-template-columns:repeat(10, 1fr); gap:5px; }
-.wcell { aspect-ratio:1; border-radius:10px; background:var(--card2); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:17px; position:relative; }
+.emob.on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 18%, transparent); transform:scale(1.06); }
+.chips .chipbtn input { display:none; } .chips label.chipbtn:has(input:checked) { background:var(--accent); border-color:var(--accent); color:#fff; }
+.wseg { display:flex; gap:8px; margin-top:12px; } .wseg label { flex:1; } .wseg input { display:none; }
+.wseg span { display:block; text-align:center; padding:9px; border:1.5px solid var(--line); border-radius:12px; cursor:pointer; } .wseg input:checked + span { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 15%, transparent); }
+.moodcal { display:grid; grid-template-columns:repeat(7, 1fr); gap:5px; } .moodcal > b { text-align:center; font-size:11px; color:var(--muted); font-weight:500; }
+.wcell { aspect-ratio:1; border-radius:10px; background:var(--card2); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:18px; position:relative; }
 .wcell small { font-size:9.5px; color:var(--muted); } .wcell i { position:absolute; top:4px; right:4px; width:6px; height:6px; border-radius:50%; background:var(--bad); }
+.wcell.fut { opacity:.3; } .wcell.tod { box-shadow:0 0 0 2px var(--accent); }
 .wcell.m1 { background:rgba(239,68,68,.25); } .wcell.m2 { background:rgba(249,115,22,.22); } .wcell.m3 { background:rgba(234,179,8,.18); } .wcell.m4 { background:rgba(34,197,94,.18); } .wcell.m5 { background:rgba(34,197,94,.32); }
 .ins { margin:0 0 10px; line-height:1.5; }
+.moments { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; } .mom { background:var(--card2); border:1px solid var(--line); border-radius:99px; padding:4px 10px; font-size:13px; cursor:pointer; }
+.moodcard { margin-top:12px; border-radius:14px; padding:12px 14px; } .moodcard p { margin:4px 0; } .moodcard ul { margin:6px 0; padding-left:20px; } .moodcard li { margin:3px 0; }
+.moodcard.hard { background:color-mix(in srgb, #a78bfa 14%, transparent); border:1px solid color-mix(in srgb, #a78bfa 40%, transparent); }
+.moodcard.good { background:color-mix(in srgb, var(--good) 12%, transparent); border:1px solid color-mix(in srgb, var(--good) 35%, transparent); }
+.wellrc { display:flex; flex-direction:column; align-items:center; justify-content:center; } .wellrc .wbig { font-size:44px; line-height:1.4; } small.inl { display:inline; }

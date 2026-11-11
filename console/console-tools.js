@@ -362,10 +362,10 @@ async function admSearch(field) {
   ADM.busy = false; render();
   if (ADM.tab === 'scores' && ADM.rows.length === 1) EXTRA_ACT.admopen({dataset: {u: ADM.rows[0].id}});
 }
-const SG_ST = [['new', '🆕 New'], ['planned', '🗓️ Planned'], ['done', '✅ Done'], ['declined', '🚫 Declined']];
+const SG_ST = [['new', '🆕 New'], ['reviewed', '✔️ Reviewed'], ['planned', '🗓️ Planned'], ['done', '✅ Built'], ['declined', '🚫 Declined']];
 function admSuggestions() {
   const r = SUGG;
-  return `<div class="page"><div class="pwrap"><h1>Suggestions</h1><p class="muted">Ideas from customers. Add them from a case: ☰ → Add to suggestions list.</p>
+  return `<div class="page"><div class="pwrap"><h1>Suggestions</h1><p class="muted">Ideas from customers. They arrive when a case is escalated as a suggestion (or ☰ → Add to suggestions list). When the case is closed, a new idea becomes <b>Reviewed</b>; <b>Built</b> – when it's in the app.</p>
     ${r == null ? '<div class="empty">Loading…</div>' : !r.length ? '<div class="empty">No suggestions yet</div>' : `<div class="card flush"><table class="tbl"><tr><th>Idea</th><th>Asked</th><th>Status</th><th>Case</th></tr>
       ${r.map(x => `<tr><td><b>${esc(x.title)}</b><small>${esc((x.body || '').slice(0, 160))}</small></td><td><b>${x.votes}×</b></td>
         <td><select data-sgst="${x.id}">${SG_ST.map(([v, l]) => `<option value="${v}" ${x.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td>

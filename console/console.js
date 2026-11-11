@@ -174,7 +174,7 @@ const CAN_TOGGLE = () => ['developer', 'lead'].includes(VIEW_AS()), IS_DEV = () 
 const myOpen = () => T.filter(t => t.assignee === ME.id && ['new', 'open'].includes(t.status)).sort(byPrio);
 const myHold = () => T.filter(t => t.assignee === ME.id && t.status === 'hold');
 const myPendingRecent = () => T.filter(t => t.assignee === ME.id && t.status === 'pending' && Date.now() - Date.parse(t.status_at || t.updated_at) < 5 * 60e3);
-const queue = () => T.filter(t => !t.assignee && ['new', 'open'].includes(t.status) && !SKIPPED().includes(t.id)).sort(byPrio);
+const queue = () => T.filter(t => !t.assignee && ['new', 'open'].includes(t.status) && !isSkipped(t)).sort(byPrio);
 
 // Theme: dark (black) / light (white)
 const applyTheme = () => document.documentElement.dataset.theme = LS.get('console_theme') === 'light' ? 'light' : 'dark';
@@ -367,7 +367,8 @@ function goHome() {
 }
 // Cases I unassigned myself never come back to me through the inbox
 const SKIPPED = () => { try { return JSON.parse(LS.get('console_skip') || '[]'); } catch (e) { return []; } };
-const skipCase = id => LS.set('console_skip', JSON.stringify([...SKIPPED(), id].slice(-200)));
+const skipCase = (id, tier = 1) => LS.set('console_skip', JSON.stringify([...SKIPPED(), `${id}@${tier}`].slice(-200)));
+const isSkipped = t => { const k = SKIPPED(), tier = t.tier || 1; return k.includes(`${t.id}@${tier}`) || (tier < 2 && k.includes(t.id)); };
 // Automatic inbox: one case at a time, most important first (only while the inbox is on)
 let PUMPING = false;
 async function pump() {
@@ -376,7 +377,7 @@ async function pump() {
   try {
     const mine = myOpen();
     if (mine.length) { if (!SEL || !T.some(x => x.id === SEL && x.assignee === ME.id && ['new', 'open'].includes(x.status))) await selectCase(mine[0].id); return; }
-    for (const t of queue().filter(x => !SKIPPED().includes(x.id))) {
+    for (const t of queue()) {
       const r = await DB.update('tickets', `id=eq.${t.id}&assignee=is.null`, {assignee: ME.id, assignee_name: ME.name, status: 'open', status_at: nowIso(), updated_at: nowIso()}).catch(() => []);
       if (r && r.length) { Object.assign(t, r[0]); await logEvent(t, `Assigned to ${ME.name} (inbox)`); await audit('assigned from inbox', t); await selectCase(t.id); return; }
     }
@@ -424,7 +425,7 @@ function agentQueue() {
     ${mh.length ? `<h4>On hold</h4>${mh.map(x => qi(x, x.hold_reason ? ` · ${esc(x.hold_reason)}` : '')).join('')}` : ''}
     ${mp.length ? `<h4>Pending</h4>${mp.map(x => qi(x, ' · waiting for reply')).join('')}` : ''}</div>` : '<div class="qlist"></div>'}</div>`;
 }
-const FILTERS = [['backlog', 'Backlog', t => !t.assignee && ['new', 'open'].includes(t.status) && !SKIPPED().includes(t.id)], ['tier2', 'Tier 2', t => (t.tier || 1) >= 2 && !['solved', 'closed'].includes(t.status), 'tier2'], ['mine', 'Mine', t => t.assignee === ME.id && ['new', 'open', 'pending', 'hold'].includes(t.status)],
+const FILTERS = [['backlog', 'Backlog', t => !t.assignee && ['new', 'open'].includes(t.status) && !isSkipped(t)], ['tier2', 'Tier 2', t => (t.tier || 1) >= 2 && !['solved', 'closed'].includes(t.status), 'tier2'], ['mine', 'Mine', t => t.assignee === ME.id && ['new', 'open', 'pending', 'hold'].includes(t.status)],
   ['waiting', 'Pending / On hold', t => ['pending', 'hold'].includes(t.status)], ['solved', 'Solved', t => t.status === 'solved'], ['outgoing', 'Outgoing', t => t.outgoing && t.status !== 'closed'], ['all', 'All', t => t.status !== 'closed'], ['closed', 'Closed', t => t.status === 'closed', 'dev']];
 function devQueue() {
   const q = QTEXT.toLowerCase(), fl = FILTERS.filter(x => !x[3] || (x[3] === 'tier2' ? myTier() >= 2 : IS_DEV())), f = fl.find(x => x[0] === FILTER) || fl[0];
@@ -435,7 +436,7 @@ function devQueue() {
 }
 function idleHtml() {
   const first = esc((ME.name || '').split(' ')[0]);
-  const small = DEVVIEW ? 'Select a case on the left.' : !INBOX_ON ? '' : queue().some(x => !SKIPPED().includes(x.id)) ? 'Getting your next case…' : 'All caught up – new cases appear here automatically.';
+  const small = DEVVIEW ? 'Select a case on the left.' : !INBOX_ON ? '' : queue().length ? 'Getting your next case…' : 'All caught up – new cases appear here automatically.';
   return `<div class="wv">👋</div><h1>Welcome back, ${first}!</h1><p>Let's give the best support to everyone today 💙</p>${small ? `<small>${small}</small>` : ''}`;
 }
 const trOf = (m, t) => TR[t.id]?.on ? TR[t.id].map[m.id] || null : null;
@@ -449,13 +450,14 @@ function autoGrow(el) {
 const ESC_TPL = {
   suggestion: "Customer's suggestion: \nReason for escalation: \nWhy the suggestion is valid: ",
   problem: 'Customer reported issue: \nSteps taken: \nInvestigation done: \nReason for escalation: '};
+let ESC_KIND = 'problem';
 function escalateModal(t) {
   modal(`<h3>Escalate to Tier 2</h3><p class="muted">The case leaves your queue and goes to Tier 2. Fill in the note so Tier 2 understands the case without reading everything again.</p>
     <div class="esctpl"><button class="on" data-act="esctpl" data-k="suggestion">💡 Suggestion</button><button data-act="esctpl" data-k="problem">🔎 Unknown problem</button></div>
     <textarea id="esc_note" rows="5" style="width:100%">${esc(ESC_TPL[issueTags(t).includes('suggestion') || t.tags?.includes('idea') ? 'suggestion' : 'problem'])}</textarea>
     <div class="row"><small class="muted">See the KB article "Escalation guidelines".</small><span class="sp"></span><button class="btn" data-act="mclose">Cancel</button><button class="btn primary" data-act="escgo">Escalate</button></div>`);
   const k = issueTags(t).includes('suggestion') || t.tags?.includes('idea') ? 'suggestion' : 'problem';
-  document.querySelectorAll('.esctpl button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+  ESC_KIND = k; document.querySelectorAll('.esctpl button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
   const n = $('#esc_note'); autoGrow(n); n.focus(); n.setSelectionRange(n.value.indexOf(':') + 2, n.value.indexOf(':') + 2);
 }
 async function escalateGo(t, btn) {
@@ -463,9 +465,10 @@ async function escalateGo(t, btn) {
   if (filled < 2) return toast('Fill in the template – at least two lines');
   btn.disabled = true;
   try {
-    await DB.rpc('escalate_case', {tid: t.id, note, author_name: ME.name});
-    closeModal(true); toast(`⬆️ Case #${t.case_no} escalated to Tier 2`);
-    skipCase(t.id); await loadTickets(true); await loadMsgs(t.id, true);
+    try { await DB.rpc('escalate_case', {tid: t.id, note, author_name: ME.name, kind: ESC_KIND}); }
+    catch (e1) { await DB.rpc('escalate_case', {tid: t.id, note, author_name: ME.name}); }   // before SQL 15
+    SUGG = null; closeModal(true); toast(`⬆️ Case #${t.case_no} escalated to Tier 2${ESC_KIND === 'suggestion' ? ' and added to suggestions' : ''}`);
+    skipCase(t.id, 1); await loadTickets(true); await loadMsgs(t.id, true);
     if (myTier() < 2) { SEL = null; history.replaceState(null, '', location.pathname + location.search); render(); await pump(); render(); } else render(true);
   } catch (e) { btn.disabled = false; toast('⚠️ Escalation failed – run SQL 14 in Supabase (' + esc(e.message) + ')'); }
 }
@@ -712,7 +715,7 @@ document.addEventListener('click', async e => {
   if (a === 'unassign') { POP = null; render(true); return reasonModal('Unassign case', UNASSIGN_REASONS, 'unassigngo', 'Unassign'); }
   if (a === 'unassigngo') {
     const r = pickedReason(); if (!r) return toast('Choose or describe a reason');
-    closeModal(true); skipCase(t.id); await updTicket(t, {assignee: null, assignee_name: null}, 'unassigned', 'Unassigned manually', r); return nextCase(t);
+    closeModal(true); skipCase(t.id, t.tier || 1); await updTicket(t, {assignee: null, assignee_name: null}, 'unassigned', 'Unassigned manually', r); return nextCase(t);
   }
   if (a === 'holdgo') { const r = pickedReason(); if (!r) return toast('Choose or describe a reason'); closeModal(true); return setStatus(t, 'hold', null, {hold_reason: r}); }
   if (a === 'clean') { CLEAN = !CLEAN; render(true); return; }
@@ -721,7 +724,7 @@ document.addEventListener('click', async e => {
   if (a === 'copylink') { POP = null; navigator.clipboard?.writeText(caseLink(t)); toast(`🔗 Link to case #${t.case_no} copied`); render(true); return; }
   if (a === 'casedata') { POP = null; render(true); return caseData(t); }
   if (a === 'escalate') { POP = null; render(true); return escalateModal(t); }
-  if (a === 'esctpl') { $('#esc_note').value = ESC_TPL[el.dataset.k]; document.querySelectorAll('.esctpl button').forEach(b => b.classList.toggle('on', b === el)); autoGrow($('#esc_note')); $('#esc_note').focus(); return; }
+  if (a === 'esctpl') { ESC_KIND = el.dataset.k; $('#esc_note').value = ESC_TPL[el.dataset.k]; document.querySelectorAll('.esctpl button').forEach(b => b.classList.toggle('on', b === el)); autoGrow($('#esc_note')); $('#esc_note').focus(); return; }
   if (a === 'escgo') return escalateGo(t, el);
   if (a === 'deescalate') { POP = null; await updTicket(t, {tier: 1, assignee: null, assignee_name: null}, 'sent back to tier 1', 'Sent back to Tier 1'); return; }
   if (a === 'addsugg') { POP = null; render(true); return suggestionModal(t); }

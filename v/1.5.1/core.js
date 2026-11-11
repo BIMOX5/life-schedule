@@ -76,7 +76,7 @@ const defaultData = () => ({
   foodPrefs: {done: false, mealSuggest: false, cookTimes: 2, cookMax: 60, budget: 40, cookDays: [7], mealsPerDay: 3, skill: 2, equip: ['puodas', 'keptuvė', 'orkaitė', 'mikrobangė'], dislikes: [], allergies: [], dislikeText: ''},
   ratings: {}, priceOverrides: {}, priceMeta: {}, deletedRecipes: [], spend: [], mealPlans: [], receiptFoods: [],
   settings: { theme:'dark', tz: '', onboarded: false, modes: {sport: false, food: false}, review: 'week', dismissed: {}, intro: {} },
-  reviews: [],
+  reviews: [], wellbeing: [],
 });
 // Režimai: ką žmogus nori daryti su programėle
 const sportOn = () => !!S?.settings?.modes?.sport;
@@ -221,6 +221,18 @@ const DB = {
   insert(table, row) { return this.req('POST', table, '', row, 'return=representation'); },
   update(table, query, patch) { return this.req('PATCH', table, query, patch, 'return=representation'); },
   upsert(table, row, key) { return this.req('POST', table, `on_conflict=${key}`, row, 'resolution=merge-duplicates,return=representation'); },
+  async rpc(name, args) {
+    const r = cloudOn() ? await fetch(`${CLOUD.url}/rest/v1/rpc/${name}`, {method: 'POST', headers: {apikey: CLOUD.key, Authorization: 'Bearer ' + await Auth.token(), 'Content-Type': 'application/json'}, body: JSON.stringify(args)})
+      : await fetch(`/api/rpc/${name}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(args)});
+    if (!r.ok) throw new Error(`${name}: ${r.status}`);
+    return r.json();
+  },
+  // Edge funkcija (super-function); testuojant – vietinis serveris /api/<action>
+  async fn(action, body = {}) {
+    const r = cloudOn() ? await fetch(`${CLOUD.url}/functions/v1/${CLOUD.importFn || 'super-function'}`, {method: 'POST', headers: {apikey: CLOUD.key, Authorization: 'Bearer ' + await Auth.token(), 'Content-Type': 'application/json'}, body: JSON.stringify({action, ...body})})
+      : await fetch(`/api/${action}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    return r.json().catch(() => ({ok: false}));
+  },
 };
 // Paskyros trynimo būsena: kol laukiama trynimo – programėlė tik skaitoma
 let DELREQ = null, SNAP = null;
@@ -236,7 +248,7 @@ async function loadData() {
     ONLINE = true;
     if (cached && cached.DIRTY && cached.S && srv.data) {
       if (srv.rev === cached.REV) { S = migrate(cached.S); REV = srv.rev; DIRTY = true; await push(); return true; }
-      const useLocal = confirm('Šiame įrenginyje yra neišsaugotų pakeitimų, bet kitas įrenginys jau pakeitė duomenis.\n\nOK = palikti ŠIO įrenginio versiją\nAtšaukti = paimti naujausią versiją');
+      const useLocal = await ask('Kuri versija tikroji?', 'Šiame įrenginyje yra neišsaugotų pakeitimų, bet kitas įrenginys jau pakeitė duomenis.', {icon: '🔄', yes: 'Palikti šio įrenginio', no: 'Paimti naujausią'});
       if (useLocal) { S = migrate(cached.S); REV = srv.rev; DIRTY = true; await push(true); return true; }
     }
     if (srv.data) { S = migrate(srv.data); REV = srv.rev; DIRTY = false; storeLocal(); return true; }
@@ -245,7 +257,7 @@ async function loadData() {
     if (cloudOn() && !found) {
       try { const loc = await (await api('GET', '/api/data')).json(); if (loc && loc.profile) found = loc; } catch (e) {}
       if (!found) try { const old = JSON.parse(localStorage.getItem('manogyv_v1')); if (old && old.S) found = old.S; } catch (e) {}
-      if (found && !confirm('Radau šiame įrenginyje esančius duomenis. Perkelti juos į debesį?\n\nOK = perkelti\nAtšaukti = pradėti iš naujo')) found = null;
+      if (found && !await ask('Perkelti duomenis į debesį?', 'Radau šiame įrenginyje esančius duomenis.', {icon: '☁️', yes: 'Perkelti', no: 'Pradėti iš naujo'})) found = null;
     }
     S = found ? migrate(JSON.parse(JSON.stringify(found))) : defaultData(); REV = srv.rev; DIRTY = true; await push();
   } catch (e) {
@@ -271,7 +283,7 @@ async function push(force) {
     const res = await BK().put(JSON.parse(snapshot), REV, force);
     if (res.conflict) {
       PUSHING = false;
-      const useLocal = confirm('Duomenys buvo pakeisti kitame įrenginyje.\n\nOK = perrašyti ŠIO įrenginio versija\nAtšaukti = įkelti naujausią (šio įrenginio paskutinis pakeitimas bus prarastas)');
+      const useLocal = await ask('Duomenys pakeisti kitur', 'Duomenys buvo pakeisti kitame įrenginyje. Jei įkelsi naujausius, paskutinis šio įrenginio pakeitimas dings.', {icon: '🔄', yes: 'Palikti šio įrenginio', no: 'Įkelti naujausius'});
       if (useLocal) return push(true);
       const srv = await BK().get(); S = migrate(srv.data || defaultData()); REV = srv.rev; DIRTY = false; storeLocal(); render(); return;
     }
@@ -324,7 +336,8 @@ function currentWeight() {
 function age() { const y = +S.profile.birthYear; return y ? new Date().getFullYear() - y : 25; }
 function targets() {
   const p = S.profile, kg = currentWeight(), h = +p.height || 175;
-  if (!kg) return {kcal: 2000, protein: 140, bmr: 0, tdee: 0, water: 2.5, bmi: 0};
+  const missing = [!kg && 'svoris', !+p.height && 'ūgis', !+p.birthYear && 'gimimo metai'].filter(Boolean);
+  if (!kg) return {kcal: 2000, protein: 140, bmr: 0, tdee: 0, water: 2.5, bmi: 0, missing};
   const bmr = 10 * kg + 6.25 * h - 5 * age() + (p.sex === 'f' ? -161 : 5);
   const tdee = bmr * (+p.activity || 1.375);
   const deficit = (+p.goalRate || 0) * 7700 / 7;
@@ -333,7 +346,7 @@ function targets() {
   const refKg = +p.targetWeight && +p.targetWeight < kg ? (+p.targetWeight + kg) / 2 : kg;
   const protein = Math.round(refKg * 2.0);
   const bmi = kg / ((h / 100) ** 2);
-  return {kcal, protein, bmr: Math.round(bmr), tdee: Math.round(tdee), water: round(kg * 0.035, 1), bmi: round(bmi, 1), deficit: Math.round(tdee - kcal)};
+  return {kcal, protein, bmr: Math.round(bmr), tdee: Math.round(tdee), water: round(kg * 0.035, 1), bmi: round(bmi, 1), deficit: Math.round(tdee - kcal), missing};
 }
 
 // ===== Receptų maistinė vertė =====
@@ -824,7 +837,9 @@ function gamification() {
   const sleepGood = S.sleep.filter(s => Math.abs(sleepMinutes(s) / 60 - (+S.profile.sleepGoal || 8)) <= 0.75).length;
   const checkins = countedCheckins();
   const parts = {tasksDone, workouts: S.workouts.length, daysLogged, sleepGood, checkins, weights: S.weights.length, cooks: S.cooks.length};
-  const xp = sum(XP_RULES.map(([k, , x]) => (parts[k] || 0) * x));
+  // komandos koregavimai (dovanos / pataisymai iš pagalbos konsolės)
+  const bonus = sum((S.xpAdjust || []).map(a => +a.amount || 0));
+  const xp = Math.max(0, sum(XP_RULES.map(([k, , x]) => (parts[k] || 0) * x)) + bonus);
   const level = Math.floor(Math.sqrt(xp / 40)) + 1;
   const cur = (level - 1) ** 2 * 40, next = level ** 2 * 40;
   const lost = S.weights.length ? round((+S.profile.startWeight || S.weights[0].kg) - currentWeight(), 1) : 0;
@@ -839,10 +854,10 @@ function gamification() {
     ['📝','Pirmas įrašas','Įrašei pirmą dalyką', daysLogged >= 1, true],
     ['📅','Savaitės serija','7 dienos iš eilės su įrašais', streak >= 7, true],
     ['🗓️','Mėnesio serija','30 dienų iš eilės', streak >= 30, true],
-    ['✅','Darbštuolis','10 padarytų reikalų', tasksDone >= 10, true],
+    ['✅','Darbštuolis','10 atliktų užduočių', tasksDone >= 10, true],
     ['😴','Išsimiegojęs','10 naktų pagal miego tikslą', sleepGood >= 10, true],
     ['⏱️','Laiko meistras','20 val. užfiksuoto laiko', timeLogged >= 1200, true],
-    ['🗂️','Planuotojas','5 įvykiai kalendoriuje', S.events.length >= 5, true],
+    ['🗂️','Planuotojas','5 veiklos kalendoriuje', S.events.length >= 5, true],
     ['🪞','Refleksija','Pirmasis patikrinimas', checkins >= 1, true],
     ['💪','Pirmoji treniruotė','Įrašei treniruotę', S.workouts.length >= 1, sp],
     ['🏋️','Dešimtukas','10 treniruočių', S.workouts.length >= 10, sp],
@@ -856,11 +871,11 @@ function gamification() {
   ];
   const badges = all.filter(b => b[4] || b[3]).map(b => b.slice(0, 4));
   const title = [...LEVEL_TITLES].reverse().find(t => level >= t[0]);
-  return {xp, level, cur, next, streak, badges, lost, title, parts};
+  return {xp, level, cur, next, streak, badges, lost, title, parts, bonus};
 }
 const LEVEL_TITLES = [[1, '🌱', 'Pradedantysis'], [3, '🚶', 'Įsivažiuojantis'], [5, '🏃', 'Nuoseklus'], [8, '💪', 'Disciplinuotas'], [12, '🔥', 'Nesustabdomas'], [17, '🦾', 'Mašina'], [25, '👑', 'Legenda']];
 // [raktas, pavadinimas, XP, kada rodyti]
-const XP_RULES = [['daysLogged', '📖 Diena su įrašais', 5, 'all'], ['tasksDone', '✅ Padarytas reikalas', 10, 'all'], ['sleepGood', '😴 Naktis pagal miego tikslą (±45 min)', 10, 'all'], ['checkins', '🪞 Savaitės / mėnesio patikrinimas (1 per laikotarpį)', 30, 'all'], ['workouts', '💪 Treniruotė', 25, 'sport'], ['weights', '⚖️ Pasisvėrimas', 5, 'body'], ['cooks', '👨‍🍳 Pagamintas maistas', 15, 'food']];
+const XP_RULES = [['daysLogged', '📖 Diena su įrašais', 5, 'all'], ['tasksDone', '✅ Atlikta užduotis', 10, 'all'], ['sleepGood', '😴 Naktis pagal miego tikslą (±45 min)', 10, 'all'], ['checkins', '🪞 Savaitės / mėnesio patikrinimas (1 per laikotarpį)', 30, 'all'], ['workouts', '💪 Treniruotė', 25, 'sport'], ['weights', '⚖️ Pasisvėrimas', 5, 'body'], ['cooks', '👨‍🍳 Pagamintas maistas', 15, 'food']];
 
 // ===== SVG grafikai =====
 function svgLine(series, opts = {}) {
