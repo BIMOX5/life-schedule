@@ -795,8 +795,7 @@ function mealModal() {
   if (t === 'ai') {
     const rec = recentMeals();
     body += `${fld('Ką valgei?', `<textarea name="aitext" rows="2" placeholder="pvz. 2 kiaušiniai, sumuštinis su sūriu, kava su pienu">${esc(UI.aiText || '')}</textarea>`)}
-      <div class="choice row">${btn('✨ Apskaičiuoti', 'aiParse', {}, 'sm primary')}<small class="hint">Apskaičiuosim kalorijas ir baltymus – prieš išsaugant gali pataisyti.</small></div>
-      <div id="aires">${aiResHtml()}</div>
+      <p class="hint">Spausk „Išsaugoti“ – kalorijas ir baltymus apskaičiuosim patys. Vėliau galėsi pataisyti dienyne.</p>
       ${rec.length ? `<h4>Dažnai valgai <small>– vienu paspaudimu</small></h4><div class="chips">${rec.map(m => `<button type="button" class="chipbtn" data-a="mealRepeat" data-n="${esc(m.name)}">${esc(m.name)} <small>${Math.round(m.kcal)} kcal</small></button>`).join('')}</div>` : ''}`;
   } else if (t === 'freezer') {
     const fr = storageItems();
@@ -815,9 +814,8 @@ function mealModal() {
   modal('Įrašyti maistą', body, o => {
     const m = {id: uid(), date: o.date, time: o.time};
     if (t === 'ai') {
-      if (!(UI.aiItems || []).length) { toast(o.aitext?.trim() ? 'Pirma paspausk „✨ Apskaičiuoti“' : 'Parašyk, ką valgei'); return false; }
-      for (const it of UI.aiItems) S.meals.push({id: uid(), date: o.date, time: o.time, name: it.name + (it.qty && it.unit && it.unit !== 'porcija' && !(it.qty == 1 && it.unit === 'vnt') ? ` (${it.qty} ${it.unit})` : ''), kcal: +it.kcal || 0, p: +it.p || 0, c: +it.c || 0, f: +it.f || 0, g: +it.grams || undefined, ai: true});
-      const tot = sum(UI.aiItems.map(x => +x.kcal || 0)); UI.aiItems = null; UI.aiText = ''; commit(); toast(`🍽️ Įrašyta – ${Math.round(tot)} kcal`); return;
+      if (!o.aitext?.trim()) { toast('Parašyk, ką valgei'); return false; }
+      saveFoodText(o.aitext.trim(), o.date, o.time); return false;
     }
     if (t === 'freezer') { const f = S.freezer.find(x => x.id === o.fid); if (!f) return false; const r = recipe(f.recipeId), st = recipeStats(r), n = +o.portions || 1;
       Object.assign(m, {name: r.name, recipeId: r.id, portions: n}, nutrOf(st, n)); takePortion(f.id, n); }
@@ -2511,26 +2509,6 @@ const wellHomeLine = d => { const m = dayMood(d); return m ? `<div class="wellli
 // Vienas emoji (net ir sudėtiniai, pvz. 🧑‍🍳, 🏋️‍♂️) – paimam pirmą „simbolį“ taip, kaip jį mato žmogus
 function oneEmoji(v) { v = String(v || '').trim(); if (!v) return ''; try { return [...new Intl.Segmenter('lt', {granularity: 'grapheme'}).segment(v)][0].segment; } catch (e) { return [...v].slice(0, 2).join(''); } }
 
-// ===== ✨ „Ką valgei?“ – AI išskaido tekstą į produktus su kalorijomis =====
-function aiResHtml() {
-  const it = UI.aiItems; if (!it) return '';
-  if (!it.length) return '<p class="hint">Nieko neradau – parašyk kitaip.</p>';
-  const tot = k => Math.round(sum(it.map(x => +x[k] || 0)));
-  return `<div class="aires">${it.map((x, i) => `<div class="airow"><span class="grow"><b>${esc(x.name)}</b><small>${esc(String(x.qty ?? ''))} ${esc(x.unit || '')}${x.grams ? ` · ~${Math.round(x.grams)} g` : ''}</small></span>
-    <label>kcal<input type="number" min="0" value="${Math.round(+x.kcal || 0)}" data-ai="${i}" data-k="kcal"></label><label>B g<input type="number" min="0" value="${Math.round(+x.p || 0)}" data-ai="${i}" data-k="p"></label>
-    <button type="button" class="x" data-a="aiDel" data-i="${i}" title="Pašalinti">✕</button></div>`).join('')}
-    <div class="aitot">Iš viso: <b>${tot('kcal')} kcal</b> · ${tot('p')} g baltymų · ${tot('c')} g angliav. · ${tot('f')} g riebalų</div>${UI.aiNote ? `<p class="hint">💡 ${esc(UI.aiNote)}</p>` : ''}</div>`;
-}
-A.aiParse = async () => {
-  const ta = document.querySelector('#mform textarea[name="aitext"]'), text = ta?.value.trim(); if (!text) return toast('Parašyk, ką valgei');
-  UI.aiText = text; const box = $('#aires'); if (box) box.innerHTML = '<p class="hint">✨ Skaičiuoju…</p>';
-  const r = await DB.fn('food_parse', {text}).catch(e => ({ok: false, error: e.message}));
-  if (!r.ok) { UI.aiItems = null; if (box) box.innerHTML = `<p class="hint">⚠️ ${DEV ? esc(r.error || 'Nepavyko') : 'Dabar nepavyko apskaičiuoti – pabandyk po minutės arba įrašyk per „⚡ Greitas“.'}</p>`; return; }
-  UI.aiItems = r.items || []; UI.aiNote = r.note || ''; if ($('#aires')) $('#aires').innerHTML = aiResHtml();
-};
-A.aiDel = d => { UI.aiItems.splice(+d.i, 1); $('#aires').innerHTML = aiResHtml(); };
-document.addEventListener('input', e => { const i = e.target.dataset?.ai; if (i == null || !UI.aiItems?.[+i]) return; UI.aiItems[+i][e.target.dataset.k] = +e.target.value || 0;
-  const t = $('#aires .aitot b'); if (t) t.textContent = Math.round(sum(UI.aiItems.map(x => +x.kcal || 0))) + ' kcal'; });
 // Dažniausiai valgomi (60 d.) – vienu paspaudimu
 function recentMeals() {
   const from = addDays(today(), -60), by = {};
@@ -2693,3 +2671,32 @@ A.vapidKeys = async () => {
   modal('🔑 Pranešimų raktai', `<p>Supabase → <b>Edge Functions → Secrets</b> → pridėk du įrašus (pavadinimas ir reikšmė):</p>${row('VAPID_PUBLIC_KEY', pub)}${row('VAPID_PRIVATE_KEY', jwk.d)}
     <p class="hint">Raktai sukurti šiame naršyklės lange ir niekur nesiunčiami. Uždarius langą jie dingsta – jei nespėjai nukopijuoti, sukurk naujus. Pakeitus raktus, pranešimus reikės įjungti iš naujo.</p>`, null, {noFocus: true});
 };
+
+// ===== „✨ Parašyk“: vienas mygtukas – apskaičiuoja ir išsaugo =====
+// Pirmiausia AI; jei jis nepasiekiamas – tyliai atpažįstam iš savo produktų bazės (naudotojui jokių „AI klaidų“)
+function localFoodParse(text) {
+  const items = [], miss = [];
+  for (const part of text.split(/[,;\n+]|\s+ir\s+|\s+su\s+(?=\d)/i).map(x => x.trim()).filter(Boolean)) {
+    const r = parseIngredient(part), f = r.foodId && food(r.foodId);
+    if (!f) { miss.push(part); continue; }
+    const g = r.grams || PIECE_G[f.id] || 100, k = g / 100;
+    items.push({name: f.name.replace(/\s*\(.*?\)\s*/g, ' ').trim(), qty: 0, unit: '', grams: g, kcal: Math.round(f.kcal * k), p: round(f.p * k, 1), c: round(f.c * k, 1), f: round(f.f * k, 1)});
+  }
+  return {items, miss};
+}
+async function saveFoodText(text, date, time) {
+  const sb = $('#mform button[type=submit]'); if (sb) { sb.disabled = true; sb.textContent = '⏳ Skaičiuoju…'; }
+  let items = [], miss = [];
+  const r = await DB.fn('food_parse', {text}).catch(() => null);
+  if (r?.ok && r.items?.length) items = r.items;
+  else { ({items, miss} = localFoodParse(text)); if (DEV && r && !r.ok) console.warn('food_parse:', r.error); }
+  if (!items.length) {
+    if (sb) { sb.disabled = false; sb.textContent = 'Išsaugoti'; }
+    return warn('Neatpažinau, ką valgei. Parašyk paprasčiau, pvz. „2 kiaušiniai, 200 g varškės“, arba įrašyk per „⚡ Greitas“.');
+  }
+  for (const it of items) S.meals.push({id: uid(), date, time, name: it.name + (it.qty && it.unit && it.unit !== 'porcija' && !(it.qty == 1 && it.unit === 'vnt') ? ` (${it.qty} ${it.unit})` : ''),
+    kcal: Math.round(+it.kcal || 0), p: +it.p || 0, c: +it.c || 0, f: +it.f || 0, g: +it.grams || undefined, ai: true});
+  UI.aiText = ''; A.closeModal(); commit();
+  const tot = Math.round(sum(items.map(x => +x.kcal || 0)));
+  toast(`🍽️ Įrašyta: ${items.map(x => esc(x.name)).join(', ')} – ${tot} kcal${miss.length ? `<br><small>Neatpažinau: ${esc(miss.join(', '))}</small>` : ''}`, 'good');
+}
