@@ -444,7 +444,7 @@ const trLabel = x => x ? ` · <b class="trl">Translated from ${esc(DEEPL[x.from]
 function autoGrow(el) {
   if (!el) return;
   const max = Math.max(160, (el.closest('.conv')?.clientHeight || window.innerHeight) * 0.5);
-  el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight + 2, max) + 'px'; el.style.overflowY = el.scrollHeight + 2 > max ? 'auto' : 'hidden';
+  el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight + 2, max) + 'px'; el.style.overflowY = 'auto';
 }
 // ----- Escalation (Tier 1 -> Tier 2) – an internal note with a template is required -----
 const ESC_TPL = {
@@ -746,7 +746,7 @@ document.addEventListener('click', async e => {
       mkFile(`duomenu-kopija-${day}.html`, buildReport(c.data, r), 'text/html'),
       mkFile(`duomenu-kopija-${day}.json`, JSON.stringify({request: {id: r.id, created_at: r.created_at}, exported_at: nowIso(), data: c.data}, null, 2), 'application/json')];
     MODE = 'reply'; const rp = $('#reply');
-    if (rp) { if (!rp.value.trim()) rp.value = dsarText(t); } else if (!DRAFT[t.id]) DRAFT[t.id] = dsarText(t);
+    if (rp) { if (!rp.value.trim()) { rp.value = dsarText(t); autoGrow(rp); } } else if (!DRAFT[t.id]) DRAFT[t.id] = dsarText(t);
     if (t.source_id) DB.update('dsar_requests', `id=eq.${t.source_id}&status=eq.received`, {status: 'in_progress'}).catch(() => {});
     audit('prepared data copy', t); render(); return;
   }

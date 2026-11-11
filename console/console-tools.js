@@ -250,7 +250,7 @@ const composerTools = (t, note) => { const L = macroLang(t, note), list = MACROS
 function insertText(txt) {
   const r = $('#reply'); if (!r) return;
   const s = r.selectionStart ?? r.value.length, before = r.value.slice(0, s), after = r.value.slice(r.selectionEnd ?? s);
-  r.value = before + (before && !before.endsWith('\n') ? '\n' : '') + txt + after; DRAFT[r.dataset.tid] = r.value; r.focus();
+  r.value = before + (before && !before.endsWith('\n') ? '\n' : '') + txt + after; DRAFT[r.dataset.tid] = r.value; autoGrow(r); r.focus();
 }
 
 // ===================== KNOWN ISSUES =====================
