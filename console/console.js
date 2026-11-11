@@ -306,6 +306,7 @@ async function start() {
 let TICK_SIG = '';
 async function tick() {
   if (document.hidden) return; await loadTickets(true); if (SEL) await loadMsgs(SEL, true); await pump();
+  const st = SEL && TR[SEL]; if (st?.on && (MSGS[SEL] || []).some(m => ['public', 'internal'].includes(m.kind) && m.author_role !== 'system' && m.body && m.body !== '📎' && !(m.id in st.map))) { st.on = false; await translateCase(T.find(x => x.id === SEL)); }   // keep new messages translated
   const sig = T.map(x => x.id + x.status + x.updated_at + x.assignee).join() + '|' + SEL + '|' + (MSGS[SEL] || []).length;
   if (sig !== TICK_SIG && VIEW === 'home' && !POP) render(true); TICK_SIG = sig;
 }
@@ -432,14 +433,16 @@ function idleHtml() {
   const small = DEVVIEW ? 'Select a case on the left.' : !INBOX_ON ? '' : queue().some(x => !SKIPPED().includes(x.id)) ? 'Getting your next case…' : 'All caught up – new cases appear here automatically.';
   return `<div class="wv">👋</div><h1>Welcome back, ${first}!</h1><p>Let's give the best support to everyone today 💙</p>${small ? `<small>${small}</small>` : ''}`;
 }
+const trOf = (m, t) => TR[t.id]?.on ? TR[t.id].map[m.id] || null : null;
+const trLabel = x => x ? ` · <b class="trl">Translated from ${esc(DEEPL[x.from] || x.from || '?')}</b>` : '';
 const RATE_EMO = ['😞', '🙁', '😐', '🙂', '😍'];
 function msgHtml(m, t) {
   const rt = m.author_role === 'system' && /^Customer rated the support: (\d)\/5 \((.+)\)/.exec(m.body || '');
   if (rt) return `<div class="msg customer rating"><small>${esc(customerName(t))} · ${dt(m.created_at)}</small><span class="stars">${'★'.repeat(+rt[1])}${'☆'.repeat(5 - +rt[1])}</span> ${RATE_EMO[rt[1] - 1] || ''} Rated the support: <b>${esc(rt[2])}</b> (${rt[1]}/5)</div>`;
   if (m.kind === 'event' || m.author_role === 'system') return CLEAN ? '' : `<div class="msg event">${esc(m.body)}${m.dev_note && VIEW_AS() !== 'agent' ? ` <span class="devnote" title="Visible to developers and leads only">${esc(m.dev_note)}</span>` : ''} <small>${m.author_name && !m.body.includes(m.author_name) ? esc(m.author_name) + ' · ' : ''}${dt(m.created_at)}</small></div>`;
-  if (m.kind === 'internal') return `<div class="msg internal"><small>Internal note · ${esc(m.author_name || '')} · ${dt(m.created_at)}</small>${linkify(m.body)}${attHtml(m)}</div>`;
-  const tr = TR[t.id], tx = m.author_role === 'customer' && tr?.on && tr.map[m.id];
-  return `<div class="msg ${m.author_role === 'auto' ? 'agent' : m.author_role}"><small>${m.author_role === 'customer' ? esc(customerName(t)) : m.author_role === 'auto' ? 'Automatic message' : esc(m.author_name || 'Agent')} · ${dt(m.created_at)}${tx ? ` · <b class="trl">Translated from ${esc(DEEPL[tr.from] || tr.from || '?')}</b>` : ''}</small>${m.body === '📎' ? '' : esc(tx || m.body)}${attHtml(m)}${mailHtml(m)}</div>`;
+  if (m.kind === 'internal') return `<div class="msg internal"><small>Internal note · ${esc(m.author_name || '')} · ${dt(m.created_at)}${trLabel(trOf(m, t))}</small>${linkify(trOf(m, t)?.text || m.body)}${attHtml(m)}</div>`;
+  const tx = trOf(m, t);
+  return `<div class="msg ${m.author_role === 'auto' ? 'agent' : m.author_role}"><small>${m.author_role === 'customer' ? esc(customerName(t)) : m.author_role === 'auto' ? 'Automatic message' : esc(m.author_name || 'Agent')} · ${dt(m.created_at)}${trLabel(tx)}</small>${m.body === '📎' ? '' : esc(tx?.text || m.body)}${attHtml(m)}${mailHtml(m)}</div>`;
 }
 // Status choices: never the current one; on hold can't go to on hold, etc.
 function stOptions(t) {
@@ -614,13 +617,13 @@ async function callTranslate(texts) {
 async function translateCase(t) {
   const st = TR[t.id] || (TR[t.id] = {on: false, map: {}, from: ''});
   if (st.on) { st.on = false; return render(true); }
-  const todo = (MSGS[t.id] || []).filter(m => m.author_role === 'customer' && m.kind === 'public' && m.body !== '📎' && !(m.id in st.map));
+  const todo = (MSGS[t.id] || []).filter(m => ['public', 'internal'].includes(m.kind) && m.author_role !== 'system' && m.body && m.body !== '📎' && !(m.id in st.map));
   if (todo.length) {
     const r = await callTranslate(todo.map(m => m.body));
     if (!r.ok) return toast('⚠️ ' + esc(r.error || 'Translation failed'));
-    todo.forEach((m, i) => st.map[m.id] = r.texts[i]); st.from = r.from || st.from;
+    todo.forEach((m, i) => { const from = (r.froms || [])[i] || r.from || ''; st.map[m.id] = from === 'EN' ? null : {text: r.texts[i], from}; });
   }
-  if (st.from === 'EN') toast('Already in English');
+  if (!Object.values(st.map).some(Boolean)) toast('Everything is already in English');
   st.on = true; render(true);
 }
 document.addEventListener('click', async e => {
