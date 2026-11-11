@@ -76,7 +76,7 @@ const defaultData = () => ({
   foodPrefs: {done: false, mealSuggest: false, cookTimes: 2, cookMax: 60, budget: 40, cookDays: [7], mealsPerDay: 3, skill: 2, equip: ['puodas', 'keptuvė', 'orkaitė', 'mikrobangė'], dislikes: [], allergies: [], dislikeText: ''},
   ratings: {}, priceOverrides: {}, priceMeta: {}, deletedRecipes: [], spend: [], mealPlans: [], receiptFoods: [],
   settings: { theme:'dark', tz: '', onboarded: false, modes: {sport: false, food: false}, review: 'week', dismissed: {}, intro: {} },
-  reviews: [],
+  reviews: [], wellbeing: [],
 });
 // Režimai: ką žmogus nori daryti su programėle
 const sportOn = () => !!S?.settings?.modes?.sport;

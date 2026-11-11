@@ -105,6 +105,7 @@ ${t('Laiko įrašai', ['Data', 'Nuo', 'Iki', 'Veikla', 'Pastaba'], (D.timelog ||
 ${t('Kalendoriaus veiklos', ['Pavadinimas', 'Kartojasi', 'Laikas', 'Data / dienos'], (D.events || []).map(e => [e.title, e.type, `${e.start}–${e.end}`, e.date || (e.days || []).join(',')]))}
 ${t('Užduotys', ['Ką', 'Iki', 'Atlikta'], (D.tasks || []).map(x => [x.title, x.due, x.done ? 'taip' : 'ne']))}
 ${t('Užrašai', ['Pavadinimas', 'Tekstas'], (D.notes || []).map(n => [n.title, n.body]))}
+${t('Savijauta', ['Data', 'Laikas', 'Nuotaika (1–5)', 'Simptomai', 'Pastaba'], (D.wellbeing || []).map(w => [w.date, w.time, w.mood, (w.sym || []).join(', '), w.note]))}
 ${t('Patikrinimai', ['Data', 'Tipas', 'Svoris', 'Nuotaika', 'Kas pavyko', 'Tikslas'], (D.checkins || []).map(c => [c.date, c.type, c.weight, c.mood, c.wins, c.focus]))}
 ${t('Pagaminta', ['Data', 'Receptas', 'Porcijos', 'Kaina €'], (D.cooks || []).map(c => [c.date, c.recipeId, c.portions, c.cost]))}
 ${t('Išlaidos (čekiai)', ['Data', 'Suma €', 'Pastaba'], (D.spend || []).map(s => [s.date, s.amount, s.note]))}
@@ -141,7 +142,9 @@ function sla(t) {
 }
 const slaInline = x => { const s = sla(x); return s ? ` · <b class="${s.missed ? 't-bad' : s.left < 3600e3 ? 't-warn' : ''}">${s.missed ? 'SLA missed' : 'FRT ' + fmtLeft(s.left)}</b>` : ''; };
 const slaChip = x => { const s = sla(x); return s ? `<span class="chip ${s.missed ? 'c-bad' : s.left < 3600e3 ? 'c-warn' : ''}" title="First response target">${s.missed ? 'SLA missed' : 'FRT ' + fmtLeft(s.left)}</span>` : ''; };
-const byPrio = (a, b) => (prioRank(b.priority) - prioRank(a.priority)) || (Date.parse(a.created_at) - Date.parse(b.created_at));
+const byPrio = (a, b) => ((b.tier || 1) - (a.tier || 1)) || (prioRank(b.priority) - prioRank(a.priority)) || (Date.parse(a.created_at) - Date.parse(b.created_at));
+let MYTIER = 1;
+const myTier = () => ROLE === 'developer' ? 2 : MYTIER;   // the developer always has Tier 2, whatever the preview role
 const caseLink = t => `${location.origin}${location.pathname.replace(/[^/]*$/, '')}#case/${t.case_no}`;
 const customerName = t => CUST[t.user_id]?.data?.profile?.name || (t.email || '').split('@')[0] || 'Customer';
 const svg = p => `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
@@ -158,6 +161,7 @@ const ICON = {
   sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
   moon: svg('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'), out: svg('<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>'), user: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
   users: svg('<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-5-6.7"/>'), copy: svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
+  up: svg('<path d="M12 19V5M5 12l7-7 7 7"/>'), down: svg('<path d="M12 5v14M19 12l-7 7-7-7"/>'), bulb: svg('<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>'),
   trash: svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'), tag: svg('<path d="M3 12V3h9l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/>'),
 };
 
@@ -170,7 +174,7 @@ const CAN_TOGGLE = () => ['developer', 'lead'].includes(VIEW_AS()), IS_DEV = () 
 const myOpen = () => T.filter(t => t.assignee === ME.id && ['new', 'open'].includes(t.status)).sort(byPrio);
 const myHold = () => T.filter(t => t.assignee === ME.id && t.status === 'hold');
 const myPendingRecent = () => T.filter(t => t.assignee === ME.id && t.status === 'pending' && Date.now() - Date.parse(t.status_at || t.updated_at) < 5 * 60e3);
-const queue = () => T.filter(t => !t.assignee && ['new', 'open'].includes(t.status)).sort(byPrio);
+const queue = () => T.filter(t => !t.assignee && ['new', 'open'].includes(t.status) && !SKIPPED().includes(t.id)).sort(byPrio);
 
 // Theme: dark (black) / light (white)
 const applyTheme = () => document.documentElement.dataset.theme = LS.get('console_theme') === 'light' ? 'light' : 'dark';
@@ -179,12 +183,13 @@ applyTheme();
 // ===== 1. Entry: 404 -> role -> MFA =====
 function notFound() { document.title = '404'; $('#root').innerHTML = `<div class="center nf"><h1>404</h1><p>Page not found.</p></div>`; }
 async function boot() {
-  if (TEST) { ME = {id: 'local-user', email: 'testas@vietinis.lt', name: 'Tester'}; ROLE = LS.get('console_test_role') || 'developer'; return enter(true, true); }
+  if (TEST) { ME = {id: 'local-user', email: 'testas@vietinis.lt', name: 'Tester'}; ROLE = LS.get('console_test_role') || 'developer'; MYTIER = ROLE === 'developer' ? 2 : +(LS.get('console_test_tier') || 1); return enter(true, true); }
   const s = sess(); if (!s || !C.url) return notFound();
   try {
     const tok = await token();
-    const r = await fetch(`${C.url}/rest/v1/user_roles?select=role&user_id=eq.${s.user.id}`, {headers: {apikey: C.key, Authorization: 'Bearer ' + tok}});
-    ROLE = r.ok ? (await r.json())[0]?.role : null;
+    let r = await fetch(`${C.url}/rest/v1/user_roles?select=role,tier&user_id=eq.${s.user.id}`, {headers: {apikey: C.key, Authorization: 'Bearer ' + tok}});
+    if (!r.ok) r = await fetch(`${C.url}/rest/v1/user_roles?select=role&user_id=eq.${s.user.id}`, {headers: {apikey: C.key, Authorization: 'Bearer ' + tok}});   // before SQL 14
+    const rr = r.ok ? (await r.json())[0] : null; ROLE = rr?.role || null; MYTIER = ROLE === 'developer' ? 2 : Math.max(1, +rr?.tier || 1);
     if (!['developer', 'lead', 'agent'].includes(ROLE)) return notFound();
     ME = {id: s.user.id, email: s.user.email, name: s.user.email.split('@')[0]};
     try { ME.full = (await authCall('user', null, 'GET', tok)).user_metadata?.full_name || ''; } catch (e) {}
@@ -316,8 +321,8 @@ async function heartbeat() {
 }
 async function loadTickets(quiet) {
   try {
-    const rows = await DB.list('tickets', 'status=neq.closed&order=created_at.desc');
-    const keep = T.filter(t => !rows.some(r => r.id === t.id) && (t.status === 'closed' || t.id === SEL));   // closed cases opened via link / search
+    const rows = (await DB.list('tickets', 'status=neq.closed&order=created_at.desc')).filter(t => (t.tier || 1) <= myTier());
+    const keep = T.filter(t => !rows.some(r => r.id === t.id) && (t.status === 'closed' || t.id === SEL) && (t.tier || 1) <= myTier());   // closed cases opened via link / search
     T = [...rows, ...keep];
   } catch (e) { if (!quiet) toast('⚠️ Could not load cases: ' + esc(e.message)); }
 }
@@ -342,7 +347,7 @@ async function logEvent(t, body, devNote) {
 async function openFromHash() {
   const m = location.hash.match(/^#case\/(\d+)/); if (!m) return false;
   let t = T.find(x => String(x.case_no) === m[1]);
-  if (!t) { try { t = (await DB.list('tickets', `case_no=eq.${m[1]}`))[0]; if (t) T.push(t); } catch (e) {} }
+  if (!t) { try { t = (await DB.list('tickets', `case_no=eq.${m[1]}`))[0]; if (t && (t.tier || 1) > myTier()) t = null; if (t) T.push(t); } catch (e) {} }
   if (!t) { toast(`Case #${m[1]} not found`); return false; }
   await selectCase(t.id); return true;
 }
@@ -388,7 +393,7 @@ function render(keepScroll) {
   const body = PAGE_KB ? kbPage() : PAGE_ADMIN ? adminView() : EXTRA_VIEW[VIEW] ? EXTRA_VIEW[VIEW]() : VIEW === 'search' ? searchView() : VIEW === 'admin' ? adminView() : VIEW === 'dev' ? devPage() : homeView(t);
   $('#root').innerHTML = standalone ? `<div class="solo"><div class="solohead"><b>🎧 Support Console</b>${TEST ? '<span class="test">TEST</span>' : ''}<span class="sp"></span><span class="muted">${PAGE_KB ? 'Knowledge base' : 'Admin panel'}</span></div>${body}</div>`
     : `<div class="app">${rail()}<div class="content">${body}</div></div>`;
-  if ($('#reply') && t) $('#reply').value = DRAFT[t.id] || '';
+  if ($('#reply') && t) { $('#reply').value = DRAFT[t.id] || ''; autoGrow($('#reply')); }
   if (fid && !$('#modal').contains(ae)) { const el = document.getElementById(fid); if (el && el !== document.activeElement) { el.focus(); try { if (s0 != null) el.setSelectionRange(s0, s1); } catch (e) {} } }
   const th2 = $('.thread');
   if (th2) th2.scrollTop = keepScroll && st != null && !nearBottom && th2.dataset.n === prevN && th2.dataset.t === prevT ? st : th2.scrollHeight;
@@ -419,10 +424,10 @@ function agentQueue() {
     ${mh.length ? `<h4>On hold</h4>${mh.map(x => qi(x, x.hold_reason ? ` · ${esc(x.hold_reason)}` : '')).join('')}` : ''}
     ${mp.length ? `<h4>Pending</h4>${mp.map(x => qi(x, ' · waiting for reply')).join('')}` : ''}</div>` : '<div class="qlist"></div>'}</div>`;
 }
-const FILTERS = [['backlog', 'Backlog', t => !t.assignee && ['new', 'open'].includes(t.status)], ['mine', 'Mine', t => t.assignee === ME.id && ['new', 'open', 'pending', 'hold'].includes(t.status)],
+const FILTERS = [['backlog', 'Backlog', t => !t.assignee && ['new', 'open'].includes(t.status) && !SKIPPED().includes(t.id)], ['tier2', 'Tier 2', t => (t.tier || 1) >= 2 && !['solved', 'closed'].includes(t.status), 'tier2'], ['mine', 'Mine', t => t.assignee === ME.id && ['new', 'open', 'pending', 'hold'].includes(t.status)],
   ['waiting', 'Pending / On hold', t => ['pending', 'hold'].includes(t.status)], ['solved', 'Solved', t => t.status === 'solved'], ['outgoing', 'Outgoing', t => t.outgoing && t.status !== 'closed'], ['all', 'All', t => t.status !== 'closed'], ['closed', 'Closed', t => t.status === 'closed', 'dev']];
 function devQueue() {
-  const q = QTEXT.toLowerCase(), fl = FILTERS.filter(x => !x[3] || IS_DEV()), f = fl.find(x => x[0] === FILTER) || fl[0];
+  const q = QTEXT.toLowerCase(), fl = FILTERS.filter(x => !x[3] || (x[3] === 'tier2' ? myTier() >= 2 : IS_DEV())), f = fl.find(x => x[0] === FILTER) || fl[0];
   const list = T.filter(f[2]).filter(t => !q || [caseTitle(t), t.subject, t.email, (t.tags || []).join(' '), '#' + t.case_no].join(' ').toLowerCase().includes(q)).sort(FILTER === 'backlog' ? byPrio : (a, b) => a.created_at < b.created_at ? 1 : -1);
   return `<div class="queue"><div class="qhead"><input id="q" placeholder="Filter" value="${esc(QTEXT)}">
     <div class="filters">${fl.map(([k, l, fn]) => `<button class="${FILTER === k ? 'on' : ''}" data-f="${k}">${l} <i>${T.filter(fn).length}</i></button>`).join('')}</div></div>
@@ -435,7 +440,51 @@ function idleHtml() {
 }
 const trOf = (m, t) => TR[t.id]?.on ? TR[t.id].map[m.id] || null : null;
 const trLabel = x => x ? ` · <b class="trl">Translated from ${esc(DEEPL[x.from] || x.from || '?')}</b>` : '';
-const RATE_EMO = ['😞', '🙁', '😐', '🙂', '😍'];
+function autoGrow(el) {
+  if (!el) return;
+  const max = Math.max(160, (el.closest('.conv')?.clientHeight || window.innerHeight) * 0.5);
+  el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight + 2, max) + 'px'; el.style.overflowY = el.scrollHeight + 2 > max ? 'auto' : 'hidden';
+}
+// ----- Escalation (Tier 1 -> Tier 2) – an internal note with a template is required -----
+const ESC_TPL = {
+  suggestion: "Customer's suggestion: \nReason for escalation: \nWhy the suggestion is valid: ",
+  problem: 'Customer reported issue: \nSteps taken: \nInvestigation done: \nReason for escalation: '};
+function escalateModal(t) {
+  modal(`<h3>Escalate to Tier 2</h3><p class="muted">The case leaves your queue and goes to Tier 2. Fill in the note so Tier 2 understands the case without reading everything again.</p>
+    <div class="esctpl"><button class="on" data-act="esctpl" data-k="suggestion">💡 Suggestion</button><button data-act="esctpl" data-k="problem">🔎 Unknown problem</button></div>
+    <textarea id="esc_note" rows="5" style="width:100%">${esc(ESC_TPL[issueTags(t).includes('suggestion') || t.tags?.includes('idea') ? 'suggestion' : 'problem'])}</textarea>
+    <div class="row"><small class="muted">See the KB article "Escalation guidelines".</small><span class="sp"></span><button class="btn" data-act="mclose">Cancel</button><button class="btn primary" data-act="escgo">Escalate</button></div>`);
+  const k = issueTags(t).includes('suggestion') || t.tags?.includes('idea') ? 'suggestion' : 'problem';
+  document.querySelectorAll('.esctpl button').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+  const n = $('#esc_note'); autoGrow(n); n.focus(); n.setSelectionRange(n.value.indexOf(':') + 2, n.value.indexOf(':') + 2);
+}
+async function escalateGo(t, btn) {
+  const note = $('#esc_note').value.trim(), filled = note.split('\n').filter(l => l.split(':').slice(1).join(':').trim()).length;
+  if (filled < 2) return toast('Fill in the template – at least two lines');
+  btn.disabled = true;
+  try {
+    await DB.rpc('escalate_case', {tid: t.id, note, author_name: ME.name});
+    closeModal(true); toast(`⬆️ Case #${t.case_no} escalated to Tier 2`);
+    skipCase(t.id); await loadTickets(true); await loadMsgs(t.id, true);
+    if (myTier() < 2) { SEL = null; history.replaceState(null, '', location.pathname + location.search); render(); await pump(); render(); } else render(true);
+  } catch (e) { btn.disabled = false; toast('⚠️ Escalation failed – run SQL 14 in Supabase (' + esc(e.message) + ')'); }
+}
+// ----- Suggestions list (developer only) -----
+let SUGG = null;
+async function loadSugg() {
+  try { SUGG = await DB.list('suggestions', 'order=updated_at.desc'); } catch (e) { SUGG = []; }
+  const ids = [...new Set(SUGG.map(x => x.ticket_id).filter(Boolean))];
+  if (ids.length) try { const tk = await DB.list('tickets', `id=in.(${ids.join(',')})&select=id,case_no`); for (const x of SUGG) x.case_no = tk.find(y => y.id === x.ticket_id)?.case_no; } catch (e) {}
+}
+async function suggestionModal(t) {
+  if (!SUGG) await loadSugg();
+  const first = (MSGS[t.id] || []).find(m => m.author_role === 'customer' && m.kind === 'public');
+  modal(`<h3>Add to suggestions list</h3><div class="frm">
+    <label class="wide">Same idea already in the list? (+1)<select id="sg_existing"><option value="">– no, add a new one –</option>${(SUGG || []).filter(x => !['done', 'declined'].includes(x.status)).map(x => `<option value="${x.id}">${esc(x.title)} (${x.votes})</option>`).join('')}</select></label>
+    <label class="wide">Title<input id="sg_title" maxlength="120" placeholder="Wellbeing tracking (mood, migraines)"></label>
+    <label class="wide">What the customer wants<textarea id="sg_body" rows="5">${esc(first?.body || '')}</textarea></label></div>
+    <div class="row"><span class="sp"></span><button class="btn" data-act="mclose">Cancel</button><button class="btn primary" data-act="sgsave">Save</button></div>`);
+}['😞', '🙁', '😐', '🙂', '😍'];
 function msgHtml(m, t) {
   const rt = m.author_role === 'system' && /^Customer rated the support: (\d)\/5 \((.+)\)/.exec(m.body || '');
   if (rt) return `<div class="msg customer rating"><small>${esc(customerName(t))} · ${dt(m.created_at)}</small><span class="stars">${'★'.repeat(+rt[1])}${'☆'.repeat(5 - +rt[1])}</span> ${RATE_EMO[rt[1] - 1] || ''} Rated the support: <b>${esc(rt[2])}</b> (${rt[1]}/5)</div>`;
@@ -461,10 +510,13 @@ function convHtml(t) {
       <button class="ib ${CLEAN ? 'on' : ''}" data-act="clean" title="${CLEAN ? 'Show' : 'Hide'} activity">${ICON.eye}</button>
       <button class="ib ${TR[t.id]?.on ? 'on' : ''}" data-act="translate" title="${TR[t.id]?.on ? 'Show original' : 'Translate to English'}">${ICON.translate}</button>
       <span class="sp"></span><div class="ctitle"><b>${esc(caseTitle(t))}</b><small>#${t.case_no ?? ''}</small></div>
-      ${t.priority && t.priority !== 'normal' ? `<span class="chip ${t.priority === 'urgent' ? 'c-bad' : t.priority === 'high' ? 'c-warn' : ''}">${stPrio(t.priority)}</span>` : ''}${slaChip(t)}
+      ${(t.tier || 1) >= 2 ? '<span class="chip c-blue" title="Escalated case">Tier 2</span>' : ''}${t.priority && t.priority !== 'normal' ? `<span class="chip ${t.priority === 'urgent' ? 'c-bad' : t.priority === 'high' ? 'c-warn' : ''}">${stPrio(t.priority)}</span>` : ''}${slaChip(t)}
       <div class="popwrap"><button class="ib" data-act="pop" data-p="menu" title="More">${ICON.menu}</button>
         ${POP === 'menu' ? `<div class="pop right"><button data-act="casedata">${ICON.edit} Edit case</button>
           ${!done && !mine ? `<button data-act="assign">${ICON.userplus} Assign to me</button>` : ''}${mine && !done ? `<button data-act="unassign">${ICON.usermin} Unassign case</button>` : ''}
+          ${t.status !== 'closed' && (t.tier || 1) < 2 ? `<button data-act="escalate">${ICON.up} Escalate to Tier 2</button>` : ''}
+          ${t.status !== 'closed' && (t.tier || 1) >= 2 ? `<button data-act="deescalate">${ICON.down} Send back to Tier 1</button>` : ''}
+          ${IS_DEV() ? `<button data-act="addsugg">${ICON.bulb} Add to suggestions list</button>` : ''}
           <button data-act="copylink">${ICON.link} Copy case link</button></div>` : ''}</div></div>
     <div class="irow">${t.assignee ? `<span class="muted">👤 ${mine ? 'You' : esc(t.assignee_name || 'Someone')}</span>` : '<span class="muted">Unassigned</span>'}
       ${t.status === 'hold' && t.hold_reason ? `<span class="chip c-warn">${esc(t.hold_reason)}</span>` : ''}
@@ -495,7 +547,7 @@ function sideHtml(t) {
     ${differs ? `<div class="alertbox">⚠️ <b>Different email.</b> The case came from ${esc(t.email)}, but the account uses ${esc(c.email)}.</div>` : ''}
     <div class="sbtns"><button class="btn" data-act="kbside">${ICON.book} Knowledge base</button>${t.user_id && !noAcc ? `<button class="btn" data-act="quickcomment">${ICON.comment} Comment</button>` : ''}</div>
     ${t.type === 'dsar_export' && !['solved', 'closed'].includes(t.status) ? `<div class="card"><h3>Data copy</h3>${t.assignee === ME.id ? '<button class="btn primary full" data-act="dsarprep">📄 Prepare files</button>' : '<small>Assign to yourself first</small>'}</div>` : ''}
-    <div class="card"><div class="kv"><span>Location</span><b>${esc(t.user_id ? placeOf(t.user_id) : '–')}</b><span>Language</span><b>${langName(t.language)}</b><span>Channel</span><b>${t.channel === 'email' ? '✉️ Email' : '📱 In app'}</b></div></div>
+    <div class="card"><div class="kv"><span>Location</span><b>${esc(t.user_id ? placeOf(t.user_id) : '–')}</b><span>Language</span><b>${langName(t.language)}</b><span>Channel</span><b>${t.channel === 'email' ? '✉️ Email' : '📱 In app'}</b><span>Tier</span><b>${(t.tier || 1) >= 2 ? '<span class="chip c-blue">Tier 2</span> <small>escalated</small>' : 'Tier 1'}</b></div></div>
     <div class="card"><h3>Linked cases</h3>${shown.map(x => `<div class="lrow" data-t="${x.id}"><span>${ticketIcon(x)} ${esc(caseTitle(x))}</span>${stChip(x.status)}</div>`).join('') || '<small>None</small>'}
       ${others.length > 4 ? `<button class="btn sm full" data-act="more">${MORE[t.id] ? 'Show less' : `See more (${Math.min(others.length, 10) - 4})`}</button>` : ''}</div></div>`;
 }
@@ -521,6 +573,7 @@ async function runSearch() {
       SR.more = r.length > PER; rows = r.slice(0, PER);
     }
   } catch (e) { toast('⚠️ ' + esc(e.message)); }
+  rows = rows.filter(x => (x.tier || 1) <= myTier());
   for (const x of rows) if (!T.some(y => y.id === x.id)) T.push(x);
   SR.rows = rows; SR.busy = false; render(); const i = $('#sq'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
 }
@@ -644,7 +697,7 @@ document.addEventListener('click', async e => {
   if (a === 'devpage') { VIEW = 'dev'; render(); if (DEVTAB === 'audit') await loadAudit(); return; }
   if (a === 'devtab') { DEVTAB = el.dataset.k; render(); if (DEVTAB === 'audit') await loadAudit(); else { await loadExtra(DEVTAB); render(); } return; }
   if (a === 'rename') { POP = null; render(true); return askName(ME.name).then(() => render(true)); }
-  if (a === 'viewas') { LS.set('console_viewas', el.dataset.r); POP = null; DEVVIEW = CAN_TOGGLE() && LS.get('console_devview') === '1'; if (FILTER === 'closed' && !IS_DEV()) FILTER = 'backlog'; if (VIEW === 'dev' && !IS_DEV()) VIEW = 'home'; render(); await pump(); render(true); return; }
+  if (a === 'viewas') { LS.set('console_viewas', el.dataset.r); POP = null; await loadTickets(true); DEVVIEW = CAN_TOGGLE() && LS.get('console_devview') === '1'; if (FILTER === 'closed' && !IS_DEV()) FILTER = 'backlog'; if (VIEW === 'dev' && !IS_DEV()) VIEW = 'home'; render(); await pump(); render(true); return; }
   if (a === 'theme') { LS.set('console_theme', document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'); applyTheme(); render(true); return; }
   if (a === 'signout') return signOut();
   if (a === 'devview') { DEVVIEW = !DEVVIEW; LS.set('console_devview', DEVVIEW ? '1' : '0'); VIEW = 'home'; render(); if (!DEVVIEW) { await pump(); render(); } return; }
@@ -667,6 +720,11 @@ document.addEventListener('click', async e => {
   if (a === 'more') { MORE[t.id] = !MORE[t.id]; render(true); return; }
   if (a === 'copylink') { POP = null; navigator.clipboard?.writeText(caseLink(t)); toast(`🔗 Link to case #${t.case_no} copied`); render(true); return; }
   if (a === 'casedata') { POP = null; render(true); return caseData(t); }
+  if (a === 'escalate') { POP = null; render(true); return escalateModal(t); }
+  if (a === 'esctpl') { $('#esc_note').value = ESC_TPL[el.dataset.k]; document.querySelectorAll('.esctpl button').forEach(b => b.classList.toggle('on', b === el)); autoGrow($('#esc_note')); $('#esc_note').focus(); return; }
+  if (a === 'escgo') return escalateGo(t, el);
+  if (a === 'deescalate') { POP = null; await updTicket(t, {tier: 1, assignee: null, assignee_name: null}, 'sent back to tier 1', 'Sent back to Tier 1'); return; }
+  if (a === 'addsugg') { POP = null; render(true); return suggestionModal(t); }
   if (a === 'casesave') return saveCase(t);
   if (a === 'tag') return tagPicker(t, false);
   if (a === 'rmtag') { const s = new Set(issueTags(t)); s.delete(el.dataset.v); return saveTags(t, s); }
@@ -731,6 +789,7 @@ document.addEventListener('change', e => {
   }
 });
 document.addEventListener('input', e => {
+  if (e.target.tagName === 'TEXTAREA' && (e.target.id === 'reply' || e.target.id === 'esc_note')) autoGrow(e.target);
   if (e.target.id === 'atool') { ADM.tq = e.target.value; render(); return; }
   if (e.target.id === 'q') { QTEXT = e.target.value; const pos = e.target.selectionStart; render(true); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos); }
   if (e.target.id === 'tpq') { TP.q = e.target.value; const pos = e.target.selectionStart; tagModal(); const q = $('#tpq'); q.focus(); q.setSelectionRange(pos, pos); }

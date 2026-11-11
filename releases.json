@@ -2,6 +2,11 @@
   "stable": "1.0.0",
   "versions": [
     {
+      "v": "1.5.0",
+      "date": "2026-11-11",
+      "notes": "Nauja skiltis Savijauta: nuotaika, simptomai ir pastebėjimai"
+    },
+    {
       "v": "1.4.2",
       "date": "2026-11-11",
       "notes": "Kalorijos rodomos tik kai įvesti duomenys; pokalbių laikas pagal pasirinktą laiko juostą"

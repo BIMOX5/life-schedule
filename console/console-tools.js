@@ -322,12 +322,12 @@ async function createCase() {
 
 // ===================== ADMIN PANEL (own page: ?view=admin) – tools on the left, tool search on top =====================
 const ADM = {tab: 'consumers', tq: '', rows: null, busy: false, uid: null, dels: null};
-const ADMTABS = [['consumers', '👥', 'Consumers'], ['scores', '⭐', 'Scores'], ['deletions', '🗑️', 'Scheduled deletions']];
-const admTabsFiltered = () => ADMTABS.filter(([, , l]) => !ADM.tq || l.toLowerCase().includes(ADM.tq.toLowerCase()));
+const ADMTABS = [['consumers', '👥', 'Consumers'], ['scores', '⭐', 'Scores'], ['deletions', '🗑️', 'Scheduled deletions'], ['suggestions', '💡', 'Suggestions', 'dev']];
+const admTabsFiltered = () => ADMTABS.filter(([, , l, only]) => (!only || ROLE === 'developer') && (!ADM.tq || l.toLowerCase().includes(ADM.tq.toLowerCase())));
 function adminView() {
   return `<div class="admin"><div class="anav"><h3>Tools</h3>${admTabsFiltered().map(([k, e, l]) => `<button class="${ADM.tab === k ? 'on' : ''}" data-act="admtab" data-k="${k}">${e} ${l}</button>`).join('') || '<small class="muted">No tool found</small>'}</div>
     <div class="amain"><div class="atop"><input id="atool" placeholder="🔍 Search tools" value="${esc(ADM.tq)}"></div>
-    ${ADM.uid && ADM.tab === 'scores' ? admScores() : ADM.uid ? `<div class="aback"><button class="btn sm" data-act="admback">← Back</button></div>${customerView()}` : ADM.tab === 'deletions' ? admDeletions() : admFind()}</div></div>`;
+    ${ADM.uid && ADM.tab === 'scores' ? admScores() : ADM.uid ? `<div class="aback"><button class="btn sm" data-act="admback">← Back</button></div>${customerView()}` : ADM.tab === 'deletions' ? admDeletions() : ADM.tab === 'suggestions' ? admSuggestions() : admFind()}</div></div>`;
 }
 // Find a customer: by ID, email or phone (phone – later)
 function admFind() {
@@ -362,6 +362,15 @@ async function admSearch(field) {
   ADM.busy = false; render();
   if (ADM.tab === 'scores' && ADM.rows.length === 1) EXTRA_ACT.admopen({dataset: {u: ADM.rows[0].id}});
 }
+const SG_ST = [['new', '🆕 New'], ['planned', '🗓️ Planned'], ['done', '✅ Done'], ['declined', '🚫 Declined']];
+function admSuggestions() {
+  const r = SUGG;
+  return `<div class="page"><div class="pwrap"><h1>Suggestions</h1><p class="muted">Ideas from customers. Add them from a case: ☰ → Add to suggestions list.</p>
+    ${r == null ? '<div class="empty">Loading…</div>' : !r.length ? '<div class="empty">No suggestions yet</div>' : `<div class="card flush"><table class="tbl"><tr><th>Idea</th><th>Asked</th><th>Status</th><th>Case</th></tr>
+      ${r.map(x => `<tr><td><b>${esc(x.title)}</b><small>${esc((x.body || '').slice(0, 160))}</small></td><td><b>${x.votes}×</b></td>
+        <td><select data-sgst="${x.id}">${SG_ST.map(([v, l]) => `<option value="${v}" ${x.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></td>
+        <td>${x.case_no ? `<a class="idlink" href="./#case/${esc(x.case_no)}" target="_blank">Case #${esc(x.case_no)} ↗</a>` : '–'}<small>${dt(x.created_at)}</small></td></tr>`).join('')}</table></div>`}</div></div>`;
+}
 async function loadDeletions() { try { ADM.dels = await DB.list('dsar_requests', 'type=eq.delete&status=eq.pending&order=delete_at.asc'); } catch (e) { ADM.dels = []; } render(); }
 const adminLink = uid => `./?view=admin&customer=${encodeURIComponent(uid)}`;
 
@@ -381,7 +390,16 @@ const EXTRA_ACT = {
   copyuid: el => { navigator.clipboard?.writeText(el.dataset.u); toast('ID copied'); },
   mclose: () => closeModal(true),
   ptab: el => { PTAB = el.dataset.k; render(); },
-  admtab: el => { ADM.tab = el.dataset.k; ADM.uid = null; ADM.rows = null; render(); if (ADM.tab === 'deletions') loadDeletions(); },
+  admtab: async el => { ADM.tab = el.dataset.k; ADM.uid = null; ADM.rows = null; render(); if (ADM.tab === 'deletions') loadDeletions(); if (ADM.tab === 'suggestions') { await loadSugg(); render(); } },
+  sgsave: async () => {
+    const t = T.find(x => x.id === SEL), ex = val('sg_existing'), title = val('sg_title'), body = $('#sg_body').value.trim();
+    try {
+      if (ex) { const s = SUGG.find(x => x.id === ex); await DB.update('suggestions', `id=eq.${ex}`, {votes: (s?.votes || 1) + 1, updated_at: nowIso()}); }
+      else { if (!title) return toast('Write a short title'); await DB.insert('suggestions', {title, body, ticket_id: t?.id || null, user_id: t?.user_id || null, created_by_name: ME.name}); }
+      if (t) await logEvent(t, ex ? 'Added +1 to an existing suggestion' : `Added to suggestions list: ${title}`);
+      SUGG = null; closeModal(true); toast('💡 Saved to the suggestions list'); render(true);
+    } catch (e) { toast('⚠️ Run SQL 14 in Supabase (' + esc(e.message) + ')'); }
+  },
   admsearch: () => admSearch(),
   admopen: el => { ADM.uid = el.dataset.u; PTAB = 'profile'; history.replaceState(null, '', adminLink(el.dataset.u)); openCustomer(el.dataset.u, true); },
   admback: () => { ADM.uid = null; CUSTID = null; history.replaceState(null, '', './?view=admin'); render(); },
@@ -491,4 +509,10 @@ document.addEventListener('input', e => {
   const id = e.target.id;
   if (id === 'kbq' || id === 'kbsq') { KBQ = e.target.value; KBSEL = null; const pos = e.target.selectionStart; render(true); const q = $('#' + id); if (q) { q.focus(); q.setSelectionRange(pos, pos); } }
   if (id === 'n_num') { clearTimeout(NEWC_T); const v = e.target.value.trim(); NEWC_T = setTimeout(() => lookupCustomer(v), 350); }
+});
+
+document.addEventListener('change', async e => {
+  const id = e.target.dataset?.sgst; if (!id) return;
+  try { await DB.update('suggestions', `id=eq.${id}`, {status: e.target.value, updated_at: nowIso()}); const x = (SUGG || []).find(y => y.id === id); if (x) x.status = e.target.value; toast('Status saved'); }
+  catch (er) { toast('⚠️ ' + esc(er.message)); }
 });

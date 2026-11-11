@@ -469,3 +469,14 @@ pre.mail { white-space:pre-wrap; background:var(--card); border:1px solid var(--
 .askbox .fbrate { background:none; border:0; padding:0; }
 .askbox .fbrate > div { flex-wrap:nowrap; } .askbox .fbrate button { min-width:0; flex:1; padding:8px 2px; } .askbox .fbrate button small { font-size:10px; white-space:nowrap; }
 .rc.missing { border-style:dashed; } .rc.missing > span { color:var(--warn); }
+
+/* Savijauta */
+.emo.big span { font-size:34px; } .emo.quick { justify-content:space-between; flex-wrap:wrap; gap:6px; }
+.emob { border:1px solid var(--line); background:var(--card2); border-radius:14px; padding:8px 6px; font-size:30px; cursor:pointer; display:flex; flex-direction:column; align-items:center; flex:1; min-width:64px; color:var(--text); }
+.emob small { font-size:11px; color:var(--muted); } .emob:hover { border-color:var(--accent); transform:translateY(-1px); }
+.chips .chipbtn input { display:none; } .chips .chipbtn input:checked + span { color:var(--text); } .chips label.chipbtn:has(input:checked) { background:var(--accent); border-color:var(--accent); color:#fff; }
+.moodcal { display:grid; grid-template-columns:repeat(10, 1fr); gap:5px; }
+.wcell { aspect-ratio:1; border-radius:10px; background:var(--card2); display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:17px; position:relative; }
+.wcell small { font-size:9.5px; color:var(--muted); } .wcell i { position:absolute; top:4px; right:4px; width:6px; height:6px; border-radius:50%; background:var(--bad); }
+.wcell.m1 { background:rgba(239,68,68,.25); } .wcell.m2 { background:rgba(249,115,22,.22); } .wcell.m3 { background:rgba(234,179,8,.18); } .wcell.m4 { background:rgba(34,197,94,.18); } .wcell.m5 { background:rgba(34,197,94,.32); }
+.ins { margin:0 0 10px; line-height:1.5; }
