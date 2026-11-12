@@ -878,23 +878,23 @@ A.cook = d => {
 A.eatRecipe = d => { UI.mealTab = freezerPortions(d.id) ? 'freezer' : 'recipe'; UI.mealDate = today(); mealModal(); if (UI.mealTab === 'recipe') { const s = $('#mform [name=rid]'); if (s) s.value = d.id; } };
 A.editRecipe = d => {
   const r = d.id ? recipe(d.id) : {name: '', emoji: '🍲', portions: 4, time: 30, freezable: true, tags: [], ing: [['', 100]], steps: [], skill: 1, equip: []};
-  const row = ([fid, g]) => `<div class="ingrow">${inp('ingf[]', food(fid)?.name || '', 'text', 'list="foodlist" placeholder="Produktas"')}${inp('ingg[]', g, 'number', 'min="0" placeholder="g"')}<button type="button" class="x" onclick="this.parentNode.remove()">✕</button></div>`;
+  const row = ([fid, g]) => `<div class="ingrow">${inp('ingf[]', food(fid)?.name || '', 'text', 'list="foodlist" placeholder="Produktas"')}${inp('ingg[]', g ? amtText(fid, g) : '', 'text', 'placeholder="kiekis" class="amt"')}<button type="button" class="x" onclick="this.parentNode.remove()">✕</button></div>`;
   modal(d.id ? 'Redaguoti receptą' : 'Naujas receptas', `<datalist id="foodlist">${allFoods().map(f => `<option value="${esc(f.name)}">`).join('')}</datalist>
-    <div class="row">${fld('Emoji', inp('emoji', r.emoji, 'text', 'maxlength="16" inputmode="text"'), 'emojif')}${fld('Pavadinimas', inp('name', r.name, 'text', 'required'))}</div>
+    <div class="row">${fld('Emoji', inp('emoji', r.emoji, 'text', 'maxlength="16" inputmode="text" placeholder="auto"'), 'emojif')}${fld('Pavadinimas', inp('name', r.name, 'text', 'required'))}</div>${emojiPicks()}
     <div class="row">${fld('Porcijos', inp('portions', r.portions, 'number', 'min="1"'))}${fld('Laikas (min)', inp('time', r.time, 'number', 'min="1"'))}${fld('Sudėtingumas', sel('skill', [[1, 'Lengva'], [2, 'Vidutinė'], [3, 'Sudėtinga']], r.skill || 1))}</div>
     ${fld('Žymos (per kablelį)', inp('tags', r.tags.join(', '), 'text', 'placeholder="pvz. wrap, vištiena, greita"'))}
     ${fld('Reikalinga technika', `<div class="chips">${EQUIP_OPTS.map(([v, l]) => `<label class="chipbtn"><input type="checkbox" name="equip[]" value="${v}" ${(r.equip || []).includes(v) ? 'checked' : ''}>${l}</label>`).join('')}</div>`)}
     <label class="cb"><input type="checkbox" name="freezable" ${r.freezable ? 'checked' : ''}> 🧊 Tinka šaldyti</label>
-    <h4>Ingredientai (visam kiekiui, gramais)</h4><div id="ings">${r.ing.map(row).join('')}</div>
+    <h4>Ingredientai <small>(visam kiekiui: „3 vnt“, „200 g“, „2 šaukšt.“, „1 l“)</small></h4><div id="ings">${r.ing.map(row).join('')}</div>
     <button type="button" class="btn sm" onclick="document.getElementById('ings').insertAdjacentHTML('beforeend', ${esc(JSON.stringify(row(['', 100])))})">+ ingredientas</button>
     ${fld('Gaminimo žingsniai (kiekvienas naujoje eilutėje)', `<textarea name="steps" rows="5">${esc(r.steps.join('\n'))}</textarea>`)}`, o => {
     const ing = [], bad = [];
-    (o.ingf || []).forEach((n, i) => { if (!n.trim()) return; const f = allFoods().find(x => x.name.toLowerCase() === n.trim().toLowerCase()) || matchFood(n); if (!f) bad.push(n); else ing.push([f.id, +o.ingg[i] || 0]); });
+    (o.ingf || []).forEach((n, i) => { if (!n.trim()) return; const f = allFoods().find(x => x.name.toLowerCase() === n.trim().toLowerCase()) || matchFood(n); if (!f) bad.push(n); else ing.push([f.id, amtToG(o.ingg[i], f)]); });
     if (bad.length && !UI.aiTried) { UI.aiTried = true; toast('✨ Ieškau nežinomų produktų…');
       Promise.all(bad.map(n => aiFood(n))).then(() => { $('#mform')?.requestSubmit(); setTimeout(() => { UI.aiTried = false; }, 500); }); return false; }
     UI.aiTried = false;
     if (bad.length) { warn('Nerasti produktai: ' + bad.join(', ') + '\nPasirink iš sąrašo arba pridėk per „🛒 Pirkiniai → 🥕 Produktai ir kainos“.'); return false; }
-    const x = {name: o.name, emoji: oneEmoji(o.emoji) || '🍲', portions: +o.portions || 1, time: +o.time || 30, freezable: !!o.freezable, skill: +o.skill || 1, equip: o.equip || [], tags: o.tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean), ing, steps: o.steps.split('\n').map(s => s.trim()).filter(Boolean)};
+    const x = {name: o.name, emoji: oneEmoji(o.emoji) || suggestEmoji(o.name), portions: +o.portions || 1, time: +o.time || 30, freezable: !!o.freezable, skill: +o.skill || 1, equip: o.equip || [], tags: o.tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean), ing, steps: o.steps.split('\n').map(s => s.trim()).filter(Boolean)};
     if (d.id) { Object.assign(r, x); delete r.nutri; } else S.recipes.push({id: 'r_' + uid(), ...x});
     commit();
   }, {wide: true, extra: d.id ? btn('🗑', 'delRecipe', {id: d.id}, 'danger sm') : ''});
@@ -903,19 +903,32 @@ A.delRecipe = async d => { if (!await ask('Ištrinti receptą?', '', {danger: tr
 
 // ---------- Recepto importas ----------
 A.importRecipe = () => {
-  modal('🔗 Pridėti receptą', `<p>Įklijuok recepto nuorodą – ištrauksiu ingredientus, žingsnius ir maistinę vertę.</p>
-    <div class="row"><input id="impurl" class="search" placeholder="https://…" style="flex:1">${btn('Importuoti', 'importGo', {}, 'primary')}</div>
+  modal('🔗 Pridėti receptą', `<p>Įklijuok <b>nuorodą</b> arba <b>visą recepto tekstą</b> (ingredientus ir gaminimą) – sutvarkysiu pats: kiekius į g / ml, ingredientus, žingsnius lietuviškai.</p>
+    <textarea id="impbox" rows="7" placeholder="https://…  arba nukopijuotas recepto tekstas"></textarea>
     <p id="impmsg" class="hint"></p>
-    <details class="impalt"><summary>Nėra nuorodos arba neveikia? Įklijuok recepto tekstą</summary>
-      <textarea id="imptext" rows="8" placeholder="Pvz.:&#10;Vištienos makaronai&#10;Ingredientai:&#10;500 g vištienos krūtinėlės&#10;300 g makaronų&#10;1 svogūnas&#10;Gaminimas:&#10;Išvirk makaronus…"></textarea>
-      <div class="choice row">${btn('Atpažinti tekstą', 'importText', {}, 'sm')}${btn('📋 Įklijuoti iš iškarpinės', 'pasteRecipe', {}, 'sm')}</div></details>
-    <p class="center">${btn('✍️ Rašyti ranka', 'editRecipe', {}, 'sm ghost')}</p>`, null, {noFocus: true});
-  setTimeout(() => $('#impurl')?.focus(), 50);
+    <div class="choice row">${btn('✨ Pridėti', 'importAny', {}, 'primary')}${btn('📋 Įklijuoti', 'pasteRecipe', {}, 'sm')}<span class="sp"></span>${btn('✍️ Rašyti ranka', 'editRecipe', {}, 'sm ghost')}</div>`, null, {noFocus: true});
+  setTimeout(() => $('#impbox')?.focus(), 50);
 };
-A.importGo = async () => {
-  const url = $('#impurl').value.trim(), msg = $('#impmsg');
-  if (!/^https?:\/\//.test(url)) { msg.textContent = '⚠️ Įklijuok pilną nuorodą (prasideda https://)'; return; }
-  msg.textContent = '⏳ Skaitau receptą…';
+A.importAny = async () => {
+  const v = $('#impbox')?.value.trim() || '', msg = $('#impmsg'); if (!v) { msg.textContent = 'Įklijuok nuorodą arba recepto tekstą'; return; }
+  if (/^https?:\/\/\S+$/.test(v)) return importUrl(v);
+  return importSmart(v);
+};
+A.pasteRecipe = async () => {
+  try { const t = await navigator.clipboard.readText(); if (!t.trim()) throw 0; $('#impbox').value = t; A.importAny(); }
+  catch (e) { $('#impbox')?.focus(); toast('Įklijuok į laukelį (Ctrl+V arba ilgai paspaudus → Įklijuoti)'); }
+};
+// Tekstas -> Claude sutvarko; jei nepavyksta – tyliai atpažįstam patys
+async function importSmart(text) {
+  const msg = $('#impmsg'), bt = $('[data-a=importAny]'); if (bt) bt.disabled = true; if (msg) msg.textContent = '✨ Tvarkau receptą…';
+  const r = await DB.fn('recipe_parse', {text}).catch(() => null);
+  if (bt) bt.disabled = false;
+  if (r?.ok && r.ingredients?.length) return impFromAI(r);
+  if (DEV && r && !r.ok) console.warn('recipe_parse:', r.error);
+  if (!localImport(text) && msg) msg.innerHTML = '⚠️ Neradau ingredientų. Nukopijuok receptą su kiekiais (pvz. „500 g vištienos“) ir gaminimo žingsniais.';
+}
+async function importUrl(url) {
+  const msg = $('#impmsg'); msg.textContent = '⏳ Skaitau receptą…';
   try {
     let j;
     if (cloudOn()) {
@@ -924,27 +937,54 @@ A.importGo = async () => {
         r = await fetch(`${CLOUD.url}/functions/v1/${fn}`, {method: 'POST', headers: {apikey: CLOUD.key, Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json'}, body: JSON.stringify({url})});
         if (r.status !== 404) break;
       }
-      if (r.status === 404) throw new Error('Supabase nerado importo funkcijos – patikrink Edge Functions sąrašą. Kol kas gali įklijuoti recepto tekstą žemiau.');
-      if (r.status === 401) throw new Error('Supabase atmetė užklausą (401) – prisijunk iš naujo.');
+      if (r.status === 401) throw new Error('Prisijunk iš naujo.');
       j = await r.json();
     } else j = await (await fetch('/api/import?url=' + encodeURIComponent(url))).json();
     if (!j.ok) {
-      const blocked = /just a moment|attention required|cloudflare|access denied|simple page|robot|captcha|forbidden/i.test(j.name || '');
-      msg.innerHTML = `<div class="warnbox">${blocked ? '🛡️ Ši svetainė blokuoja automatinį skaitymą.' : `⚠️ ${esc(j.error || 'Nepavyko perskaityti recepto.')}`}<br>
-        <small>Atidaryk receptą, pažymėk ingredientus ir žingsnius, nukopijuok – ir spausk „Įklijuoti iš iškarpinės“.</small>
-        <div class="choice row"><a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener">🔗 Atidaryti receptą</a>${btn('📋 Įklijuoti iš iškarpinės', 'pasteRecipe', {}, 'sm primary')}</div></div>`;
-      $('.impalt').open = true; return;
+      msg.innerHTML = `<div class="warnbox">🛡️ Ši svetainė neleidžia automatiškai perskaityti recepto.<br><small>Atidaryk receptą, pažymėk viską (ingredientus ir gaminimą), nukopijuok ir įklijuok čia vietoj nuorodos.</small>
+        <div class="choice row"><a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener">🔗 Atidaryti receptą</a></div></div>`;
+      $('#impbox').value = ''; return;
     }
+    // svetainės duomenys – irgi per Claude (kiekiai į g, LT pavadinimai); nepavykus – kaip anksčiau
+    const txt = `${j.name}\nPortions: ${j.portions || ''}\nTime: ${j.time || ''} min\nIngredients:\n${(j.ingredients || []).join('\n')}\nSteps:\n${(j.steps || []).join('\n')}`;
+    msg.textContent = '✨ Tvarkau receptą…';
+    const r = await DB.fn('recipe_parse', {text: txt}).catch(() => null);
+    if (r?.ok && r.ingredients?.length) return impFromAI({...r, source: url, nutrition: j.nutrition});
     impOpen({...j, source: url});
   } catch (e) { msg.textContent = '⚠️ ' + e.message; }
-};
-A.pasteRecipe = async () => {
-  try { const t = await navigator.clipboard.readText(); if (!t.trim()) throw 0; $('#imptext').value = t; A.importText(); }
-  catch (e) { $('.impalt').open = true; $('#imptext').focus(); toast('Įklijuok tekstą į laukelį (Ctrl+V arba ilgai paspaudus → Įklijuoti)'); }
-};
-A.importText = () => {
-  const lines = $('#imptext').value.split('\n').map(s => s.trim()).filter(Boolean);
-  if (!lines.length) return;
+}
+function impFromAI(r) {
+  const lines = r.ingredients.map(x => {
+    let f = matchFood(x.name_lt) || matchFood(x.original);
+    // atpažintas, bet maistinė vertė visai kita (pvz. aštrus padažas ≠ pomidorų padažas) – kuriam savą
+    if (f && x.kcal >= 0 && Math.abs((f.kcal || 0) - x.kcal) > Math.max(80, x.kcal * 0.6)) f = null;
+    // tas pats produktas, bet kito dydžio vienetai (vyšniniai pomidorai ≠ pomidorai)
+    if (f && +x.piece_g > 0 && PIECE_G[f.id] && Math.max(PIECE_G[f.id], x.piece_g) / Math.min(PIECE_G[f.id], x.piece_g) > 2.5) f = null;
+    if (!f && x.name_lt) f = foodFromAI(x);
+    return {raw: x.original, foodId: f ? f.id : '', grams: Math.round(+x.grams || 0), qtyKnown: true};
+  });
+  const lt = String(r.lang || '').toLowerCase() === 'lt';
+  impOpen({name: lt ? r.name : r.name_lt || r.name, portions: Math.round(r.portions) || 4, time: Math.round(r.time_min) || 30, lines, steps: lt ? r.steps : (r.steps_lt?.length ? r.steps_lt : r.steps),
+    emoji: oneEmoji(r.emoji), freezable: r.freezable, source: r.source || '', nutrition: r.nutrition || null,
+    ...(lt ? {} : {nameOrig: r.name, stepsOrig: r.steps, lang: String(r.lang || '').toUpperCase()})});
+}
+// Naujas produktas iš Claude duomenų (100 g), kaina – iš čekių, jei tokį pirkai
+function foodFromAI(x) {
+  const name = String(x.name_lt).trim(); if (!name) return null;
+  let f = allFoods().find(y => y.name.toLowerCase() === name.toLowerCase()); if (f) return f;
+  f = {id: 'f_' + uid(), name, kcal: Math.round(+x.kcal || 0), p: round(+x.p || 0, 1), c: round(+x.c || 0, 1), f: round(+x.f || 0, 1), s: round(+x.s || 0, 1), sat: round(+x.sat || 0, 1), fi: round(+x.fi || 0, 1), salt: round(+x.salt || 0, 2), price: 0, ai: true};
+  if (x.liquid) f.liquid = true; else if (+x.piece_g > 0) f.pieceG = Math.round(+x.piece_g);
+  const rcp = (S.receiptFoods || []).find(y => { const a = norm(y.key || y.name), b = norm(name); return a && b && (a.includes(b.slice(0, 6)) || b.includes(a.slice(0, 6))); });
+  S.foods.push(f);
+  if (rcp) { S.priceOverrides = S.priceOverrides || {}; S.priceMeta = S.priceMeta || {}; S.priceOverrides[f.id] = rcp.price; S.priceMeta[f.id] = {date: rcp.date, src: 'čekis'}; S.receiptFoods = S.receiptFoods.filter(y => y !== rcp); }
+  return f;
+}
+// Atpažinimas be AI (atsarginis): išvalom puslapio šiukšles ir atskiriam ingredientus nuo žingsnių
+const cleanRecipeLine = l => String(l).replace(/\[([^\]]*)\]\(\s*https?:[^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, '').replace(/^[\s*•·▪◦‣–—▢☐□◻■✓✔☑\-]+/u, '').replace(/\s+/g, ' ').trim();
+const ingCore = l => l.split(/,\s|\s\(|\.\s+(?=[A-ZĄČĘĖĮŠŲŪŽ])/)[0].trim();
+function localImport(text) {
+  const lines = String(text).split('\n').filter(l => !/^\s*\[[a-z][\w-]*\s+[\w-]+\s*=/i.test(l)).map(cleanRecipeLine).filter(Boolean);
+  if (!lines.length) return false;
   // Veikia ir su visu nukopijuotu puslapiu: meniu, reklamos ir kt. trumpos eilutės atmetamos
   let mode = '', name = '', ingredients = [], steps = [], portions = null, time = null;
   const ING_H = /^(ingredient|ingredienser|zutaten|produkt|reikes|reikia|ko reikia|sudetis|jums reikes)/, STEP_H = /^(gaminim|paruosim|eiga|instruk|method|direction|steps?|preparation|kaip gaminti|gor sa har|tillagning|zubereitung|gamybos)/;
@@ -956,27 +996,30 @@ A.importText = () => {
     const pm = n.match(/(\d+)\s*(porc|serv|portion|persons?|zmon)/) || n.match(/(?:serves|porcijos?|portioner|yield|makes)\s*:?\s*(\d+)/); if (pm && l.length < 40) { portions = +pm[1]; continue; }
     const tm = n.match(/(\d+)\s*(min|minut)/); if (tm && l.length < 30 && !mode) { time = +tm[1]; continue; }
     if (!mode && !/\d/.test(l)) continue; // prieš ingredientus – pavadinimas, meniu ir pan. (pavadinimą parenkam žemiau)
-    const ing = parseIngredient(l), looksIng = l.length < 90 && (/^[\d½¼¾⅓⅔]/.test(l) || (ing.foodId && l.split(/\s+/).length <= 4 && !/[.!]\s*$/.test(l)));
-    if ((mode === 'ing' || (!hasHeaders && mode !== 'steps')) && looksIng) { ingredients.push(l); if (!mode) mode = 'ing'; continue; }
+    const core = /^[\d½¼¾⅓⅔⅛]/.test(l) ? ingCore(l) : l, ing = parseIngredient(core), looksIng = core.length < 90 && (/^[\d½¼¾⅓⅔⅛]/.test(core) || (ing.foodId && core.split(/\s+/).length <= 4 && !/[.!]\s*$/.test(core)));
+    if ((mode === 'ing' || (!hasHeaders && mode !== 'steps')) && looksIng) { ingredients.push(core); if (!mode) mode = 'ing'; continue; }
     if (mode === 'ing' && !looksIng && l.length >= 30) mode = 'steps';
     if ((mode === 'steps' || (!hasHeaders && ingredients.length)) && l.length >= 25) steps.push(l.replace(/^(\d+[.)]|step \d+:?|žingsnis \d+:?)\s*/i, ''));
   }
-  if (!ingredients.length) { toast('Neradau ingredientų – nukopijuok ingredientų sąrašą (su kiekiais)'); return; }
+  if (!ingredients.length) return false;
   // pavadinimas: paskutinė „normali“ eilutė prieš ingredientus (ne meniu, ne reklama)
   const JUNK = /^(pradzia|receptai|prisijungti|registruotis|paieska|ieskoti|reklama|home|recipes?|menu|log ?in|sign ?in|search|advertisement|jump to recipe|print|share|dalintis|komentarai|subscribe|newsletter|skip to content)$/;
   const firstIng = lines.findIndex(l => ING_H.test(norm(l)) || l === ingredients[0]);
   const cands = lines.slice(0, firstIng < 0 ? 8 : firstIng).filter(l => !/\d/.test(l) && !JUNK.test(norm(l)) && l.length >= 5 && l.length < 90 && !ING_H.test(norm(l)));
   name = cands[cands.length - 1] || name;
   impOpen({name: name || 'Naujas receptas', ingredients, steps, portions, time, nutrition: null});
-};
+  return true;
+}
+A.importText = () => localImport($('#impbox')?.value || '');
 function impOpen(j) {
-  const lines = (j.ingredients || []).map(parseIngredient);
+  const lines = j.lines || (j.ingredients || []).map(parseIngredient);
   const text = norm((j.steps || []).join(' ') + ' ' + j.name);
   const equip = [['orkait', 'orkaitė'], ['oven', 'orkaitė'], ['air fryer', 'airfryer'], ['airfryer', 'airfryer'], ['gruzdintuv', 'airfryer'], ['slow cooker', 'lėtpuodis'], ['letpuod', 'lėtpuodis'], ['blender', 'blenderis'], ['blenderi', 'blenderis'], ['trintuv', 'blenderis'], ['keptuv', 'keptuvė'], ['pan ', 'keptuvė'], ['skillet', 'keptuvė'], ['puod', 'puodas'], ['boil', 'puodas'], ['virk', 'puodas'], ['pot ', 'puodas']].filter(([k]) => text.includes(k)).map(([, v]) => v);
   UI.imp = {name: j.name || 'Receptas', portions: j.portions || 4, time: j.time || 30, lines, steps: j.steps || [], nutri: j.nutrition, useSite: !!j.nutrition, source: j.source || '',
-    equip: [...new Set(equip)], skill: (j.steps || []).length > 8 || (j.time || 0) > 75 ? 2 : 1, emoji: '🍲'};
+    equip: [...new Set(equip)], skill: (j.steps || []).length > 8 || (j.time || 0) > 75 ? 2 : 1, emoji: j.emoji || suggestEmoji(`${j.name || ''} ${(j.steps || []).join(' ')}`), freezable: j.freezable ?? true};
+  if (j.nameOrig) Object.assign(UI.imp, {nameOrig: j.nameOrig, stepsOrig: j.stepsOrig, lang: j.lang, tr: {state: 'done', from: j.lang}});
   // kita kalba → verčiam į lietuvių (originalas išsaugomas)
-  if (!isLithuanian([UI.imp.name, ...UI.imp.steps].join(' '))) { UI.imp.tr = {state: 'busy'}; impModal(); translateImp(); }
+  if (!j.nameOrig && !isLithuanian([UI.imp.name, ...UI.imp.steps].join(' '))) { UI.imp.tr = {state: 'busy'}; impModal(); translateImp(); }
   else impModal();
   if (lines.some(l => !l.foodId)) A.impAi();
 }
@@ -1018,7 +1061,7 @@ function trBox(I) {
   const t = I.tr; if (!t) return '';
   if (t.state === 'busy') return `<div class="okbox">🌐 Verčiu į lietuvių kalbą…</div>`;
   if (t.state === 'err') return `<div class="warnbox">🌐 Nepavyko išversti: ${esc(t.msg)} ${btn('Bandyti dar kartą', 'retryTr', {}, 'sm')}</div>`;
-  return `<div class="okbox">🌐 Išversta iš ${LANG_NAMES[t.from] || t.from} kalbos (DeepL). Kiekiai ir produktai paimti iš originalo. ${btn(I.showOrig ? 'Rodyti vertimą' : 'Rodyti originalą', 'toggleOrigImp', {}, 'sm ghost')}</div>`;
+  return `<div class="okbox">🌐 Išversta iš ${LANG_NAMES[t.from] || t.from} kalbos. Kiekiai ir produktai paimti iš originalo. ${btn(I.showOrig ? 'Rodyti vertimą' : 'Rodyti originalą', 'toggleOrigImp', {}, 'sm ghost')}</div>`;
 }
 // Jau išsaugoto recepto vertimas / originalas
 A.translateRecipe = async d => {
@@ -1036,18 +1079,18 @@ function impCalc() {
 function impModal() {
   const I = UI.imp, st = impCalc(), unk = I.lines.filter(l => !l.foodId).length;
   modal('Peržiūrėk receptą', `<datalist id="foodlist">${allFoods().map(f => `<option value="${esc(f.name)}">`).join('')}</datalist>
-    <div class="row">${fld('Emoji', `<input data-imp="emoji" value="${esc(I.emoji)}" maxlength="4">`, 'emojif')}${fld('Pavadinimas', `<input data-imp="name" value="${esc(I.name)}">`)}</div>
+    <div class="row">${fld('Emoji', `<input data-imp="emoji" value="${esc(I.emoji)}" maxlength="16" placeholder="auto">`, 'emojif')}${fld('Pavadinimas', `<input data-imp="name" value="${esc(I.name)}">`)}</div>${emojiPicks()}
     <div class="row">${fld('Porcijos', `<input type="number" min="1" data-imp="portions" value="${I.portions}">`)}${fld('Laikas (min)', `<input type="number" min="1" data-imp="time" value="${I.time}">`)}</div>
     <h4>Ingredientai ${I.aiBusy ? '<small>· ✨ atpažįstu nežinomus…</small>' : unk ? `<small class="red">· ${unk} neatpažinti – pasirink arba palik (bus praleisti)</small> ${btn('✨ Atpažinti', 'impAi', {}, 'sm')}` : '<small class="green">· visi atpažinti ✓</small>'}</h4>
-    <div class="implines">${I.lines.map((l, i) => `<div class="impl ${l.foodId ? '' : 'unk'}"><small>${esc(l.raw)}</small><div class="row"><input list="foodlist" data-impf="${i}" value="${esc(food(l.foodId)?.name || '')}" placeholder="— neatpažinta —"><input type="number" min="0" data-impg="${i}" value="${l.grams}"><span class="u">g${l.foodId && l.grams && !/ g$/.test(fmtIng(l.foodId, l.grams)) ? ` <small>≈${fmtIng(l.foodId, l.grams).split(' <small>')[0]}</small>` : ''}</span><button type="button" class="x" data-a="impDel" data-i="${i}">✕</button></div></div>`).join('') || empty('Ingredientų nerasta')}</div>
-    <h4>Porcijai: ${st.kcal} kcal · ${st.p} g baltymų · ~${st.cost.toFixed(2)} € ${I.nutri ? `<label class="cb inl"><input type="checkbox" data-imp="useSite" ${I.useSite ? 'checked' : ''}> naudoti svetainės maistinę vertę</label>` : ''}</h4>
+    <div class="implines">${I.lines.map((l, i) => `<div class="impl ${l.foodId ? '' : 'unk'}"><small>${esc(l.raw)}</small><div class="row"><input list="foodlist" data-impf="${i}" value="${esc(food(l.foodId)?.name || '')}" placeholder="— neatpažinta —"><input class="amt" data-impg="${i}" value="${esc(l.grams ? amtText(l.foodId, l.grams) : '')}" placeholder="kiekis"><button type="button" class="x" data-a="impDel" data-i="${i}">✕</button></div></div>`).join('') || empty('Ingredientų nerasta')}</div>
+    <h4>Porcijai ${I.nutri ? `<label class="cb inl"><input type="checkbox" data-imp="useSite" ${I.useSite ? 'checked' : ''}> naudoti svetainės maistinę vertę</label>` : ''}</h4><div class="nchips"><span>🔥 <b>${st.kcal}</b> kcal</span><span>🥩 <b>${st.p}</b> g baltymų</span><span>🍞 <b>${st.c}</b> g angliav.</span><span>🧈 <b>${st.f}</b> g riebalų</span><span>🍬 ${st.s} g cukrų</span><span>🌾 ${st.fi} g skaidulų</span><span>🧂 ${st.salt} g druskos</span><span>💶 ~${st.cost.toFixed(2)} €</span></div>
     ${trBox(I)}
     <h4>Žingsniai (${I.steps.length})</h4><ol class="steps small">${(I.showOrig && I.stepsOrig ? I.stepsOrig : I.steps).map(s => `<li>${esc(s)}</li>`).join('')}</ol>`,
     () => { impSync(); const I = UI.imp; const ing = I.lines.filter(l => l.foodId && l.grams > 0).map(l => [l.foodId, l.grams]);
       if (!ing.length && !(I.useSite && I.nutri)) { warn('Bent vienas ingredientas turi būti atpažintas'); return false; }
       const flags = new Set(); ing.forEach(([f]) => (FOOD_FLAGS[f] || []).forEach(x => flags.add(x)));
       const tags = [...new Set([...['paukštiena', 'kiauliena', 'jautiena', 'žuvis', 'ankštiniai'].filter(x => flags.has(x)).map(x => x === 'paukštiena' ? 'vištiena' : x), ...(norm(I.name).includes('wrap') ? ['wrap'] : []), ...(norm(I.name).includes('sriub') || norm(I.name).includes('soup') ? ['sriuba'] : [])])];
-      const r = {id: 'r_' + uid(), name: I.name, emoji: I.emoji || '🍲', portions: +I.portions || 1, time: +I.time || 30, freezable: true, skill: I.skill, equip: I.equip, tags, ing, steps: I.steps, source: I.source};
+      const r = {id: 'r_' + uid(), name: I.name, emoji: oneEmoji(I.emoji) || suggestEmoji(I.name), portions: +I.portions || 1, time: +I.time || 30, freezable: I.freezable ?? true, skill: I.skill, equip: I.equip, tags, ing, steps: I.steps, source: I.source};
       if (I.stepsOrig) { r.stepsOrig = I.stepsOrig; r.nameOrig = I.nameOrig; r.lang = I.lang; }
       if (I.useSite && I.nutri) r.nutri = I.nutri;
       S.recipes.push(r); UI.imp = null; commit(); toast('📗 Receptas pridėtas!', 'good'); setTimeout(() => A.viewRecipe({id: r.id}), 100); },
@@ -1057,7 +1100,7 @@ function impSync() {
   const I = UI.imp; if (!I) return;
   document.querySelectorAll('[data-imp]').forEach(el => { const k = el.dataset.imp; I[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value : el.value; });
   document.querySelectorAll('[data-impf]').forEach(el => { const l = I.lines[+el.dataset.impf]; const f = allFoods().find(x => x.name === el.value) || (el.value ? matchFood(el.value) : null); l.foodId = f ? f.id : ''; });
-  document.querySelectorAll('[data-impg]').forEach(el => { I.lines[+el.dataset.impg].grams = +el.value || 0; });
+  document.querySelectorAll('[data-impg]').forEach(el => { const l = I.lines[+el.dataset.impg]; l.grams = amtToG(el.value, food(l.foodId)); });
 }
 A.impDel = d => { impSync(); UI.imp.lines.splice(+d.i, 1); impModal(); };
 
@@ -2540,7 +2583,7 @@ function fmtIng(fid, g) {
   }
   // skaičiuojami: kiaušiniai, daržovės, vaisiai, konservai, riekės
   const pg = BY_WEIGHT.includes(fid) ? 0 : PIECE_G[fid] || PIECE_EXTRA[fid] || fd.pieceG, n = pg ? g / pg : 0, half = Math.round(n * 2) / 2;
-  if (pg && n >= 0.5 && n <= (['suris', 'kumpis'].includes(fid) ? 4 : ['kiausiniai', 'kiaus_balt', 'cesnakai', 'datules', 'ridikeliai'].includes(fid) ? 30 : 6) && Math.abs(n - half) <= 0.25 * Math.max(1, half)) return `${fmtNum(half)} ${PIECE_WORD[fid] || fd.pieceWord || 'vnt'} <small>(~${Math.round(g)} g)</small>`;
+  if (pg && n >= 0.5 && n <= (['suris', 'kumpis'].includes(fid) ? 4 : ['kiausiniai', 'kiaus_balt', 'cesnakai', 'datules', 'ridikeliai', 'lavasas', 'pita', 'bandele', 'trapuciai', 'batonas', 'duona_rug', 'duona_pg'].includes(fid) || fd.pieceG ? 30 : 6) && Math.abs(n - half) <= 0.25 * Math.max(1, half)) return `${fmtNum(half)} ${PIECE_WORD[fid] || fd.pieceWord || 'vnt'} <small>(~${Math.round(g)} g)</small>`;
   return g >= 1000 ? fmtNum(round(g / 1000, 2)) + ' kg' : Math.round(g) + ' g';
 }
 // ===== Nežinomas produktas → sukuriamas automatiškai (maistinė vertė 100 g) =====
@@ -2680,7 +2723,7 @@ function localFoodParse(text) {
     const r = parseIngredient(part), f = r.foodId && food(r.foodId);
     if (!f) { miss.push(part); continue; }
     const g = r.grams || PIECE_G[f.id] || 100, k = g / 100;
-    items.push({name: f.name.replace(/\s*\(.*?\)\s*/g, ' ').trim(), qty: 0, unit: '', grams: g, kcal: Math.round(f.kcal * k), p: round(f.p * k, 1), c: round(f.c * k, 1), f: round(f.f * k, 1)});
+    items.push({name: f.name.replace(/\s*\(.*?\)\s*/g, ' ').trim(), qty: 0, unit: '', grams: g, kcal: Math.round(f.kcal * k), p: round(f.p * k, 1), c: round(f.c * k, 1), f: round(f.f * k, 1), s: round((f.s || 0) * k, 1), fi: round((f.fi || 0) * k, 1), sat: round((f.sat || 0) * k, 1), salt: round((f.salt || 0) * k, 2)});
   }
   return {items, miss};
 }
@@ -2695,8 +2738,33 @@ async function saveFoodText(text, date, time) {
     return warn('Neatpažinau, ką valgei. Parašyk paprasčiau, pvz. „2 kiaušiniai, 200 g varškės“, arba įrašyk per „⚡ Greitas“.');
   }
   for (const it of items) S.meals.push({id: uid(), date, time, name: it.name + (it.qty && it.unit && it.unit !== 'porcija' && !(it.qty == 1 && it.unit === 'vnt') ? ` (${it.qty} ${it.unit})` : ''),
-    kcal: Math.round(+it.kcal || 0), p: +it.p || 0, c: +it.c || 0, f: +it.f || 0, g: +it.grams || undefined, ai: true});
+    kcal: Math.round(+it.kcal || 0), p: +it.p || 0, c: +it.c || 0, f: +it.f || 0, s: +it.s || 0, fi: +it.fi || 0, sat: +it.sat || 0, salt: +it.salt || 0, g: +it.grams || undefined, ai: true});
   UI.aiText = ''; A.closeModal(); commit();
   const tot = Math.round(sum(items.map(x => +x.kcal || 0)));
   toast(`🍽️ Įrašyta: ${items.map(x => esc(x.name)).join(', ')} – ${tot} kcal${miss.length ? `<br><small>Neatpažinau: ${esc(miss.join(', '))}</small>` : ''}`, 'good');
+}
+
+// ===== Emoji: greitas pasirinkimas + automatiškai pagal pavadinimą =====
+const FOOD_EMOJI = ['🍲', '🥗', '🍝', '🍛', '🍚', '🌯', '🌮', '🥪', '🍔', '🍕', '🍗', '🥩', '🐟', '🍤', '🍳', '🥞', '🥣', '🥘', '🫕', '🥟', '🍜', '🥔', '🥦', '🍰', '🍪', '🥤'];
+function emojiPicks() { return `<div class="emopick">${FOOD_EMOJI.map(e => `<button type="button" data-a="pickEmo" data-e="${e}">${e}</button>`).join('')}</div>`; }
+A.pickEmo = d => { const i = document.querySelector('#mform [name=emoji], #mform [data-imp=emoji]'); if (!i) return; i.value = d.e; i.dispatchEvent(new Event('input', {bubbles: true})); document.querySelectorAll('.emopick button').forEach(b => b.classList.toggle('on', b.dataset.e === d.e)); };
+function suggestEmoji(name) {
+  const n = norm(name || '');
+  const map = [[/wrap|burrito|lavas|tortil|kebab/, '🌯'], [/taco/, '🌮'], [/sriub|soup|bulvien|ramen/, '🍲'], [/salot|salad/, '🥗'], [/makaron|pasta|spaget|lazanij|lasagn|penne/, '🍝'], [/pic|pizza/, '🍕'],
+    [/burger|mesain/, '🍔'], [/kari|curry/, '🍛'], [/ryz|rice|risot|plov/, '🍚'], [/sumust|sandwich|tost/, '🥪'], [/blyn|pancake|blynel/, '🥞'], [/aviz|oat|kose|porridge|granol/, '🥣'],
+    [/kiaus|omlet|egg|kiausin/, '🍳'], [/krevet|shrimp|prawn/, '🍤'], [/zuv|lasis|fish|salmon|menk|tun/, '🐟'], [/vist|chicken|kalakut|turkey/, '🍗'], [/jaut|beef|kepsn|steak|kiaul|pork/, '🥩'],
+    [/troskin|stew|goulash|gulias/, '🥘'], [/kotlet|frikadel|meatball/, '🍖'], [/virtin|cepelin|dumpl|koldun/, '🥟'], [/pyrag|cake|tort|keks|muffin/, '🍰'], [/sausain|cookie/, '🍪'], [/kokteil|smoothie|shake/, '🥤'], [/bulv|potato/, '🥔']];
+  for (const [re, e] of map) if (re.test(n)) return e;
+  return '🍽️';
+}
+
+// ===== Kiekis žmonių kalba ↔ gramai =====
+const amtText = (fid, g) => fmtIng(fid, g).replace(/\s*<small>.*<\/small>/, '');
+function amtToG(val, f) {
+  const v = String(val ?? '').trim().replace(',', '.'); if (!v) return 0;
+  const pg = f && !['suris', 'kumpis', 'vist_krut', 'vist_slaun', 'lasisa'].includes(f.id) ? (PIECE_G[f.id] || f.pieceG) : 0;
+  if (/^\d+(\.\d+)?$/.test(v)) { const n = +v; return pg && n <= 12 ? Math.round(n * pg) : Math.round(n); } // „3“ pomidorai = 3 vnt, „500“ = 500 g
+  if (!f) return Math.round(parseFloat(v) || 0);
+  const r = parseIngredient(`${v} ${f.name}`);
+  return r.grams || Math.round(parseFloat(v) || 0);
 }

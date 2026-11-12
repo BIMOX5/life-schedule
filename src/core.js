@@ -657,7 +657,7 @@ const UNIT_RULES = [
   [/^(a\.?\s?s\.?)$/, 'v', 5], [/^(v\.?\s?s\.?)$/, 'v', 15], [/^(saukstel\w*|arb\w*|tsp|teaspoons?|tsk|tesked\w*|tl|teeloffel)$/, 'v', 5], [/^(sauks\w*|valg\w*|tbsp|tbs|tablespoons?|msk|matsked\w*|el|essloffel)$/, 'v', 15],
   [/^(krm|kryddmatt|ziupsn\w*|pinch\w*|dash\w*|prise)$/, 'fix', 1], [/^(skiltel\w*|cloves?|klyft\w*)$/, 'fix', 5], [/^(sticks?)$/, 'fix', 113],
   [/^(skardin\w*|cans?|tins?|burk\w*|dose)$/, 'fix', 400], [/^(pakel\w*|pak\.?|packs?|packages?|paket\w*)$/, 'fix', 200],
-  [/^(vnt\.?|vienet\w*|pcs|pieces?|whole|gabal\w*|st|styck\w*|stk)$/, 'pc', 1], [/^(rieke\w*|slices?|skiv\w*)$/, 'pc', 1],
+  [/^(vnt\.?|vienet\w*|pcs|pieces?|whole|gabal\w*|st|styck\w*|stk)$/, 'pc', 1], [/^(riek\w*|slices?|skiv\w*|griezin\w*|galv\w*|guz\w*)$/, 'pc', 1],
 ];
 // Tankis g/ml – kad „1 cup miltų“ ≠ „1 cup pieno“
 const DENSITY = {miltai:0.53, cukrus:0.85, ryziai:0.78, ryziai_rudi:0.78, avizos:0.38, grikiai:0.73, kuskusas:0.73, bulguras:0.7, kinva:0.72, lesiai:0.8, perlines:0.8,
@@ -666,7 +666,7 @@ const DENSITY = {miltai:0.53, cukrus:0.85, ryziai:0.78, ryziai_rudi:0.78, avizos
   jogurtas:1.03, graik_jog:1.05, skyr:1.05, varske_0:1.0, grietine20:1.0, grietine10:1.0, grietinele:1.0, kok_pienas:1.0, pom_konserv:1.0, pom_pasta:1.1, baltymai:0.4,
   pup_raud:0.75, pup_balt:0.75, avinz:0.7, prieskoniai:0.5, riesut_sv:1.1, kakava:0.45, humusas:1.0, pesto:1.0};
 // papildomų produktų tankiai (g/ml), kad „1 cup kale“ ≠ 240 g
-Object.assign(DENSITY, {kale: 0.28, rukola: 0.1, sparag_pup: 0.5, rud_cukrus: 0.9, granola: 0.45, kuk_dribsn: 0.12, razinos: 0.6, zem_riesut: 0.6, anakard: 0.55, lazdyno: 0.55, sezamas: 0.6, linai: 0.65, mol_sekl: 0.55, kok_drozl: 0.35, manai: 0.7, soros: 0.8, tahini: 1.0, garstycios: 1.05, klevu_sir: 1.32, uogiene: 1.3, alyvuoges: 0.55, kokos_al: 0.92, ghee: 0.91, feta: 0.6, parmezanas: 0.4, cedaras: 0.45, kremsuris: 1.0, cottage: 0.95, ricotta: 1.0, mascarpone: 1.0, rug_milt: 0.5, pg_milt: 0.55, krakmolas: 0.6, dz_abrikos: 0.6, datules: 0.6, zal_lesiai: 0.8, edamame: 0.6, raug_kop: 0.6, salsa: 1.0, bbq: 1.1, pom_padaz: 1.05});
+Object.assign(DENSITY, {morkos: 0.45, pomidorai: 0.62, svogunai: 0.6, salieras: 0.5, paprika: 0.6, agurkai: 0.55, brokoliai: 0.37, ziedinis: 0.45, kopustai: 0.37, grybai: 0.3, bulves: 0.65, obuoliai: 0.5, bananai: 0.6, cukinija: 0.52, kale: 0.28, rukola: 0.1, sparag_pup: 0.5, rud_cukrus: 0.9, granola: 0.45, kuk_dribsn: 0.12, razinos: 0.6, zem_riesut: 0.6, anakard: 0.55, lazdyno: 0.55, sezamas: 0.6, linai: 0.65, mol_sekl: 0.55, kok_drozl: 0.35, manai: 0.7, soros: 0.8, tahini: 1.0, garstycios: 1.05, klevu_sir: 1.32, uogiene: 1.3, alyvuoges: 0.55, kokos_al: 0.92, ghee: 0.91, feta: 0.6, parmezanas: 0.4, cedaras: 0.45, kremsuris: 1.0, cottage: 0.95, ricotta: 1.0, mascarpone: 1.0, rug_milt: 0.5, pg_milt: 0.55, krakmolas: 0.6, dz_abrikos: 0.6, datules: 0.6, zal_lesiai: 0.8, edamame: 0.6, raug_kop: 0.6, salsa: 1.0, bbq: 1.1, pom_padaz: 1.05});
 function unitOf(word) { const w = norm(word).replace(/\.$/, ''); for (const [re, kind, k] of UNIT_RULES) if (re.test(w) || re.test(norm(word))) return {kind, k}; return null; }
 const ltStem = w => { if (w.length < 5) return w; const s = w.replace(/(iams|iems|uose|ams|oms|ems|ose|iai|ios|ies|iu|as|is|ys|us|os|ai|es|ei|ui|a|e|i|o|u|y)$/, ''); return s.length >= 4 ? s : w; };
 function matchFood(text) {
@@ -720,7 +720,7 @@ function parseIngredient(line) {
   if (f && /skardin|\bcans?\b|\btins?\b|konserv|canned|burk|krossad|passata|chopped tomato/.test(norm(s)) && {pomidorai: 'pom_konserv'}[f.id]) f = food({pomidorai: 'pom_konserv'}[f.id]);
   let grams = 0;
   if (qty != null) {
-    if (!unit || unit.kind === 'pc') grams = f ? qty * (PIECE_G[f.id] || 100) : 0;
+    if (!unit || unit.kind === 'pc') grams = f ? qty * (PIECE_G[f.id] || f.pieceG || 100) : 0;
     else if (unit.kind === 'v') grams = qty * unit.k * (f ? (DENSITY[f.id] ?? 1) : 1);
     else grams = qty * unit.k; // svoris arba fiksuotas
   } else if (f && f.id === 'prieskoniai') grams = 3;

@@ -1,6 +1,11 @@
 {
-  "stable": "1.0.0",
+  "stable": "1.6.1",
   "versions": [
+    {
+      "v": "1.6.2",
+      "date": "2026-11-12",
+      "notes": "Receptai: įklijuok nuorodą ar tekstą – viskas sutvarkoma pačios, su visa maistine verte; kiekiai vienetais ir šaukštais"
+    },
     {
       "v": "1.6.1",
       "date": "2026-11-11",
@@ -35,16 +40,6 @@
       "v": "1.5.2",
       "date": "2026-11-11",
       "notes": "Savijauta: mėnesio kalendorius, šiltos žinutės, kas lėmė vienu paspaudimu"
-    },
-    {
-      "v": "1.5.1",
-      "date": "2026-11-11",
-      "notes": "Savijauta: viena dienai, keičiasi palaipsniui, akimirkos, geri pojūčiai, rodiklis pagrindiniame ekrane"
-    },
-    {
-      "v": "1.0.0",
-      "date": "2026-11-10",
-      "notes": "Režimai, valgymo laikai, Reikalai, patikrinimai, laiko juosta, kūrėjo režimas"
     }
   ]
 }

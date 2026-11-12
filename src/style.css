@@ -530,3 +530,12 @@ button.chipbtn.on { background:var(--accent); border-color:var(--accent); color:
   .me { font-size:0; height:4px; padding:0; border:0; background:var(--c); border-radius:2px; } .mev .more { font-size:9.5px; }
   .mic { font-size:10px; gap:2px; } .mstats { grid-template-columns:repeat(3, 1fr); } .mstats b { font-size:15px; }
 }
+
+/* Emoji greitas pasirinkimas */
+.emopick { display:flex; flex-wrap:wrap; gap:4px; margin:-4px 0 10px; } .emopick button { border:1px solid var(--line); background:var(--card2); border-radius:9px; font-size:18px; width:34px; height:34px; cursor:pointer; padding:0; }
+.emopick button:hover, .emopick button.on { border-color:var(--accent); }
+#impbox { width:100%; font-size:14px; }
+
+.amt { max-width:130px; } .ingrow .amt { width:120px; }
+
+.nchips { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 12px; } .nchips span { background:var(--card2); border-radius:99px; padding:5px 10px; font-size:13px; }
