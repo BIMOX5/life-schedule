@@ -1,6 +1,11 @@
 {
-  "stable": "1.6.1",
+  "stable": "1.6.2",
   "versions": [
+    {
+      "v": "1.6.3",
+      "date": "2026-11-12",
+      "notes": "Smulkūs patobulinimai ir greitesni atnaujinimai"
+    },
     {
       "v": "1.6.2",
       "date": "2026-11-12",
@@ -35,11 +40,6 @@
       "v": "1.5.3",
       "date": "2026-11-11",
       "notes": "Savijautos žodžiai pagal lytį; lytį galima nurodyti visada"
-    },
-    {
-      "v": "1.5.2",
-      "date": "2026-11-11",
-      "notes": "Savijauta: mėnesio kalendorius, šiltos žinutės, kas lėmė vienu paspaudimu"
     }
   ]
 }

@@ -149,7 +149,6 @@ const PVIEW = {
         ${fbub('Time zone', `<span class="ro">${esc(d.settings?.tz || '–')}</span>`, '')}
         ${fbub('Customer since', `<span class="ro">${dt(c.created_at)}</span>`, '')}
         ${fbub('Modes', `<span class="ro">${modesTxt(d)}</span>`, '')}
-        ${fbub('Profile link', `<span class="ro muted">For internal notes</span>`, profileLink(uid))}
       </div></div>
     ${del ? `<div class="delbanner"><div class="grow"><b>🗑️ Scheduled for deletion</b><div>Requested ${dt(del.created_at)} by <b>${del.requested_by_name ? esc(del.requested_by_name) + ' (team)' : 'the customer'}</b> · deleted on <b>${dt(del.delete_at)}</b></div></div>
       <button class="btn" data-act="canceldel" data-id="${del.id}">Cancel deletion</button></div>` : ''}
@@ -165,7 +164,7 @@ const PVIEW = {
         <tr><td>From the team</td><td colspan="2"><small>${(d.xpAdjust || []).length} change(s)</small></td><td><b>${g.bonus > 0 ? '+' : ''}${g.bonus}</b></td></tr>
         <tr class="tot"><td>Total</td><td colspan="2"><small>level ${g.level} · next level at ${Math.pow(g.level, 2) * 40} XP</small></td><td><b>${g.xp}</b></td></tr></table></div>
       <div class="card"><h3>Stats</h3>${kv([['Days logged', g.parts.daysLogged], ['Tasks done', g.parts.tasksDone], ['Workouts', g.parts.workouts], ['Meals', (d.meals || []).length], ['Activities', (d.events || []).length], ['Check-ins', g.parts.checkins], ['Recipes', (d.recipes || []).length]])}</div>
-      <div class="card wide"><h3>Team changes</h3>${adjList(adj)}</div></div>`;
+      ${IS_DEV() ? `<div class="card wide"><h3>Team changes</h3>${adjList(adj)}</div>` : ''}</div>`;
   },
   comments: uid => `<div class="card"><div class="crow2"><textarea id="cm_body" rows="2" placeholder="What was done? Paste a case link to reference it."></textarea><button class="btn primary" data-act="addcomment">Add</button></div>
     ${(COMMENTS[uid] || []).map(x => `<div class="comment"><div>${linkify(x.body)}</div><small>${esc(x.author_name || '')} · ${dt(x.created_at)}</small></div>`).join('') || '<div class="empty sm">No comments yet</div>'}</div>`,
@@ -182,12 +181,12 @@ const PVIEW = {
       <div class="card"><h3>Deletion requests</h3>${(DSARS[uid] || []).filter(r => r.type === 'delete').map(r => `<div class="li"><span>${{pending: '⏳ Scheduled', cancelled: '↩️ Cancelled', done: '✅ Done'}[r.status] || esc(r.status)}<small>${dt(r.created_at)} · by ${r.requested_by_name ? esc(r.requested_by_name) : 'customer'}${r.cancelled_by_name ? ` · cancelled by ${esc(r.cancelled_by_name)}` : ''}</small></span></div>`).join('') || '<div class="empty sm">None</div>'}</div>
       <div class="card wide"><h3>Sign-ins</h3><table class="tbl"><tr><th>When</th><th>Device</th><th>Location</th><th>IP</th></tr>
         ${s.map(x => `<tr><td>${dt(x.last_seen)}${x.created_at !== x.last_seen ? `<small>since ${dt(x.created_at)}</small>` : ''}</td><td>${deviceName(x.device)}</td><td>${esc([x.country, x.city].filter(Boolean).join(' · ') || '–')}</td><td><code>${esc(x.ip || '–')}</code></td></tr>`).join('') || '<tr><td colspan="4" class="empty sm">No sign-ins recorded yet</td></tr>'}</table></div>
-      <div class="card wide"><h3>Changes made by the team</h3>${adjList(ADJ[uid] || [])}</div></div>`;
+      ${IS_DEV() ? `<div class="card wide"><h3>Changes made by the team</h3>${adjList(ADJ[uid] || [])}</div>` : ''}</div>`;
   },
   cases: uid => { const tix = T.filter(x => x.user_id === uid).sort((a, b) => a.created_at < b.created_at ? 1 : -1);
     return `<div class="card">${tix.map(x => `<a class="li caselink" href="./#case/${x.case_no}" target="_blank"><span>${ticketIcon(x)} ${esc(caseTitle(x))}<small>${dt(x.created_at)}</small></span>${stChip(x.status)}</a>`).join('') || '<div class="empty sm">None</div>'}</div>`; },
 };
-const adjList = adj => adj.length ? adj.map(a => `<div class="li"><span>${a.kind === 'xp' ? `⭐ ${+a.payload?.amount > 0 ? '+' : ''}${esc(a.payload?.amount)} XP` : `👤 ${esc(Object.entries(a.payload || {}).map(([k, v]) => `${k === 'name' ? 'name' : k === 'sex' ? 'sex' : 'birth year'}: ${k === 'sex' ? (v === 'f' ? 'female' : 'male') : v}`).join(', '))}`}
+const adjList = adj => adj.length ? adj.map(a => `<div class="li"><span>${['remove_item', 'edit_item'].includes(a.kind) ? `🧰 ${a.kind === 'remove_item' ? 'Removed' : 'Edited'}: ${esc(a.payload?.label || '')}` : a.kind === 'xp' ? `⭐ ${+a.payload?.amount > 0 ? '+' : ''}${esc(a.payload?.amount)} XP` : `👤 ${esc(Object.entries(a.payload || {}).map(([k, v]) => `${k === 'name' ? 'name' : k === 'sex' ? 'sex' : 'birth year'}: ${k === 'sex' ? (v === 'f' ? 'female' : 'male') : v}`).join(', '))}`}
   <small>${esc(a.reason || '')} · ${esc(a.actor_name || '')} · ${dt(a.created_at)}</small></span>${a.applied ? '<span class="chip c-good">applied</span>' : `<span class="chip c-blue">waiting</span><b class="x" data-act="deladj" data-id="${a.id}" title="Cancel">✕</b>`}</div>`).join('') : '<div class="empty sm">No changes</div>';
 async function saveProfile(payload) {
   try {
@@ -218,9 +217,9 @@ const kbArticle = (a, tools) => `<div class="kbhead"><span class="chip">${catOf(
 // Full page (separate window: ?view=kb)
 function kbPage() {
   const a = KB.find(x => x.id === KBSEL);
-  return `<div class="kbm"><div class="kbnav"><input id="kbq" placeholder="Search articles" value="${esc(KBQ)}"><button class="btn primary" data-act="kbnew">＋ New article</button>${kbCats()}</div>
+  return `<div class="kbm"><div class="kbnav"><input id="kbq" placeholder="Search articles" value="${esc(KBQ)}">${IS_DEV() ? '<button class="btn primary" data-act="kbnew">＋ New article</button>' : ''}${kbCats()}</div>
     <div class="kblist">${kbItems(kbList())}</div>
-    <div class="kbart">${a ? kbArticle(a, `<button class="btn sm" data-act="kbedit">Edit</button><button class="btn sm" data-act="kbdel">Delete</button>`) : '<div class="empty" style="margin:auto">Select an article</div>'}</div></div>`;
+    <div class="kbart">${a ? kbArticle(a, IS_DEV() ? `<button class="btn sm" data-act="kbedit">Edit</button><button class="btn sm" data-act="kbdel">Delete</button>` : '') : '<div class="empty" style="margin:auto">Select an article</div>'}</div></div>`;
 }
 // Right panel inside a case (instead of customer info)
 function kbSide() {
@@ -357,31 +356,31 @@ async function createCase() {
 
 // ===================== ADMIN PANEL (own page: ?view=admin) – tools on the left, tool search on top =====================
 const ADM = {tab: 'consumers', tq: '', rows: null, busy: false, uid: null, dels: null, col: (() => { try { return localStorage.getItem('console_admcol') === '1'; } catch (e) { return false; } })()};
-const ADMTABS = [['consumers', '👥', 'Consumers'], ['scores', '⭐', 'Scores'], ['deletions', '🗑️', 'Scheduled deletions'], ['suggestions', '💡', 'Suggestions', 'dev']];
+const ADMTABS = [['consumers', '👥', 'Consumers'], ['tools', '🧰', 'Account tools'], ['scores', '⭐', 'Scores'], ['deletions', '🗑️', 'Scheduled deletions'], ['suggestions', '💡', 'Suggestions', 'dev']];
 const admTabsFiltered = () => ADMTABS.filter(([, , l, only]) => (!only || ROLE === 'developer') && (!ADM.tq || l.toLowerCase().includes(ADM.tq.toLowerCase())));
 function adminView() {
-  const main = ADM.uid && ADM.tab === 'scores' ? admScores() : ADM.uid ? customerView() : ADM.tab === 'deletions' ? admDeletions() : ADM.tab === 'suggestions' ? admSuggestions() : admFind();
+  const main = ADM.uid && ADM.tab === 'tools' ? toolsView() : ADM.uid && ADM.tab === 'scores' ? admScores() : ADM.uid ? customerView() : ADM.tab === 'deletions' ? admDeletions() : ADM.tab === 'suggestions' ? admSuggestions() : admFind();
   return `<div class="admin ${ADM.col ? 'col' : ''}"><div class="anav"><div class="anavtop">${ADM.col ? '' : `<input id="atool" placeholder="🔍 Search tools" value="${esc(ADM.tq)}">`}<button class="ib sm" data-act="admcol" title="${ADM.col ? 'Show tools' : 'Hide tools'}">${ADM.col ? '»' : '«'}</button></div>
     ${admTabsFiltered().map(([k, e, l]) => `<button class="${ADM.tab === k ? 'on' : ''}" data-act="admtab" data-k="${k}" title="${l}">${e}${ADM.col ? '' : ' ' + l}</button>`).join('') || '<small class="muted">No tool found</small>'}</div>
     <div class="amain">${main}</div></div>`;
 }
 // Find a customer: by ID, email or phone (phone – later)
 function admFind() {
-  const title = ADM.tab === 'scores' ? 'Scores' : 'Consumers', hint = ADM.tab === 'scores' ? 'Find the customer to check and add XP.' : 'Find a customer by any of the fields.';
+  const title = ADM.tab === 'scores' ? 'Scores' : ADM.tab === 'tools' ? '🧰 Account tools' : 'Consumers', hint = ADM.tab === 'scores' ? 'Find the customer to check and add XP.' : ADM.tab === 'tools' ? 'Find the customer – see everything in their account and fix or remove items.' : 'Find a customer by any of the fields.';
   return `<div class="page"><div class="pwrap"><h1>${title}</h1><p class="muted">${hint}</p>
-    <div class="card afind"><label>Customer ID or #<input id="aq_id" placeholder="#12 or 3f2a…" value="${esc(ADM.qf === 'id' ? ADM.q : '')}"></label>
+    <div class="card afind"><label>Customer ID<input id="aq_id" placeholder="12" value="${esc(ADM.qf === 'id' ? ADM.q : '')}"></label>
       <label>Email<input id="aq_email" placeholder="name@email.com" value="${esc(ADM.qf === 'email' ? ADM.q : '')}"></label>
       <label>Phone<input id="aq_phone" placeholder="Coming later" disabled></label>
       <button class="btn primary" data-act="admsearch">${ICON.search} Search</button></div>
     ${ADM.busy ? '<div class="empty">Searching…</div>' : ADM.rows == null ? '' : !ADM.rows.length ? '<div class="empty">No user found</div>'
-      : `<div class="card flush"><table class="tbl"><tr><th>Customer</th><th>Email</th><th>Created</th><th>Last sign-in</th><th></th></tr>${ADM.rows.map(u => `<tr><td><b>${esc(u.name || '–')}</b> <small>#${esc(u.num ?? '–')}</small></td>
-        <td>${esc(u.email || '')} ${verifiedChip(u)}</td><td>${dt(u.created_at)}</td><td>${dt(u.last_sign_in_at)}</td><td><button class="ib sm" data-act="admopen" data-u="${esc(u.id)}" title="${ADM.tab === 'scores' ? 'Open scores' : 'View account'}">${ICON.edit}</button></td></tr>`).join('')}</table></div>`}</div></div>`;
+      : `<div class="card flush"><table class="tbl"><tr><th>Customer</th><th>Email</th><th>Created</th><th>Last sign-in</th><th></th></tr>${ADM.rows.map(u => `<tr><td><b>${esc(u.name || '–')}</b> <small>ID ${esc(u.num ?? '–')}</small></td>
+        <td>${esc(u.email || '')} ${verifiedChip(u)}</td><td>${dt(u.created_at)}</td><td>${dt(u.last_sign_in_at)}</td><td><button class="ib sm" data-act="admopen" data-u="${esc(u.id)}" title="${ADM.tab === 'scores' ? 'Open scores' : ADM.tab === 'tools' ? 'Open account tools' : 'View account'}">${ICON.edit}</button></td></tr>`).join('')}</table></div>`}</div></div>`;
 }
 function admScores() {
   const c = CUST[ADM.uid];
   if (!c) return '<div class="page"><div class="empty">Loading…</div></div>';
   const d = c.data || {}, p = d.profile || {}, g = xpOf(d);
-  return `<div class="page"><div class="pwrap"><h1>⭐ ${esc(p.name || c.email || '')} <span class="cno">#${esc(c.num ?? '–')}</span></h1>
+  return `<div class="page"><div class="pwrap"><h1>⭐ ${esc(p.name || c.email || '')} ${idChip(c.num)}</h1>
     ${PVIEW.scores(ADM.uid, c, d, p, g)}</div></div>`;
 }
 function admDeletions() {
@@ -396,7 +395,7 @@ async function admSearch(field) {
   ADM.q = q; ADM.qf = field; ADM.busy = true; render();
   try { ADM.rows = await DB.rpc('console_find_users', {q}) || []; } catch (e) { ADM.rows = []; toast('⚠️ Search is not available – run SQL 10 in Supabase'); }
   ADM.busy = false; render();
-  if (ADM.tab === 'scores' && ADM.rows.length === 1) EXTRA_ACT.admopen({dataset: {u: ADM.rows[0].id}});
+  if (['scores', 'tools'].includes(ADM.tab) && ADM.rows.length === 1) EXTRA_ACT.admopen({dataset: {u: ADM.rows[0].id}});
 }
 const SG_ST = [['new', '🆕 New'], ['reviewed', '✔️ Reviewed'], ['planned', '🗓️ Planned'], ['done', '✅ Built'], ['declined', '🚫 Declined']];
 function admSuggestions() {
@@ -490,8 +489,8 @@ const EXTRA_ACT = {
   kbback: () => { KBSEL = null; render(true); },
   kbside: async () => { SIDE = SIDE === 'kb' ? 'customer' : 'kb'; if (SIDE === 'kb' && !KB.length) await loadExtra('kb'); render(true); },
   kbwin: () => window.open('./?view=kb', '_blank'),
-  kbnew: () => kbEdit(),
-  kbedit: () => kbEdit(KB.find(x => x.id === KBSEL)),
+  kbnew: () => IS_DEV() && kbEdit(),
+  kbedit: () => IS_DEV() && kbEdit(KB.find(x => x.id === KBSEL)),
   kbdel: async () => {
     const a = KB.find(x => x.id === KBSEL); if (!a || !await ask('Delete article?', `"${esc(a.title)}" will be deleted permanently.`, {danger: true, icon: '🗑️', yes: 'Delete'})) return;
     try { await DB.req('DELETE', 'kb_articles', `id=eq.${a.id}`); await audit('deleted KB article', null, {title: a.title}); KB = KB.filter(x => x.id !== a.id); KBSEL = null; render(); } catch (e) { toast('⚠️ ' + esc(e.message)); }
@@ -567,3 +566,84 @@ function markDirty(el) {
   const act = ['p_name', 'p_by', 'p_sex'].includes(el.id) ? 'saveprof' : el.id === 'b_sex' ? 'savesex' : null;
   if (act) document.querySelector(`[data-act="${act}"]`)?.classList.add('dirty');
 }
+
+// ===================== 🧰 ACCOUNT TOOLS – everything in the customer's account; fix or remove items =====================
+// Changes are sent as "account adjustments" – the app applies them the next time the customer opens it.
+const idChip = n => n == null ? '' : `<span class="idchip">ID ${esc(n)}<button class="cpy" data-act="copyval" data-v="${esc(n)}" title="Copy ID">${ICON.copy}</button></span>`;
+const TOOLS = {open: 'recipes', q: ''};
+const daysAgo = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+const itemKey = x => String(x?.id ?? JSON.stringify(x));
+const byDateDesc = (a, b) => `${b.date || ''}${b.time || b.start || ''}`.localeCompare(`${a.date || ''}${a.time || a.start || ''}`);
+const MOOD_E = ['', '😫', '😕', '😐', '🙂', '😁'];
+// [collection, title, list(d), row(x, d) -> [main, details]]
+const TOOL_SECS = [
+  ['recipes', '📗 Recipes', d => d.recipes || [], x => [`${x.emoji || '🍲'} ${x.name || 'Recipe'}`, `${x.portions || '?'} portions · ${(x.ing || []).length} ingredients · ${(x.steps || []).length} steps${x.source ? ' · imported' : ''}`]],
+  ['meals', '🍽️ Meals (30 days)', d => (d.meals || []).filter(m => (m.date || '') >= daysAgo(30)).sort(byDateDesc), m => [m.name || 'Meal', `${m.date} ${m.time || ''} · ${Math.round(+m.kcal || 0)} kcal · ${Math.round(+m.p || 0)} g protein${m.ai ? ' · written' : ''}${m.snack ? ' · snack' : ''}`]],
+  ['freezer', '🧊 Fridge & freezer', d => d.freezer || [], (x, d) => [(d.recipes || []).find(r => r.id === x.recipeId)?.name || 'Deleted recipe', `${x.place === 'freezer' ? 'Freezer' : 'Fridge'} · ${x.portions} portions · made ${x.date || '?'}`]],
+  ['foods', '🥕 Own products', d => d.foods || [], f => [f.name, `${f.kcal} kcal · ${f.p} g protein per 100 g${f.ai ? ' · added automatically' : ''}`]],
+  ['spend', '🧾 Receipts', d => [...(d.spend || [])].sort(byDateDesc), x => [`${(+x.amount || 0).toFixed(2)} €`, `${x.date} · ${x.note || ''}`]],
+  ['checkins', '🪞 Check-ins', d => [...(d.checkins || [])].sort(byDateDesc), c => [`${c.type === 'month' ? 'Monthly' : 'Weekly'} check-in`, `${c.date || ''}${c.weight ? ` · ${c.weight} kg` : ''}${c.mood ? ` · mood ${c.mood}` : ''}`]],
+  ['weights', '⚖️ Weight', d => [...(d.weights || [])].sort(byDateDesc), w => [`${w.kg} kg`, w.date]],
+  ['workouts', '💪 Workouts', d => [...(d.workouts || [])].sort(byDateDesc), w => [w.type || 'Workout', `${w.date} ${w.start || ''} · ${w.duration || '?'} min · ${(w.exercises || []).length} exercises`]],
+  ['plans', '🏋️ Planned workouts', d => [...(d.plans || [])].sort(byDateDesc), x => [x.type || 'Planned workout', `${x.date} ${x.start || ''} · ${x.status || ''}`]],
+  ['events', '📅 Activities', d => d.events || [], e => [e.title || 'Activity', `${e.type && e.type !== 'once' ? e.type : e.date || ''} · ${e.start || ''}${e.end ? '–' + e.end : ''}${e.cat ? ' · ' + e.cat : ''}`]],
+  ['tasks', '✅ Tasks', d => d.tasks || [], t => [t.title || 'Task', `${t.done ? 'done' : 'open'}${t.due ? ' · due ' + t.due : ''}${+t.progress ? ` · ${t.progress}%` : ''}`]],
+  ['wellbeing', '💚 Wellbeing', d => [...(d.wellbeing || [])].sort(byDateDesc), w => [`${MOOD_E[w.mood] || '•'} ${w.kind === 'day' ? 'Day' : 'Moment'}`, `${w.date} ${w.time || ''}${w.note ? ' · ' + String(w.note).slice(0, 60) : ''}`]],
+  ['sleep', '😴 Sleep', d => [...(d.sleep || [])].sort(byDateDesc), x => [`${x.bed || '?'} – ${x.wake || '?'}`, x.date]],
+  ['timelog', '⏱️ Time log (14 days)', d => (d.timelog || []).filter(x => (x.date || '') >= daysAgo(14)).sort(byDateDesc), x => [x.cat || 'Time', `${x.date} ${x.start || ''}–${x.end || ''}`]],
+];
+function toolsView() {
+  const uid = ADM.uid, c = CUST[uid];
+  if (!c) return '<div class="page"><div class="empty">Loading…</div></div>';
+  if (c.error) return `<div class="page"><div class="empty">⚠️ ${esc(c.error)}</div></div>`;
+  const d = c.data || {}, p = d.profile || {}, adj = ADJ[uid] || [];
+  const pend = adj.filter(a => !a.applied && ['remove_item', 'edit_item'].includes(a.kind));
+  const sec = TOOL_SECS.find(x => x[0] === TOOLS.open) || TOOL_SECS[0], [coll, title, list, row] = sec;
+  const q = TOOLS.q.toLowerCase(), items = list(d).filter(x => !q || row(x, d).join(' ').toLowerCase().includes(q));
+  const pendOf = x => pend.find(a => a.payload?.coll === coll && a.payload?.key === itemKey(x));
+  return `<div class="page"><div class="pwrap"><h1>🧰 ${esc(p.name || c.email || '')} ${idChip(c.num)}</h1>
+    <p class="muted">${esc(c.email || '')} · last sign-in ${dt(c.last_sign_in_at)}</p>
+    <div class="infobox">Changes are applied the next time the customer opens the app. Always write why (it goes to the audit log) and tell the customer what you changed.${pend.length ? ` <b>${pend.length} change(s) waiting.</b>` : ''}</div>
+    <div class="tsecs">${TOOL_SECS.map(([k, l, f]) => `<button class="${k === coll ? 'on' : ''}" data-act="toolsec" data-k="${k}">${l} <i>${f(d).length}</i></button>`).join('')}</div>
+    <div class="card flush"><div class="trow head"><b>${title}</b><span class="sp"></span><input id="toolq" placeholder="Filter" value="${esc(TOOLS.q)}"></div>
+      ${items.slice(0, 150).map(x => { const [m, det] = row(x, d), pa = pendOf(x), k = esc(itemKey(x));
+        return `<div class="trow ${pa ? 'pend' : ''}"><div class="grow"><b>${esc(m)}</b><small>${esc(det)}</small>${pa ? `<small class="t-warn">⏳ ${pa.kind === 'remove_item' ? 'Removal' : 'Edit'} waiting – ${esc(pa.reason || '')}</small>` : ''}</div>
+          <button class="ib sm" data-act="toolview" data-k="${k}" title="View all fields">${ICON.search}</button>${pa ? '' : `<button class="ib sm" data-act="tooledit" data-k="${k}" title="Fix">${ICON.edit}</button><button class="ib sm" data-act="toolrm" data-k="${k}" title="Remove">${ICON.trash}</button>`}</div>`; }).join('') || '<div class="empty sm">Nothing here</div>'}
+      ${items.length > 150 ? `<div class="empty sm">Showing 150 of ${items.length} – use the filter</div>` : ''}</div></div></div>`;
+}
+const toolItem = k => { const sec = TOOL_SECS.find(x => x[0] === TOOLS.open), d = CUST[ADM.uid]?.data || {}; return (d[sec[0]] || []).find(x => itemKey(x) === k); };
+const toolLabel = x => { const sec = TOOL_SECS.find(s => s[0] === TOOLS.open), [m, det] = sec[3](x, CUST[ADM.uid]?.data || {}); return `${sec[1].replace(/\s*\(.*\)$/, '')}: ${m} (${det})`.slice(0, 160); };
+const fieldVal = v => typeof v === 'object' && v !== null ? JSON.stringify(v) : String(v ?? '');
+async function sendFix(kind, x, extra, reason) {
+  const uid = ADM.uid, label = toolLabel(x), payload = {coll: TOOLS.open, key: itemKey(x), label, ...extra};
+  try {
+    await DB.insert('account_adjustments', {user_id: uid, kind, payload, reason, actor_id: ME.id, actor_name: ME.name});
+    await audit(kind === 'remove_item' ? 'removed item from account' : 'edited item in account', {user_id: uid}, {item: label, reason, ...(extra.patch ? {patch: extra.patch} : {})});
+    ADJ[uid] = await DB.list('account_adjustments', `user_id=eq.${uid}&order=created_at.desc`).catch(() => ADJ[uid]);
+    closeModal(true); render(); toast(kind === 'remove_item' ? '🗑️ Removal sent – applied when the customer opens the app' : '✏️ Fix sent – applied when the customer opens the app');
+  } catch (e) { toast('⚠️ ' + esc(e.message)); }
+}
+Object.assign(EXTRA_ACT, {
+  toolsec: el => { TOOLS.open = el.dataset.k; TOOLS.q = ''; render(); },
+  toolview: el => { const x = toolItem(el.dataset.k); if (!x) return;
+    modal(`<h3>${esc(toolLabel(x))}</h3><table class="tbl kvt">${Object.entries(x).map(([k, v]) => `<tr><td><code>${esc(k)}</code></td><td>${esc(fieldVal(v)).slice(0, 2000)}</td></tr>`).join('')}</table>
+      <div class="row"><span class="sp"></span><button class="btn" data-act="mclose">Close</button></div>`); },
+  tooledit: el => { const x = toolItem(el.dataset.k); if (!x) return;
+    const f = Object.entries(x).filter(([k, v]) => k !== 'id' && ['string', 'number', 'boolean'].includes(typeof v));
+    modal(`<h3>Fix: ${esc(toolLabel(x))}</h3><div class="frm">${f.map(([k, v]) => typeof v === 'boolean'
+        ? `<label class="cbx"><input type="checkbox" data-tf="${esc(k)}" data-ty="boolean" ${v ? 'checked' : ''}> ${esc(k)}</label>`
+        : `<label>${esc(k)}<input data-tf="${esc(k)}" data-ty="${typeof v}" value="${esc(v)}"></label>`).join('') || '<p class="muted">This item has no simple fields to fix – remove it instead.</p>'}
+      <label class="wide">Why? (required, internal)<input id="tf_reason" placeholder="e.g. Customer asked in case 123 – wrong kcal"></label></div>
+      <div class="row"><span class="sp"></span><button class="btn" data-act="mclose">Cancel</button><button class="btn primary" data-act="toolsave" data-k="${esc(el.dataset.k)}">Send fix</button></div>`); },
+  toolsave: el => { const x = toolItem(el.dataset.k); if (!x) return; const reason = val('tf_reason'); if (!reason) return toast('Write why');
+    const patch = {}; document.querySelectorAll('[data-tf]').forEach(i => { const k = i.dataset.tf, ty = i.dataset.ty, v = ty === 'boolean' ? i.checked : ty === 'number' ? +String(i.value).replace(',', '.') : i.value;
+      if (ty === 'number' && !Number.isFinite(v)) return; if (v !== x[k]) patch[k] = v; });
+    if (!Object.keys(patch).length) return toast('Nothing changed');
+    sendFix('edit_item', x, {patch}, reason); },
+  toolrm: el => { const x = toolItem(el.dataset.k); if (!x) return;
+    modal(`<h3>Remove from the account?</h3><p><b>${esc(toolLabel(x))}</b></p><p class="muted">It disappears from the customer's app the next time they open it. This can't be undone from here.</p>
+      <div class="frm"><label class="wide">Why? (required, internal)<input id="tf_reason" placeholder="e.g. Duplicate recipe – customer asked in case 123"></label></div>
+      <div class="row"><span class="sp"></span><button class="btn" data-act="mclose">Cancel</button><button class="btn danger" data-act="toolrmgo" data-k="${esc(el.dataset.k)}">Remove</button></div>`); },
+  toolrmgo: el => { const x = toolItem(el.dataset.k); if (!x) return; const reason = val('tf_reason'); if (!reason) return toast('Write why'); sendFix('remove_item', x, {}, reason); },
+});
+document.addEventListener('input', e => { if (e.target.id === 'toolq') { TOOLS.q = e.target.value; render(); } });

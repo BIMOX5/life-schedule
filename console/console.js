@@ -410,7 +410,7 @@ function renderNow(keepScroll) {
   const th = $('.thread'), st = th ? th.scrollTop : null, nearBottom = th ? th.scrollHeight - th.scrollTop - th.clientHeight < 80 : true, prevN = th?.dataset.n, prevT = th?.dataset.t;
   const rp = $('#reply'); if (rp) DRAFT[rp.dataset.tid] = rp.value;
   const body = PAGE_KB ? kbPage() : PAGE_ADMIN ? adminView() : EXTRA_VIEW[VIEW] ? EXTRA_VIEW[VIEW]() : VIEW === 'search' ? searchView() : VIEW === 'admin' ? adminView() : VIEW === 'dev' ? devPage() : homeView(t);
-  $('#root').innerHTML = PAGE_ADMIN ? `<div class="solo">${body}</div>` : standalone ? `<div class="solo"><div class="solohead"><b>🎧 Support Console</b>${TEST ? '<span class="test">TEST</span>' : ''}<span class="sp"></span><span class="muted">${PAGE_KB ? 'Knowledge base' : 'Admin panel'}</span></div>${body}</div>`
+  $('#root').innerHTML = PAGE_ADMIN ? `<div class="solo">${body}</div>` : PAGE_KB ? `<div class="solo">${body}</div>` : standalone ? `<div class="solo"><div class="solohead"><b>🎧 Support Console</b>${TEST ? '<span class="test">TEST</span>' : ''}<span class="sp"></span><span class="muted">${PAGE_KB ? 'Knowledge base' : 'Admin panel'}</span></div>${body}</div>`
     : `<div class="app">${rail()}<div class="content">${body}</div></div>`;
   if ($('#reply') && t) { $('#reply').value = DRAFT[t.id] || ''; autoGrow($('#reply')); }
   if (fid && !$('#modal').contains(ae)) { const el = document.getElementById(fid); if (el && el !== document.activeElement) { el.focus(); try { if (s0 != null) el.setSelectionRange(s0, s1); } catch (e) {} } }
@@ -421,7 +421,7 @@ const ROLE_NAMES = {agent: 'Agent', lead: 'Lead', developer: 'Developer'};
 const rb = (act, icon, title, on, extra = '') => `<button class="rb ${on ? 'on' : ''}" data-act="${act}" title="${title}" aria-label="${title}" ${extra}>${icon}</button>`;
 function rail() {
   const initials = (ME.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-  return `<nav class="rail">${rb('home', '<span class="logo">🌱</span>', 'Home', false)}${rb('newcase', ICON.plus, 'New case', VIEW === 'newcase')}${rb('search', ICON.search, 'Search cases', VIEW === 'search')}${rb('admin', ICON.users, 'Admin panel (new tab)', false)}
+  return `<nav class="rail">${rb('home', '<span class="logo">🌱</span>', 'Home', false)}${rb('newcase', ICON.plus, 'New case', VIEW === 'newcase')}${rb('search', ICON.search, 'Search cases', VIEW === 'search')}
     ${CAN_TOGGLE() ? rb('devview', ICON.layers, DEVVIEW ? 'All cases view (on)' : 'All cases view (off)', DEVVIEW) : ''}${IS_DEV() ? rb('devpage', ICON.code, 'Developer tools', VIEW === 'dev') : ''}
     <span class="sp"></span>${VIEW_AS() !== ROLE ? `<span class="asbadge" title="You are previewing the console as ${ROLE_NAMES[VIEW_AS()]}">as ${ROLE_NAMES[VIEW_AS()]}</span>` : ''}${TEST ? '<span class="test">TEST</span>' : ''}
     <div class="popwrap"><button class="avatar sm" data-act="pop" data-p="me" title="${esc(ME.name)}">${esc(initials)}</button>
@@ -570,7 +570,7 @@ function sideHtml(t) {
   const others = T.filter(x => x.user_id && x.user_id === t.user_id && x.id !== t.id).sort((a, b) => a.created_at < b.created_at ? 1 : -1), shown = others.slice(0, MORE[t.id] ? 10 : 4);
   return `<div class="side">${email ? '<div class="chanbar">✉️ Email case <small>– replies go to the customer\'s inbox</small></div>' : ''}
     <div class="card who"><div class="avatar">${noAcc ? '@' : esc(name[0]?.toUpperCase() || '?')}</div><div class="grow"><b>${esc(name)}</b>
-      ${noAcc ? '<small class="t-bad">No user found for this email</small>' : `${c?.num ? `<a class="idlink" data-act="profile" data-u="${esc(t.user_id)}" title="Open customer profile">#${c.num} ↗</a>` : ''}<small>${esc(t.email || '')}</small>`}
+      ${noAcc ? '<small class="t-bad">No user found for this email</small>' : `${c?.num ? `<span class="idrow"><a class="idlink" data-act="profile" data-u="${esc(t.user_id)}" title="Open customer profile">ID ${c.num} ↗</a><button class="cpy" data-act="copyval" data-v="${c.num}" title="Copy ID">${ICON.copy}</button></span>` : ''}<small>${esc(t.email || '')}</small>`}
       ${m?.version || ctx.version ? `<small>v${esc(m?.version || ctx.version)}</small>` : ''}</div>
       <div class="whoact"><button class="rbub" data-act="kbside" title="Knowledge base">${ICON.book}</button>${t.user_id && !noAcc ? `<button class="rbub" data-act="quickcomment" title="Comment on the customer's profile">${ICON.comment}</button>` : ''}</div></div>
     ${unverified ? '<div class="alertbox">⚠️ <b>Email not verified.</b> Make sure this is really the account owner before sharing or changing account details.</div>' : ''}
@@ -609,7 +609,7 @@ async function runSearch() {
 // ----- Developer tools -----
 const DEVTABS = [['macros', 'Macros'], ['issues', 'Known issues'], ['audit', 'Audit log']];
 function devPage() {
-  return `<div class="page"><div class="pwrap"><div class="ptabs">${DEVTABS.map(([k, l]) => `<button class="${DEVTAB === k ? 'on' : ''}" data-act="devtab" data-k="${k}">${l}</button>`).join('')}<button data-act="kbwin">Knowledge base ↗</button></div>
+  return `<div class="page"><div class="pwrap"><div class="ptabs">${DEVTABS.map(([k, l]) => `<button class="${DEVTAB === k ? 'on' : ''}" data-act="devtab" data-k="${k}">${l}</button>`).join('')}<button data-act="kbwin">Knowledge base ↗</button><a class="btnlike" href="./?view=admin" target="_blank">Admin panel ↗</a></div>
     <div class="pbody">${DEVTAB === 'macros' ? macrosView() : DEVTAB === 'issues' ? issuesView() : auditView()}</div></div></div>`;
 }
 function auditView() {

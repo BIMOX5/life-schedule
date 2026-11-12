@@ -1900,7 +1900,8 @@ async function checkNewVersion() {
   let pub = rel.stable;
   let info = null;
   if (cloudOn()) { try { const j = await (await fetch(`${CLOUD.url}/rest/v1/app_config?key=eq.stable&select=value`, {headers: {apikey: CLOUD.key}, cache: 'no-store'})).json(); if (j[0]?.value?.version) { pub = j[0].value.version; info = j[0].value; } } catch (e) {} }
-  if (info?.silent) return;   // tylus atnaujinimas – nieko nerodom, įsijungs kitą kartą atsidarius
+  // tylus atnaujinimas – nieko nerodom; persikraunam tyliai, kai naudotojas išeina iš programėlės (telefone ji retai užsidaro iki galo)
+  if (info?.silent) { if (pub && pub !== window.APP_VERSION && rel.versions.some(x => x.v === pub)) { UI.silentReload = true; if (document.hidden) location.reload(); } return; }
   if (pub && pub !== window.APP_VERSION && rel.versions.some(x => x.v === pub)) { window.RELEASES = rel; UI.newInfo = info; if (UI.newVer !== pub) { UI.newVer = pub; render(); } }
 }
 function updateBanner() {
@@ -2045,6 +2046,7 @@ async function reportMeta() {
   } catch (e) { /* lentelės dar nėra – nieko baisaus */ }
 }
 // ----- Komandos pakeitimai (XP dovana / pataisymas, profilio taisymas) – pritaikom patys -----
+const FIX_COLLS = ['recipes', 'meals', 'freezer', 'foods', 'spend', 'checkins', 'weights', 'workouts', 'plans', 'events', 'tasks', 'wellbeing', 'sleep', 'timelog'];
 async function applyAdjustments() {
   if (DEV || readOnly()) return;
   let rows; try { rows = await DB.list('account_adjustments', `user_id=eq.${DB.uid()}&applied=eq.false&order=created_at.asc`); } catch (e) { return; }
@@ -2056,6 +2058,18 @@ async function applyAdjustments() {
       const n = Math.round(+p.amount);
       S.xpAdjust = [...(S.xpAdjust || []).filter(a => a.id !== r.id), {id: r.id, date: today(), amount: n, reason: r.reason || ''}];
       xp.push({n, reason: r.reason || ''});
+    }
+    // 🧰 Komanda pašalino / pataisė įrašą (receptą, valgį, įvykį…) – tik iš leistinų sąrašų
+    if ((r.kind === 'remove_item' || r.kind === 'edit_item') && FIX_COLLS.includes(p.coll) && Array.isArray(S[p.coll])) {
+      const key = x => String(x?.id ?? JSON.stringify(x)), i = S[p.coll].findIndex(x => key(x) === String(p.key));
+      if (i >= 0 && r.kind === 'remove_item') {
+        const [x] = S[p.coll].splice(i, 1);
+        if (p.coll === 'recipes' && x?.id && !(S.deletedRecipes || []).includes(x.id)) (S.deletedRecipes = S.deletedRecipes || []).push(x.id);
+      }
+      if (i >= 0 && r.kind === 'edit_item' && p.patch && typeof p.patch === 'object') {
+        const it = S[p.coll][i];
+        for (const [k, v] of Object.entries(p.patch)) if (k !== 'id' && ['string', 'number', 'boolean'].includes(typeof v) && (it[k] == null || typeof it[k] === typeof v)) it[k] = v;
+      }
     }
     if (r.kind === 'profile') {
       if (p.name != null && String(p.name).trim()) { S.profile.name = String(p.name).trim().slice(0, 60); prof = true; }
@@ -2768,3 +2782,7 @@ function amtToG(val, f) {
   const r = parseIngredient(`${v} ${f.name}`);
   return r.grams || Math.round(parseFloat(v) || 0);
 }
+// Tylus atnaujinimas: kai programėlė paslėpta (perjungei į kitą programėlę / kortelę) – persikraunam, grįžus jau nauja versija
+document.addEventListener('visibilitychange', () => { if (document.hidden && UI.silentReload && !$('#modal.open')) location.reload(); });
+// grįžus į programėlę – iškart pasitikrinam, ar nėra naujos versijos
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkNewVersion(); });

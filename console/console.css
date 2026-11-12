@@ -273,3 +273,13 @@ input:focus, select:focus, textarea:focus { border-color:var(--accent); }
 /* Profile: delete on the left, save on the right – under the box */
 .pfoot { justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; } .pfoot .sp { flex:1; }
 .pbox { padding-top:20px; }
+
+/* Account tools */
+.idchip, .idrow { display:inline-flex; align-items:center; gap:4px; font-size:13px; font-weight:600; color:var(--muted); } .idchip .cpy, .idrow .cpy { width:24px; height:24px; }
+.tsecs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; } .tsecs button { border:1px solid var(--line); background:var(--card); color:var(--text); border-radius:99px; padding:6px 12px; cursor:pointer; font:inherit; font-size:13px; }
+.tsecs button.on { border-color:var(--accent); background:var(--accent-soft, rgba(240,122,42,.15)); } .tsecs i { font-style:normal; color:var(--muted); font-size:12px; margin-left:2px; }
+.trow { display:flex; align-items:center; gap:6px; padding:10px 14px; border-top:1px solid var(--line); } .trow.head { border-top:0; } .trow .grow { min-width:0; } .trow small { display:block; color:var(--muted); }
+.trow.pend { background:rgba(240,122,42,.07); } .trow #toolq { max-width:220px; }
+.infobox { background:var(--card2); border-radius:12px; padding:10px 14px; font-size:13.5px; margin:8px 0; }
+.kvt td:first-child { width:130px; vertical-align:top; } .kvt td { word-break:break-word; }
+.btnlike { display:inline-flex; align-items:center; padding:8px 14px; border-radius:99px; color:var(--text); text-decoration:none; border:1px solid var(--line); margin-left:6px; font-size:14px; }
