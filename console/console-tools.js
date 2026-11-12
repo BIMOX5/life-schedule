@@ -583,6 +583,7 @@ const TOOL_SECS = [
   ['foods', '🥕 Own products', d => d.foods || [], f => [f.name, `${f.kcal} kcal · ${f.p} g protein per 100 g${f.ai ? ' · added automatically' : ''}`]],
   ['spend', '🧾 Receipts', d => [...(d.spend || [])].sort(byDateDesc), x => [`${(+x.amount || 0).toFixed(2)} €`, `${x.date} · ${x.note || ''}`]],
   ['checkins', '🪞 Check-ins', d => [...(d.checkins || [])].sort(byDateDesc), c => [`${c.type === 'month' ? 'Monthly' : 'Weekly'} check-in`, `${c.date || ''}${c.weight ? ` · ${c.weight} kg` : ''}${c.mood ? ` · mood ${c.mood}` : ''}`]],
+  ['steps', '👟 Steps', d => [...(d.steps || [])].sort(byDateDesc), x => [`${(+x.steps || 0).toLocaleString('lt-LT')} steps`, `${x.date} · ${x.src === 'phone' ? 'from phone' : 'entered by hand'}`]],
   ['weights', '⚖️ Weight', d => [...(d.weights || [])].sort(byDateDesc), w => [`${w.kg} kg`, w.date]],
   ['workouts', '💪 Workouts', d => [...(d.workouts || [])].sort(byDateDesc), w => [w.type || 'Workout', `${w.date} ${w.start || ''} · ${w.duration || '?'} min · ${(w.exercises || []).length} exercises`]],
   ['plans', '🏋️ Planned workouts', d => [...(d.plans || [])].sort(byDateDesc), x => [x.type || 'Planned workout', `${x.date} ${x.start || ''} · ${x.status || ''}`]],

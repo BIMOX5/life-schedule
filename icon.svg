@@ -1,1 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f8cff"/><stop offset="1" stop-color="#22c55e"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#g)"/><text x="256" y="330" font-size="260" text-anchor="middle">🌱</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <rect width="120" height="120" rx="28" fill="#faf7f2"/>
+  <g transform="translate(6 8) scale(.9)">
+    <path d="M60 46 C60 36 60 30 60 22" stroke="#5aa97c" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <path d="M60 30 C46 14 30 18 28 26 C40 34 52 34 60 30z" fill="#7cc79a"/>
+    <path d="M60 26 C72 8 92 10 95 19 C82 30 68 30 60 26z" fill="#7cc79a"/>
+    <rect x="22" y="44" width="76" height="62" rx="30" fill="#ff8a4c"/>
+    <rect x="30" y="52" width="60" height="48" rx="24" fill="#ffb07f"/>
+    <ellipse cx="47" cy="72" rx="6.5" ry="8" fill="#1a0b00"/><ellipse cx="73" cy="72" rx="6.5" ry="8" fill="#1a0b00"/>
+    <circle cx="49" cy="69" r="2.3" fill="#fff"/><circle cx="75" cy="69" r="2.3" fill="#fff"/>
+    <circle cx="36" cy="86" r="5" fill="#ff7f8f" opacity=".45"/><circle cx="84" cy="86" r="5" fill="#ff7f8f" opacity=".45"/>
+    <path d="M51 86 Q60 95 69 86" stroke="#1a0b00" stroke-width="4" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>

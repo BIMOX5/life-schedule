@@ -7,7 +7,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const round = (v, d = 0) => { const m = 10 ** d; return Math.round(v * m) / m; };
 const sum = a => a.reduce((x, y) => x + (+y || 0), 0);
 const pick = (arr, seed) => arr[Math.abs(seed ?? Math.floor(Math.random() * 1e6)) % arr.length];
-const fill = (t, x) => t.replace('{x}', x);
+const fill = (t, x) => t.replace('{x}', /^-?\d+\.\d+$/.test(String(x)) ? String(x).replace('.', ',') : x);   // kablelis dešimtainėse
 
 // Datos (vietinis laikas, formatas YYYY-MM-DD)
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -37,7 +37,7 @@ const fromMin = m => { m = Math.round(m); m = ((m % 1440) + 1440) % 1440; return
 const nowMin = () => zonedParts().min;
 const nowHM = () => fromMin(nowMin());
 const fmtDur = m => { m = Math.round(m); if (m < 60) return `${m} min`; const h = Math.floor(m / 60), r = m % 60; return r ? `${h} val ${r} min` : `${h} val`; };
-const fmtH = m => `${round(m / 60, 1)} val`;
+const fmtH = m => `${String(round(m / 60, 1)).replace('.', ',')} val`;
 const DOW = ['Pr','An','Tr','Kt','Pn','Št','Sk'];
 const DOW_LONG = ['Pirmadienis','Antradienis','Trečiadienis','Ketvirtadienis','Penktadienis','Šeštadienis','Sekmadienis'];
 const MONTHS = ['sausis','vasaris','kovas','balandis','gegužė','birželis','liepa','rugpjūtis','rugsėjis','spalis','lapkritis','gruodis'];
@@ -48,20 +48,20 @@ const relDay = s => { const n = diffDays(today(), s); if (n === 0) return 'šian
 
 // ===== Numatyti duomenys =====
 const DEFAULT_CATS = [
-  {id:'darbas', name:'Darbas', emoji:'💼', color:'#4f8cff', type:1},
-  {id:'paskaitos', name:'Paskaitos', emoji:'🎓', color:'#8b6cff', type:1},
-  {id:'mokslai', name:'Mokslai / namų darbai', emoji:'📚', color:'#a78bfa', type:1},
-  {id:'sportas', name:'Sportas', emoji:'💪', color:'#22c55e', type:1},
-  {id:'projektai', name:'Asmeniniai projektai', emoji:'🚀', color:'#06b6d4', type:1},
-  {id:'gaminimas', name:'Gaminimas', emoji:'🍳', color:'#f97316', type:0},
-  {id:'buitis', name:'Buitis / pirkiniai', emoji:'🧺', color:'#94a3b8', type:0},
-  {id:'kelione', name:'Kelionė', emoji:'🚌', color:'#64748b', type:0},
-  {id:'draugai', name:'Draugai / šeima', emoji:'🫶', color:'#ec4899', type:0},
-  {id:'poilsis', name:'Poilsis', emoji:'🌿', color:'#10b981', type:0},
-  {id:'hobiai', name:'Hobiai / laisvalaikis', emoji:'🎨', color:'#facc15', type:0},
-  {id:'netflix', name:'Serialai / filmai', emoji:'📺', color:'#ef4444', type:-1},
-  {id:'telefonas', name:'Telefonas / soc. tinklai', emoji:'📱', color:'#f43f5e', type:-1},
-  {id:'zaidimai', name:'Žaidimai', emoji:'🎮', color:'#e11d48', type:-1},
+  {id:'darbas', name:'Darbas', emoji:'💼', color:'#ff8040', type:1},
+  {id:'paskaitos', name:'Paskaitos', emoji:'🎓', color:'#ffa766', type:1},
+  {id:'mokslai', name:'Mokslai / namų darbai', emoji:'📚', color:'#ffc699', type:1},
+  {id:'sportas', name:'Sportas', emoji:'💪', color:'#f2a06f', type:1},
+  {id:'projektai', name:'Asmeniniai projektai', emoji:'🚀', color:'#ffd6bb', type:1},
+  {id:'gaminimas', name:'Gaminimas', emoji:'🍳', color:'#7cc79a', type:0},
+  {id:'buitis', name:'Buitis / pirkiniai', emoji:'🧺', color:'#b9b1a8', type:0},
+  {id:'kelione', name:'Kelionė', emoji:'🚌', color:'#8c857e', type:0},
+  {id:'draugai', name:'Draugai / šeima', emoji:'🫶', color:'#5aa97c', type:0},
+  {id:'poilsis', name:'Poilsis', emoji:'🌿', color:'#a8dcb9', type:0},
+  {id:'hobiai', name:'Hobiai / laisvalaikis', emoji:'🎨', color:'#e0cda6', type:0},
+  {id:'netflix', name:'Serialai / filmai', emoji:'📺', color:'#ef6a5a', type:-1},
+  {id:'telefonas', name:'Telefonas / soc. tinklai', emoji:'📱', color:'#f49a8c', type:-1},
+  {id:'zaidimai', name:'Žaidimai', emoji:'🎮', color:'#c94f5a', type:-1},
 ];
 const defaultData = () => ({
   ver: 1,
@@ -76,7 +76,7 @@ const defaultData = () => ({
   foodPrefs: {done: false, mealSuggest: false, cookTimes: 2, cookMax: 60, budget: 40, cookDays: [7], mealsPerDay: 3, skill: 2, equip: ['puodas', 'keptuvė', 'orkaitė', 'mikrobangė'], dislikes: [], allergies: [], dislikeText: ''},
   ratings: {}, priceOverrides: {}, priceMeta: {}, deletedRecipes: [], spend: [], mealPlans: [], receiptFoods: [],
   settings: { theme:'dark', tz: '', onboarded: false, modes: {sport: false, food: false}, review: 'week', dismissed: {}, intro: {} },
-  reviews: [], wellbeing: [],
+  reviews: [], wellbeing: [], steps: [],
 });
 // Režimai: ką žmogus nori daryti su programėle
 const sportOn = () => !!S?.settings?.modes?.sport;
@@ -108,6 +108,13 @@ function storeLocal() {
   try { localStorage.setItem(lsKey(), JSON.stringify({S, REV, DIRTY})); } catch (e) {}
 }
 function migrate(d) {
+  // 1.7: ramios kategorijų spalvos – produktyvu oranžinės, kita žalios/smėlio/pilkos, ekranai rami rožinė (vieną kartą; vėliau naudotojo pasirinkimai lieka)
+  if (d && Array.isArray(d.categories) && !d.catColors17) {
+    const fam = {1: ['#e8692c', '#ffa766', '#ffc699', '#f2a06f', '#ffd6bb'], 0: ['#7cc79a', '#b9b1a8', '#8c857e', '#5aa97c', '#a8dcb9', '#e0cda6'], '-1': ['#ef6a5a', '#f49a8c', '#c94f5a']}, used = {};
+    for (const c of d.categories) { const def = DEFAULT_CATS.find(x => x.id === c.id); if (def) { c.color = def.color; continue; }
+      const f = fam[String(c.type ?? 0)] || fam[0], k = String(c.type ?? 0); used[k] = (used[k] || 0) + 1; c.color = f[(used[k] - 1) % f.length]; }
+    d.catColors17 = true;
+  }
   const def = defaultData();
   for (const k in def) if (d[k] === undefined) d[k] = def[k];
   d.profile = {...def.profile, ...d.profile};
@@ -269,6 +276,7 @@ async function loadData() {
   return true;
 }
 function commit(opts = {}) {
+  if (typeof pushSoon === 'function') pushSoon();
   if (readOnly()) { if (SNAP) S = migrate(JSON.parse(SNAP)); if (typeof toast === 'function') toast('🗑️ Paskyra trinama – pakeitimai negalimi. Gali atšaukti trynimą Profilyje.'); render(); return; }
   if (DEV) { storeLocal(); if (!opts.noRender) render(); return; } // smėlio dėžė – į debesį nesiunčiama
   DIRTY = true; storeLocal();
@@ -367,6 +375,18 @@ function recipeStats(r) {
 
 // ===== Dienos duomenys =====
 const mealsOn = d => S.meals.filter(m => m.date === d);
+// ===== Žingsniai =====
+// Žingsnio ilgis ≈ ūgis × 0,415 (vyrai) / 0,413 (moterys); be ūgio – 0,75 m.
+// Sudeginta ėjimu (grynai, virš ramybės būsenos) ≈ 0,5 kcal × kūno svoris (kg) × nueita (km) – ACSM ėjimo formulės supaprastinimas.
+const stepsOn = d => +((S.steps || []).find(x => x.date === d)?.steps) || 0;
+const stepGoal = () => +S.profile.stepGoal || 8000;
+const strideM = () => { const h = +S.profile.height || 0; return h ? h * (S.profile.sex === 'f' ? 0.413 : 0.415) / 100 : 0.75; };
+const bodyKg = () => { const ws = [...(S.weights || [])].sort((a, b) => a.date < b.date ? -1 : 1); return +(ws.length ? ws[ws.length - 1].kg : S.profile.startWeight) || 70; };
+const stepsKm = n => round(n * strideM() / 1000, 1);
+const stepsKcal = n => Math.round(0.5 * bodyKg() * n * strideM() / 1000);
+const dayBurn = d => stepsKcal(stepsOn(d));
+// „Grynosios“ kalorijos: suvalgyta − sudeginta, bet ne mažiau nei 0
+const netKcal = d => Math.max(0, dayNutrition(d).kcal - dayBurn(d));
 const dayNutrition = d => { const ms = mealsOn(d), o = {n: ms.length}; for (const k of NUTR_KEYS) o[k] = k === 'kcal' ? Math.round(sum(ms.map(m => m[k]))) : round(sum(ms.map(m => m[k])), 1); return o; };
 // Maistinė vertė valgiui (iš recepto ar produkto)
 const nutrOf = (st, mult) => Object.fromEntries(NUTR_KEYS.map(k => [k, (+st[k] || 0) * mult]));
@@ -436,16 +456,21 @@ function busyDetail(d) {
   return b.sort((x, y) => x.s - y.s);
 }
 // Įpročiai: kada dažniausiai valgai (paskutinės 3 sav.)
-function mealHabits(defaults) {
-  const from = addDays(today(), -21), ms = S.meals.filter(m => m.date >= from && m.time && !m.snack), ts = ms.map(m => toMin(m.time));
-  if (ts.length < 8 || new Set(ms.map(m => m.date)).size < 4) return null;
-  let c = [...defaults];
+// Grąžina valgymų centrus ir kaip dažnai kiekvienas valgymas iš tikro būna (0–1). Darbo dienos ir savaitgaliai – atskirai, jei duomenų pakanka.
+function mealHabits(defaults, d) {
+  const from = addDays(today(), -28), all = S.meals.filter(m => m.date >= from && m.date < today() && m.time && !m.snack);
+  const wk = x => [0, 6].includes(parseD(x).getDay()), same = d ? all.filter(m => wk(m.date) === wk(d)) : all;
+  const ms = new Set(same.map(m => m.date)).size >= 4 && same.length >= 8 ? same : all;
+  const days = new Set(ms.map(m => m.date)), ts = ms.map(m => toMin(m.time));
+  if (ts.length < 8 || days.size < 4) return null;
+  let c = [...defaults], g = [];
   for (let it = 0; it < 12; it++) {
-    const g = c.map(() => []);
-    for (const t of ts) { let bi = 0; c.forEach((x, i) => { if (Math.abs(t - x) < Math.abs(t - c[bi])) bi = i; }); g[bi].push(t); }
-    c = c.map((x, i) => g[i].length >= 2 ? sum(g[i]) / g[i].length : x);
+    g = c.map(() => []);
+    ms.forEach((m, k) => { const t = ts[k]; let bi = 0; c.forEach((x, i) => { if (Math.abs(t - x) < Math.abs(t - c[bi])) bi = i; }); g[bi].push(m); });
+    c = c.map((x, i) => g[i].length >= 2 ? sum(g[i].map(m => toMin(m.time))) / g[i].length : x);
   }
-  return c;
+  const use = g.map(list => new Set(list.map(m => m.date)).size / days.size);
+  return {c, use};
 }
 // Įpročiai: kada dažniausiai sportuoji
 function sportHabit() {
@@ -648,10 +673,10 @@ const UNIT_RULES = [
   [/^(ml|millilit\w*|mililitr\w*)$/, 'v', 1], [/^(l|lit(er|re)s?|litr\w*)$/, 'v', 1000], [/^(dl|decilit\w*)$/, 'v', 100], [/^(cl)$/, 'v', 10],
   [/^(fl\.?\s?oz|fluid)$/, 'v', 29.57], [/^(pints?|pt)$/, 'v', 473], [/^(quarts?|qt)$/, 'v', 946], [/^(gallons?|gal)$/, 'v', 3785],
   [/^(cups?|c\.|stiklin\w*|puodel\w*|kopp\w*|tasse\w*)$/, 'v', 240],
-  [/^(saukstel\w*|arb\w*|tsp|teaspoons?|tsk|tesked\w*|tl|teeloffel)$/, 'v', 5], [/^(sauks\w*|valg\w*|tbsp|tbs|tablespoons?|msk|matsked\w*|el|essloffel)$/, 'v', 15],
+  [/^(a\.?\s?s\.?)$/, 'v', 5], [/^(v\.?\s?s\.?)$/, 'v', 15], [/^(saukstel\w*|arb\w*|tsp|teaspoons?|tsk|tesked\w*|tl|teeloffel)$/, 'v', 5], [/^(sauks\w*|valg\w*|tbsp|tbs|tablespoons?|msk|matsked\w*|el|essloffel)$/, 'v', 15],
   [/^(krm|kryddmatt|ziupsn\w*|pinch\w*|dash\w*|prise)$/, 'fix', 1], [/^(skiltel\w*|cloves?|klyft\w*)$/, 'fix', 5], [/^(sticks?)$/, 'fix', 113],
   [/^(skardin\w*|cans?|tins?|burk\w*|dose)$/, 'fix', 400], [/^(pakel\w*|pak\.?|packs?|packages?|paket\w*)$/, 'fix', 200],
-  [/^(vnt\.?|vienet\w*|pcs|pieces?|whole|gabal\w*|st|styck\w*|stk)$/, 'pc', 1], [/^(rieke\w*|slices?|skiv\w*)$/, 'pc', 1],
+  [/^(vnt\.?|vienet\w*|pcs|pieces?|whole|gabal\w*|st|styck\w*|stk)$/, 'pc', 1], [/^(riek\w*|slices?|skiv\w*|griezin\w*|galv\w*|guz\w*)$/, 'pc', 1],
 ];
 // Tankis g/ml – kad „1 cup miltų“ ≠ „1 cup pieno“
 const DENSITY = {miltai:0.53, cukrus:0.85, ryziai:0.78, ryziai_rudi:0.78, avizos:0.38, grikiai:0.73, kuskusas:0.73, bulguras:0.7, kinva:0.72, lesiai:0.8, perlines:0.8,
@@ -659,7 +684,10 @@ const DENSITY = {miltai:0.53, cukrus:0.85, ryziai:0.78, ryziai_rudi:0.78, avizos
   migdolai:0.6, graikiniai:0.45, saulegrazos:0.6, chia:0.7, makaronai:0.42, makaronai_pg:0.42, majonezas:0.95, kecupas:1.1, sojos:1.15, pienas:1.03, kefyras:1.03,
   jogurtas:1.03, graik_jog:1.05, skyr:1.05, varske_0:1.0, grietine20:1.0, grietine10:1.0, grietinele:1.0, kok_pienas:1.0, pom_konserv:1.0, pom_pasta:1.1, baltymai:0.4,
   pup_raud:0.75, pup_balt:0.75, avinz:0.7, prieskoniai:0.5, riesut_sv:1.1, kakava:0.45, humusas:1.0, pesto:1.0};
+// papildomų produktų tankiai (g/ml), kad „1 cup kale“ ≠ 240 g
+Object.assign(DENSITY, {morkos: 0.45, pomidorai: 0.62, svogunai: 0.6, salieras: 0.5, paprika: 0.6, agurkai: 0.55, brokoliai: 0.37, ziedinis: 0.45, kopustai: 0.37, grybai: 0.3, bulves: 0.65, obuoliai: 0.5, bananai: 0.6, cukinija: 0.52, kale: 0.28, rukola: 0.1, sparag_pup: 0.5, rud_cukrus: 0.9, granola: 0.45, kuk_dribsn: 0.12, razinos: 0.6, zem_riesut: 0.6, anakard: 0.55, lazdyno: 0.55, sezamas: 0.6, linai: 0.65, mol_sekl: 0.55, kok_drozl: 0.35, manai: 0.7, soros: 0.8, tahini: 1.0, garstycios: 1.05, klevu_sir: 1.32, uogiene: 1.3, alyvuoges: 0.55, kokos_al: 0.92, ghee: 0.91, feta: 0.6, parmezanas: 0.4, cedaras: 0.45, kremsuris: 1.0, cottage: 0.95, ricotta: 1.0, mascarpone: 1.0, rug_milt: 0.5, pg_milt: 0.55, krakmolas: 0.6, dz_abrikos: 0.6, datules: 0.6, zal_lesiai: 0.8, edamame: 0.6, raug_kop: 0.6, salsa: 1.0, bbq: 1.1, pom_padaz: 1.05});
 function unitOf(word) { const w = norm(word).replace(/\.$/, ''); for (const [re, kind, k] of UNIT_RULES) if (re.test(w) || re.test(norm(word))) return {kind, k}; return null; }
+const ltStem = w => { if (w.length < 5) return w; const s = w.replace(/(iams|iems|uose|ams|oms|ems|ose|iai|ios|ies|iu|as|is|ys|us|os|ai|es|ei|ui|a|e|i|o|u|y)$/, ''); return s.length >= 4 ? s : w; };
 function matchFood(text) {
   const t = norm(text).replace(/\(.*?\)/g, ' ').replace(/[^a-z0-9 ]/g, ' ');
   const toks = t.split(/\s+/).filter(w => w.length >= 3);
@@ -668,7 +696,7 @@ function matchFood(text) {
   for (const f of allFoods()) {
     const phrases = [f.name.replace(/\(.*?\)/g, ''), ...(FOOD_SYN[f.id] || [])];
     for (const ph of phrases) {
-      const words = norm(ph).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length >= 3), stems = words.map(w => w.slice(0, 5));
+      const words = norm(ph).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length >= 3), stems = words.map(w => ltStem(w).slice(0, 5));
       if (!stems.length || !stems.every(hit)) continue;
       // premija už ilgesnį sutapimą (grietinėlė ≠ grietinė)
       const bonus = sum(words.map(w => { const b = w.slice(0, Math.max(3, w.length - 1)); return toks.some(t => t.startsWith(b)) ? b.length : 0; }));
@@ -678,6 +706,7 @@ function matchFood(text) {
       if (s > bestS) { bestS = s; best = f; }
     }
   }
+  if (best && best.id === 'pomidorai' && /skardin|\bcans?\b|\btins?\b|konserv|canned|burk|krossad|passata|chopped tomato/.test(norm(text))) best = food('pom_konserv') || best;
   return bestS >= 4 ? best : null;
 }
 const toNum = x => { x = String(x).replace(',', '.').trim(); if (x.includes('/')) { const p = x.split(/\s+/); return p.reduce((a, v) => { if (v.includes('/')) { const [q, w] = v.split('/'); return a + +q / +w; } return a + +v; }, 0); } return x.split(/\s+/).reduce((acc, v) => acc + +v, 0); };
@@ -705,10 +734,12 @@ function parseIngredient(line) {
     if (e) { rest = e[1]; qty = toNum(e[2]); if (e[3]) unit = unitOf(e[3]); }
   }
   rest = rest.replace(/^(of|su|av|von)\s+/i, '');
-  const f = matchFood(rest || s);
+  let f = matchFood(rest || s);
+  // „1 skardinė pomidorų“ → konservuoti
+  if (f && /skardin|\bcans?\b|\btins?\b|konserv|canned|burk|krossad|passata|chopped tomato/.test(norm(s)) && {pomidorai: 'pom_konserv'}[f.id]) f = food({pomidorai: 'pom_konserv'}[f.id]);
   let grams = 0;
   if (qty != null) {
-    if (!unit || unit.kind === 'pc') grams = f ? qty * (PIECE_G[f.id] || 100) : 0;
+    if (!unit || unit.kind === 'pc') grams = f ? qty * (PIECE_G[f.id] || f.pieceG || 100) : 0;
     else if (unit.kind === 'v') grams = qty * unit.k * (f ? (DENSITY[f.id] ?? 1) : 1);
     else grams = qty * unit.k; // svoris arba fiksuotas
   } else if (f && f.id === 'prieskoniai') grams = 3;
@@ -747,20 +778,20 @@ function dayScore(d) {
   // judėjimas vertinamas per paskutines 7 d., todėl poilsio diena nemažina balo, jei savaitė gera
   const w7 = S.workouts.filter(x => x.date <= d && x.date > addDays(d, -7)).length, wGoal = +p.workoutsPerWeek || 3, wToday = workoutsOn(d).length;
   if (t.logged || wToday || sl) parts.push({k:'Judėjimas', w:15, v: wToday ? 1 : clamp(w7 / wGoal, 0, 1), txt: wToday ? 'treniruotė ✓' : `${w7}/${wGoal} treniruotės per 7 d.`, why: 'Poilsio diena nebaudžiama, jei per savaitę treniruočių pakanka.'});
-  const n = dayNutrition(d), tg = targets();
+  const n = dayNutrition(d), tg = targets(), nk = netKcal(d), burn = dayBurn(d);
   if (foodOn() && n.n) {
-    const over = (n.kcal - tg.kcal) / tg.kcal;
+    const over = (nk - tg.kcal) / tg.kcal;
     let v;
     if (live) v = (over > 0.08 ? clamp(1 - (over - 0.08) * 3, 0, 1) : 1); // šiandien „per mažai“ nebaudžiama – diena dar nesibaigė
     else v = clamp(1 - Math.max(0, Math.abs(over) - 0.1) * 2.5, 0, 1) * 0.7 + clamp(n.p / tg.protein, 0, 1) * 0.3;
-    parts.push({k:'Mityba', w:15, v, txt: `${n.kcal} kcal, ${Math.round(n.p)} g B`, why: live ? 'Šiandien baudžiama tik už viršijimą – likusius valgius dar suvalgysi.' : '±10% nuo tikslo – pilnas balas, plius baltymai.'});
+    parts.push({k:'Mityba', w:15, v, txt: `${n.kcal} kcal${burn ? ` − ${burn} sudeginta = ${nk}` : ''}, ${Math.round(n.p)} g B`, why: live ? 'Šiandien baudžiama tik už viršijimą – likusius valgius dar suvalgysi.' : '±10% nuo tikslo – pilnas balas, plius baltymai.'});
   }
   if (t.logged) { const lim = +p.screenLimitMin || 90; parts.push({k:'Ekrano laikas', w:10, v: t.screen <= lim ? 1 : clamp(1 - (t.screen - lim) / lim, 0, 1), txt: fmtDur(t.screen), why: 'Tik tai, ką pats pažymėjai kaip ekraną (serialai, telefonas, žaidimai).'}); }
   if (!parts.length) return null;
   const score = Math.round(sum(parts.map(x => x.w * x.v)) / sum(parts.map(x => x.w)) * 100);
   return {score, parts, live};
 }
-const scoreColor = s => s == null ? 'var(--muted2)' : s >= 75 ? '#22c55e' : s >= 50 ? '#facc15' : s >= 30 ? '#f97316' : '#ef4444';
+const scoreColor = s => s == null ? 'var(--muted2)' : s >= 75 ? 'var(--br)' : s >= 50 ? 'var(--s2)' : 'var(--s3)';   // vienos spalvos atspalviai
 
 // Periodo suvestinė (savaitė/mėnuo)
 function periodStats(from, n) {
@@ -888,7 +919,7 @@ function svgLine(series, opts = {}) {
   let y0 = Math.min(...ys), y1 = Math.max(...ys); const pd = (y1 - y0) * 0.15 || 1; y0 -= pd; y1 += pd;
   const X = x => P.l + (x - x0) / (x1 - x0) * (W - P.l - P.r), Y = y => H - P.b - (y - y0) / (y1 - y0) * (H - P.t - P.b);
   let g = '';
-  for (let i = 0; i <= 4; i++) { const v = y0 + (y1 - y0) * i / 4; g += `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v)}" y2="${Y(v)}" class="grid"/><text x="${P.l - 5}" y="${Y(v) + 4}" class="ax" text-anchor="end">${round(v, 1)}</text>`; }
+  for (let i = 0; i <= 4; i++) { const v = y0 + (y1 - y0) * i / 4; g += `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v)}" y2="${Y(v)}" class="grid"/><text x="${P.l - 5}" y="${Y(v) + 4}" class="ax" text-anchor="end">${String(round(v, 1)).replace('.', ',')}</text>`; }
   if (opts.xLabels) for (const [x, l] of opts.xLabels) g += `<text x="${X(x)}" y="${H - 6}" class="ax" text-anchor="middle">${esc(l)}</text>`;
   for (const s of series) {
     if (!s.points.length) continue;
@@ -905,7 +936,7 @@ function svgBars(days, opts = {}) {
   const max = Math.max(1, ...days.map(d => sum(d.segs.map(s => s.v))), opts.goal || 0) * 1.1;
   const bw = (W - P.l - P.r) / days.length;
   let g = '';
-  for (let i = 0; i <= 4; i++) { const v = max * i / 4, y = H - P.b - v / max * (H - P.t - P.b); g += `<line x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}" class="grid"/><text x="${P.l - 4}" y="${y + 4}" class="ax" text-anchor="end">${opts.fmt ? opts.fmt(v) : round(v)}</text>`; }
+  for (let i = 0; i <= 4; i++) { const v = max * i / 4, y = H - P.b - v / max * (H - P.t - P.b); g += `<line x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}" class="grid"/><text x="${P.l - 4}" y="${y + 4}" class="ax" text-anchor="end">${String(opts.fmt ? opts.fmt(v) : round(v)).replace(/(\d)\.(\d)/g, '$1,$2')}</text>`; }
   days.forEach((d, i) => {
     let y = H - P.b; const x = P.l + i * bw + bw * 0.15, w = bw * 0.7;
     for (const s of d.segs) { if (!s.v) continue; const h = s.v / max * (H - P.t - P.b); y -= h; g += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${s.color}"><title>${esc(d.label)} · ${esc(s.name || '')}: ${opts.fmt ? opts.fmt(s.v) : s.v}</title></rect>`; }
