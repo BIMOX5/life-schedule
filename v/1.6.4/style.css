@@ -493,3 +493,49 @@ pre.mail { white-space:pre-wrap; background:var(--card); border:1px solid var(--
 .moodcard.ok { background:color-mix(in srgb, var(--accent) 10%, transparent); border:1px solid color-mix(in srgb, var(--accent) 30%, transparent); } .moodcard b { font-weight:500; }
 .quickwhy h4 { margin:14px 0 6px; } .chips.big .chipbtn { padding:9px 14px; font-size:14px; }
 button.chipbtn.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+.tline { display:flex; flex-direction:column; gap:6px; margin-top:10px; } .tl { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:12px; background:var(--card2); cursor:pointer; }
+.tl:hover { outline:1px solid var(--accent); } .tl b { font-size:13px; color:var(--muted); min-width:42px; } .tl .te { font-size:22px; } .tl small { display:block; color:var(--muted); }
+.wcell[data-a] { cursor:pointer; } .wcell[data-a]:hover { outline:2px solid var(--accent); } .tl.nohover { cursor:default; } .tl.nohover:hover { outline:0; } .tl .grow { flex:1; min-width:0; }
+.wellline { margin:-4px 0 14px; padding:10px 14px; border-radius:14px; cursor:pointer; font-size:14.5px; } .wellline.hard { background:color-mix(in srgb, #a78bfa 14%, transparent); } .wellline.ok { background:color-mix(in srgb, var(--accent) 10%, transparent); } .wellline.good { background:color-mix(in srgb, var(--good) 12%, transparent); }
+
+/* Telefone viršutinė juosta telpa į ekraną (be tarpo šone) */
+@media (max-width:700px) {
+  html, body { overflow-x:hidden; }
+  header { gap:8px; } header .tl { min-width:0; flex:1; } header .tl h1 { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } header .tl small { display:none; }
+  header .tr { gap:5px; flex-shrink:0; } header .tr .tlabel { display:none; } header .tr .btn.sm { padding:6px 11px; }
+  .testbadge { font-size:10px; padding:2px 6px; }
+}
+.verbadge.pub { background:var(--card2); color:var(--muted); border:1px solid var(--line); }
+
+/* ✨ Ką valgei? */
+.aires { display:flex; flex-direction:column; gap:6px; margin-top:8px; } .airow { display:flex; align-items:center; gap:8px; background:var(--card2); border-radius:12px; padding:8px 10px; }
+.airow b { display:block; } .airow small { color:var(--muted); } .airow label { display:flex; flex-direction:column; font-size:11px; color:var(--muted); } .airow input { width:64px; padding:5px 6px; }
+.airow .x { border:0; background:none; color:var(--muted); cursor:pointer; font-size:16px; } .aitot { padding:6px 4px; font-size:14px; }
+
+/* Mėnesio vaizdas: veiklos su laikais, nuotaika, pasirinkta diena */
+.mstats { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:8px; margin-bottom:12px; }
+.mstats div { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 10px; } .mstats b { display:block; font-size:18px; } .mstats small { color:var(--muted); font-size:12px; }
+.mc { min-height:96px; display:flex; flex-direction:column; overflow:hidden; } .mc.past { opacity:.85; } .mc.sel { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, var(--card)); }
+#mdp .li small { display:block; color:var(--muted); font-size:12px; }
+.mn { align-items:center; gap:4px; } .mn span { flex:1; } .mn em { font-style:normal; font-size:14px; line-height:1; }
+.mev { display:flex; flex-direction:column; gap:2px; margin-top:4px; min-width:0; }
+.me { font-size:11px; line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; border-left:3px solid var(--c); padding:1px 4px; border-radius:3px; background:color-mix(in srgb, var(--c) 16%, transparent); }
+.me b { font-weight:600; opacity:.8; } .mev .more { font-size:10.5px; color:var(--muted); }
+.mic { margin-top:auto; display:flex; gap:4px; font-size:11.5px; color:var(--muted); }
+.mfacts { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; } .mfacts span { background:var(--card2); border-radius:99px; padding:4px 10px; font-size:13px; }
+@media (max-width:700px) {
+  .month { gap:3px; } .mc { min-height:64px; padding:4px; border-radius:9px; border-top-width:3px; }
+  .mn { font-size:12.5px; } .mn i { display:none; } .mn em { font-size:12px; }
+  .me { font-size:0; height:4px; padding:0; border:0; background:var(--c); border-radius:2px; } .mev .more { font-size:9.5px; }
+  .mic { font-size:10px; gap:2px; } .mstats { grid-template-columns:repeat(3, 1fr); } .mstats b { font-size:15px; }
+}
+
+/* Emoji greitas pasirinkimas */
+.emopick { display:flex; flex-wrap:wrap; gap:4px; margin:-4px 0 10px; } .emopick button { border:1px solid var(--line); background:var(--card2); border-radius:9px; font-size:18px; width:34px; height:34px; cursor:pointer; padding:0; }
+.emopick button:hover, .emopick button.on { border-color:var(--accent); }
+#impbox { width:100%; font-size:14px; }
+
+.amt { max-width:130px; } .ingrow .amt { width:120px; }
+
+.nchips { display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 12px; } .nchips span { background:var(--card2); border-radius:99px; padding:5px 10px; font-size:13px; }

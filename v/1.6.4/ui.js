@@ -1,6 +1,6 @@
 // ===== Sąsaja =====
 const UI = { view: 'today', cal: {mode: 'week', date: today()}, food: 'log', foodDate: today(), time: {mode: 'week', date: today()},
-  sport: 'overview', taskFilter: 'open', noteId: null, recipeQ: '', foodQ: '', mealTab: 'freezer' };
+  sport: 'overview', taskFilter: 'open', noteId: null, recipeQ: '', foodQ: '', mealTab: 'ai' };
 const VIEWS = [
   ['today','🏠','Šiandien'], ['calendar','📅','Kalendorius'], ['tasks','✅','Užduotys'], ['food','🍽️','Mityba'],
   ['sport','💪','Sportas'], ['time','⏱️','Laikas'], ['progress','📈','Progresas'], ['wellbeing','💚','Savijauta'], ['notes','📝','Užrašai'], ['settings','⚙️','Profilis'],
@@ -74,9 +74,15 @@ function confetti() {
   const c = $('#confetti'); const cols = ['#22c55e','#4f8cff','#facc15','#ec4899','#a78bfa','#f97316'];
   for (let i = 0; i < 40; i++) { const p = document.createElement('i'); p.style.left = Math.random() * 100 + 'vw'; p.style.background = cols[i % cols.length]; p.style.animationDelay = Math.random() * 0.3 + 's'; p.style.transform = `rotate(${Math.random() * 360}deg)`; c.appendChild(p); setTimeout(() => p.remove(), 1800); }
 }
-function notify(title, body) {
+function notify(title, body, tag) {
   toast(`<b>${esc(title)}</b><br>${esc(body)}`, 'info');
-  try { if ('Notification' in window && Notification.permission === 'granted') new Notification(title, {body, icon: 'icon.svg'}); } catch (e) {}
+  if (document.visibilityState === 'visible') return; // matai programėlę – užtenka pranešimo ekrane
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const o = {body, icon: 'icon.svg', badge: 'icon.svg', tag: tag || undefined};
+    if (navigator.serviceWorker?.controller) navigator.serviceWorker.ready.then(r => r.showNotification(title, o)).catch(() => {});
+    else new Notification(title, o);
+  } catch (e) {}
 }
 
 // ---------- Pagrindinis renderis ----------
@@ -85,7 +91,7 @@ function render() {
   $('#nav').innerHTML = VIEWS.map(([id, ic, l]) => `<button class="nav ${UI.view === id ? 'on' : ''}" data-a="go" data-v="${id}"><span>${ic}</span><em>${l}</em></button>`).join('');
   const g = gamification();
   $('#top').innerHTML = `<div class="tl"><h1>${window.CLOUD?.test ? '<span class="testbadge" title="Bandomoji versija – tikri duomenys neliečiami">🧪 TESTAS</span> ' : ''}${VIEWS.find(v => v[0] === UI.view)[2]}</h1><small>${fmtDateDow(today())}</small></div>
-    <div class="tr">${S.active ? `<button class="timer" data-a="workoutMode" style="--c:#22c55e">🏋️ <span class="wClock">${clock(S.active.ts)}</span></button>` : ''}${timerWidget()}<button class="lvl" data-a="levelInfo" title="${g.xp} XP">⭐ ${g.level}${g.streak > 1 ? ` · 🔥${g.streak}` : ''}</button><span id="sync" class="sync"></span><button class="fbbtn" data-a="feedback" title="Atsiliepimas">💬</button>${isDeveloper() ? `<button class="bug ${DEV ? 'on' : ''}" data-a="toggleDev" title="${DEV ? 'Išjungti kūrėjo režimą' : 'Kūrėjo režimas'}">🐞${inboxCount() ? `<i class="bugn">${inboxCount()}</i>` : ''}</button>` : ''}${isDeveloper() && window.APP_VERSION && window.APP_VERSION !== window.PUBLIC_VERSION ? `<span class="verbadge" title="Bandoma versija">v${esc(window.APP_VERSION)}</span>` : ''}</div>`;
+    <div class="tr">${S.active ? `<button class="timer" data-a="workoutMode" style="--c:#22c55e">🏋️ <span class="wClock">${clock(S.active.ts)}</span></button>` : ''}${timerWidget()}<button class="lvl" data-a="levelInfo" title="${g.xp} XP">⭐ ${g.level}${g.streak > 1 ? ` · 🔥${g.streak}` : ''}</button><span id="sync" class="sync"></span><button class="fbbtn" data-a="feedback" title="Atsiliepimas">💬</button>${isDeveloper() ? `<button class="bug ${DEV ? 'on' : ''}" data-a="toggleDev" title="${DEV ? 'Išjungti kūrėjo režimą' : 'Kūrėjo režimas'}">🐞${inboxCount() ? `<i class="bugn">${inboxCount()}</i>` : ''}</button>` : ''}${isDeveloper() && window.APP_VERSION ? `<span class="verbadge ${window.APP_VERSION === window.PUBLIC_VERSION ? 'pub' : ''}" title="${window.APP_VERSION === window.PUBLIC_VERSION ? 'Vieša versija' : 'Bandoma versija (vieša: ' + esc(window.PUBLIC_VERSION || '?') + ')'}">v${esc(window.APP_VERSION)}</span>` : ''}</div>`;
   document.body.classList.toggle('devmode', DEV);
   const fn = {today: vToday, calendar: vCalendar, tasks: vTasks, food: vFood, sport: vSport, time: vTime, progress: vProgress, wellbeing: vWellbeing, notes: vNotes, settings: vSettings}[UI.view];
   $('#main').innerHTML = updateBanner() + deletionBanner() + fn();
@@ -138,7 +144,7 @@ A.levelInfo = () => {
 
 // ---------- Laikmatis ----------
 function timerWidget() {
-  if (!S.timer) return `<button class="btn sm" data-a="timerStart">▶ Laikmatis</button>`;
+  if (!S.timer) return `<button class="btn sm" data-a="timerStart" title="Laikmatis">▶<span class="tlabel"> Laikmatis</span></button>`;
   const c = cat(S.timer.cat);
   return `<button class="timer" data-a="timerStop" style="--c:${c.color}">${c.emoji} <span id="tElapsed">${timerElapsed()}</span> ■</button>`;
 }
@@ -167,8 +173,10 @@ function mealPlanTimes(d) {
   const p = S.profile, w = toMin(p.wake); let b = toMin(p.bed); if (b <= w) b += 1440;
   const first = w + 45, last = Math.min(b - 150, 1380), n = clamp(+S.foodPrefs.mealsPerDay || 3, 2, 6);
   const def = Array.from({length: n}, (_, i) => first + (last - first) * i / Math.max(1, n - 1));
-  const h = mealHabits(def), r15 = x => Math.round(x / 15) * 15;
-  return {times: def.map((x, i) => r15(h ? x * 0.3 + h[i] * 0.7 : x)), learned: !!h};
+  const h = mealHabits(def, d), r15 = x => Math.round(x / 15) * 15;
+  let times = def.map((x, i) => r15(h ? x * 0.3 + h.c[i] * 0.7 : x)), skipped = [];
+  if (h) { const keep = times.filter((t, i) => h.use[i] >= 0.35); if (keep.length >= 1) { skipped = times.filter((t, i) => h.use[i] < 0.35); times = keep; } }
+  return {times, learned: !!h, skipped};
 }
 // Protingi valgymo laikai: darbe/paskaitose – „pasiimk su savimi“, su draugais/miegant – perkeliam prieš ar po
 function mealTimes(d, sportSlot) {
@@ -197,7 +205,9 @@ function mealTimes(d, sportSlot) {
     if (out.length && t - out[out.length - 1].t < 90) continue;
     out.push({t: Math.round(t / 5) * 5, note, kind, pack: kind === 'pack', txt: fromMin(Math.round(t / 5) * 5)});
   }
-  return {list: out.filter(x => !isToday || x.t > now - 30), learned};
+  const bedM = toMin(S.profile.bed) <= toMin(S.profile.wake) ? toMin(S.profile.bed) + 1440 : toMin(S.profile.bed);
+  const eaten = isToday ? S.meals.filter(m => m.date === d && m.time && !m.snack).map(m => toMin(m.time)) : [];
+  return {list: out.filter(x => x.t <= bedM - 120 && (!isToday || (x.t > now - 30 && now < bedM - 120)) && !eaten.some(e => Math.abs(e - x.t) <= 75)), learned};
 }
 A.addMealAt = d => { UI.mealDate = d.d || today(); UI.mealTime = d.id; mealModal(); };
 function busyAt(d, m) { return busyBlocks(d).find(([s, e]) => m >= s && m < e); }
@@ -308,7 +318,7 @@ function mealSuggestions(d, times, sportSlot) {
     for (const x of pool) {
       if (x.n <= 0) continue;
       const st = recipeStats(x.r), tags = x.r.tags, heavy = st.kcal > 600 || st.f > 25;
-      let s = -x.left * 3, w = x.left <= 1 ? 'greitai genda' : '';
+      let s = -x.left * 3 - (x.place === 'freezer' ? 2 : 0), w = x.left <= 1 ? 'greitai genda' : x.place === 'freezer' ? 'atšildyk iš anksto' : '';
       if (i === 0) { if (tags.includes('pusryčiai')) { s += 6; w = w || 'pusryčiams'; } else if (heavy) s -= 3; }
       else if (tags.includes('pusryčiai')) s -= 4;
       if (heavy && i === times.length - 1) s -= 3;
@@ -439,6 +449,7 @@ function vToday() {
     <div class="rc" data-a="addSleep">${ring(sl ? sleepMinutes(sl) : 0, (+p.sleepGoal || 8) * 60, '#06b6d4', sl ? round(sleepMinutes(sl) / 60, 1) + 'h' : '–', `/ ${p.sleepGoal} h`)}<span>Miegas</span></div>
     <div class="rc" data-a="scoreInfo" data-d="${d}">${ring(sc ? sc.score : 0, 100, scoreColor(sc?.score), sc ? sc.score : '–', 'balų')}<span>${sc?.live ? 'Balas kol kas' : 'Dienos balas'}</span></div>
   </div>
+  ${wellHomeLine(d)}
   <div class="quick">
     ${btn('⏱️ Ką veikiau', 'addLog')}${btn('💚 Savijauta', 'addWell')}${btn('✅ Užduotis', 'addTask')}${btn('📅 Veikla', 'addEvent')}${btn('😴 Miegas', 'addSleep')}${foodOn() || S.meals.length ? btn('🍽️ Maistas', 'addMeal') : ''}${sportOn() || S.workouts.length ? btn('💪 Treniruotė', 'addWorkout') : ''}${sportOn() || foodOn() ? btn('⚖️ Svoris', 'addWeight') : ''}
   </div>
@@ -479,17 +490,25 @@ function vCalendar() {
       return `<div class="wcol ${x === today() ? 'today' : ''}"><div class="wh" data-a="calDay" data-d="${x}"><span><b>${DOW[dow(x) - 1]}</b> ${parseD(x).getDate()} ${MONTHS_G[parseD(x).getMonth()].slice(0, 4)}.</span>${sc ? `<i style="background:${scoreColor(sc.score)}">${sc.score}</i>` : ''}</div>${timeline(x, {scale: WS, compact: true, sportSlot: x === today() ? recommendations(x).sportSlot : null})}</div>`;
     }).join('')}</div></div>`;
   } else {
-    const ms = monthStart(d), n = daysInMonth(d), pre = dow(ms) - 1;
-    let cells = '';
-    for (let i = 0; i < pre; i++) cells += '<div class="mc out"></div>';
-    for (const x of range(ms, n)) {
-      const sc = dayScore(x), evs = eventsOn(x), tasks = S.tasks.filter(t => t.due === x && !t.done), w = workoutsOn(x).length;
-      cells += `<div class="mc ${x === today() ? 'today' : ''}" data-a="calDay" data-d="${x}" style="${sc ? `--sc:${scoreColor(sc.score)}` : ''}"><div class="mn">${parseD(x).getDate()}${sc ? `<i>${sc.score}</i>` : ''}</div>
-        <div class="md">${evs.slice(0, 3).map(e => `<span style="background:${cat(e.cat).color}" title="${esc(e.title)}"></span>`).join('')}</div>
-        ${tasks.length ? `<div class="mt">📌 ${tasks.length}</div>` : ''}${w ? '<div class="mt">💪</div>' : ''}</div>`;
+    const ms = monthStart(d), n = daysInMonth(d), pre = dow(ms) - 1, days = range(ms, n), td = today(), mob = innerWidth < 700;
+    const sel = c.sel && c.sel.slice(0, 7) === ms.slice(0, 7) ? c.sel : td.slice(0, 7) === ms.slice(0, 7) ? td : null;
+    let cells = '<div class="mc out"></div>'.repeat(pre);
+    for (const x of days) {
+      const sc = dayScore(x), evs = eventsOn(x), tasks = S.tasks.filter(t => t.due === x && !t.done), wd = workoutsOn(x).length, pl = plansOn(x).length, mood = x <= td ? dayMood(x) : 0;
+      const show = evs.slice(0, mob ? 4 : 3);
+      cells += `<div class="mc ${x === td ? 'today' : ''} ${x === sel ? 'sel' : ''} ${x < td ? 'past' : ''}" data-a="calPick" data-d="${x}" style="${sc ? `--sc:${scoreColor(sc.score)}` : ''}">
+        <div class="mn"><span>${parseD(x).getDate()}</span>${mood ? `<em>${MOODS[mood - 1][0]}</em>` : ''}${sc ? `<i>${sc.score}</i>` : ''}</div>
+        <div class="mev">${show.map(e => `<div class="me" style="--c:${cat(e.cat).color}" title="${esc(e.start + ' ' + e.title)}"><b>${e.start}</b> ${esc(e.title)}</div>`).join('')}${evs.length > show.length ? `<div class="more">+${evs.length - show.length}</div>` : ''}</div>
+        <div class="mic">${tasks.length ? `<span title="Užduotys">📌${tasks.length > 1 ? tasks.length : ''}</span>` : ''}${wd ? '<span title="Sportavai">💪</span>' : pl ? '<span title="Suplanuota treniruotė">🏋️</span>' : ''}</div></div>`;
     }
-    body = `<h2 class="dh">${MONTHS[parseD(d).getMonth()]} ${parseD(d).getFullYear()}</h2><div class="month">${DOW.map(x => `<div class="mhd">${x}</div>`).join('')}${cells}</div>
-      `;
+    // mėnesio suvestinė (tik praėjusios dienos ir šiandiena)
+    const past = days.filter(x => x <= td), scs = past.map(dayScore).filter(Boolean), moods = past.map(dayMood).filter(Boolean);
+    const wo = past.reduce((a, x) => a + workoutsOn(x).length, 0), prod = past.reduce((a, x) => a + dayTime(x).prod, 0), evN = days.reduce((a, x) => a + eventsOn(x).length, 0);
+    const taskN = S.tasks.filter(t => t.due && t.due.slice(0, 7) === ms.slice(0, 7)), taskDone = taskN.filter(t => t.done).length;
+    const stat = (v, l) => `<div><b>${v}</b><small>${l}</small></div>`;
+    const summary = `<div class="mstats">${stat(evN, 'veiklų')}${stat(taskN.length ? `${taskDone}/${taskN.length}` : '–', 'užduočių atlikta')}${stat(wo, 'treniruočių')}${stat(fmtH(prod), 'produktyvaus laiko')}${scs.length ? stat(Math.round(sum(scs.map(x => x.score)) / scs.length), 'vid. dienos balas') : ''}${moods.length ? stat(MOODS[Math.round(sum(moods) / moods.length) - 1][0], 'vid. savijauta') : ''}</div>`;
+    body = `<h2 class="dh">${MONTHS[parseD(d).getMonth()][0].toUpperCase() + MONTHS[parseD(d).getMonth()].slice(1)} ${parseD(d).getFullYear()}</h2>${summary}
+      <div class="month">${DOW.map(x => `<div class="mhd">${x}</div>`).join('')}${cells}</div>${sel ? monthDayPanel(sel) : '<p class="hint center">Paspausk dieną – pamatysi, kas tą dieną vyksta.</p>'}`;
   }
   return `<div class="toolbar">${nav}${btn('🔁 Pasikartojantys', 'manageEvents', {}, 'sm')}</div>${body}`;
 }
@@ -498,6 +517,24 @@ function daySummaryCard(d) {
   return card('Dienos suvestinė', `<div class="kv"><span>Produktyvu</span><b>${fmtH(t.prod)}</b><span>Ekranas</span><b>${fmtDur(t.screen)}</b><span>Suvalgyta</span><b>${nu.kcal} kcal · ${Math.round(nu.p)} g B</b><span>Miegas</span><b>${sl ? round(sleepMinutes(sl) / 60, 1) + ' val' : '–'}</b><span>Treniruotės</span><b>${w.length ? w.map(x => x.duration + ' min').join(', ') : '–'}</b></div>`);
 }
 A.calMode = d => { UI.view = 'calendar'; UI.cal.mode = d.m; render(); };
+// Mėnesio vaizde: pirmas paspaudimas – dienos santrauka apačioje, antras – atidaro dieną
+A.calPick = d => { if (UI.cal.sel === d.d) return A.calDay(d); UI.cal.sel = d.d; render(); setTimeout(() => $('#mdp')?.scrollIntoView({behavior: 'smooth', block: 'nearest'}), 60); };
+function monthDayPanel(x) {
+  const td = today(), evs = eventsOn(x), tasks = S.tasks.filter(t => t.due === x && !t.done), done = S.tasks.filter(t => t.done && t.doneAt === x);
+  const w = workoutsOn(x), pl = plansOn(x), nu = dayNutrition(x), sl = sleepOn(x), mood = dayMood(x), sc = dayScore(x), tm = dayTime(x);
+  const li = (ic, main, sub = '') => `<div class="li"><span class="em2">${ic}</span><span class="grow">${main}${sub ? `<small>${sub}</small>` : ''}</span></div>`;
+  const rows = [
+    ...evs.map(e => li(cat(e.cat).emoji, `<b>${e.start}${e.end ? '–' + e.end : ''}</b> ${esc(e.title)}`, +e.travel ? `kelionė ${e.travel} min` : '')),
+    ...tasks.map(t => li('📌', esc(t.title), `${x < td ? 'nepadaryta' : 'terminas'}${t.dueTime ? ' ' + t.dueTime : ''}${+t.progress ? ` · ${t.progress}%` : ''}`)),
+    ...done.map(t => li('✅', esc(t.title), 'atlikta')),
+    ...w.map(o => li('💪', `${o.start || ''} ${wtypeName(o.type) || 'Treniruotė'}`, `${o.duration} min`)),
+    ...pl.map(o => li('🏋️', `${o.start} ${wtypeName(o.type)}`, `suplanuota · ~${o.duration} min`)),
+  ];
+  const facts = x <= td ? [nu.kcal ? `🍽️ ${nu.kcal} kcal · ${Math.round(nu.p)} g B` : '', sl ? `😴 ${round(sleepMinutes(sl) / 60, 1)} val.` : '', tm.prod ? `⏱️ ${fmtH(tm.prod)} produktyviai` : '', mood ? `${MOODS[mood - 1][0]} ${MOODS[mood - 1][1].toLowerCase()}` : '', sc ? `⭐ balas ${sc.score}` : ''].filter(Boolean) : [];
+  return `<div id="mdp">${card(fmtDateDow(x), `${facts.length ? `<div class="mfacts">${facts.map(f => `<span>${f}</span>`).join('')}</div>` : ''}
+    ${rows.length ? rows.join('') : empty(x < td ? 'Šią dieną įrašų nebuvo.' : 'Laisva diena 🙂')}
+    <div class="choice row">${btn('Atidaryti dieną', 'calDay', {d: x}, 'sm primary')}${x >= td ? btn('+ Veikla', 'addEvent', {date: x}, 'sm') : ''}</div>`)}</div>`;
+}
 A.calNav = d => { const c = UI.cal; c.date = c.mode === 'day' ? addDays(c.date, +d.n) : c.mode === 'week' ? addDays(c.date, 7 * d.n) : (() => { const x = parseD(c.date); x.setDate(1); x.setMonth(x.getMonth() + +d.n); return ymd(x); })(); render(); };
 A.calToday = () => { UI.cal.date = today(); render(); };
 A.calDay = d => { UI.view = 'calendar'; UI.cal = {mode: 'day', date: d.d}; render(); };
@@ -681,7 +718,7 @@ function mealsList(d) {
   return ms.map(m => `<div class="li"><span class="mt2">${m.time || ''}</span> <b>${esc(m.name)}</b> <small>${m.portions ? m.portions + ' porc.' : m.g ? m.g + ' g' : ''}</small><span class="sp"></span><small>${Math.round(m.kcal)} kcal · ${Math.round(m.p)} g B</small><button class="x" data-a="delMeal" data-id="${m.id}">✕</button></div>`).join('');
 }
 function vFood() {
-  const tabs = [['log', '📖 Dienynas'], ['recipes', '📗 Receptai'], ['freezer', '🧊 Atsargos'], ['shop', '🛒 Pirkiniai'], ['foods', '🥕 Produktai']];
+  const tabs = [['log', '📖 Dienynas'], ['recipes', '📗 Receptai'], ['freezer', '🧊 Atsargos'], ['shop', '🛒 Pirkiniai']].concat(UI.food === 'foods' ? [['foods', '🥕 Produktai']] : []);
   const head = `<div class="toolbar"><div class="tabs" style="margin:0">${tabs.map(([v, l]) => `<button class="${UI.food === v ? 'on' : ''}" data-a="foodTab" data-v="${v}">${l}</button>`).join('')}</div><span class="sp"></span>${foodOn() ? btn('⚙️ Mano mityba', 'foodSetup', {}, 'sm') : btn('💡 Įjungti rekomendacijas', 'enableMode', {k: 'food'}, 'sm ghost')}</div>`;
   if (!foodOn() && S.settings.intro.food !== 'log' && !S.meals.length) return introCard('food');
   if (foodOn() && !S.foodPrefs.done && !UI.fpShown) { UI.fpShown = true; setTimeout(() => A.foodSetup({}), 50); }
@@ -752,10 +789,15 @@ A.foodNav = d => { UI.foodDate = addDays(UI.foodDate, +d.n); render(); };
 A.foodDay = d => { UI.view = 'food'; UI.food = 'log'; UI.foodDate = d.d; render(); };
 A.addMeal = d => { UI.mealDate = d.d || today(); UI.mealTime = null; mealModal(); };
 function mealModal() {
-  const t = UI.mealTab, tabs = [['freezer', '🧊 Iš atsargų'], ['recipe', '📗 Receptas'], ['snack', '🍎 Užkandis'], ['food', '🥕 Produktas'], ['quick', '⚡ Greitas']];
+  const t = UI.mealTab, tabs = [['ai', '✨ Parašyk'], ['freezer', '🧊 Iš atsargų'], ['recipe', '📗 Receptas'], ['snack', '🍎 Užkandis'], ['quick', '⚡ Greitas']];
   let body = `<div class="tabs sm">${tabs.map(([v, l]) => `<button type="button" class="${t === v ? 'on' : ''}" data-a="mealTab" data-v="${v}">${l}</button>`).join('')}</div>
     <div class="row">${fld('Data', inp('date', UI.mealDate, 'date'))}${fld('Laikas', inp('time', UI.mealTime || nowHM(), 'time'))}</div>`;
-  if (t === 'freezer') {
+  if (t === 'ai') {
+    const rec = recentMeals();
+    body += `${fld('Ką valgei?', `<textarea name="aitext" rows="2" placeholder="pvz. 2 kiaušiniai, sumuštinis su sūriu, kava su pienu">${esc(UI.aiText || '')}</textarea>`)}
+      <p class="hint">Spausk „Išsaugoti“ – kalorijas ir baltymus apskaičiuosim patys. Vėliau galėsi pataisyti dienyne.</p>
+      ${rec.length ? `<h4>Dažnai valgai <small>– vienu paspaudimu</small></h4><div class="chips">${rec.map(m => `<button type="button" class="chipbtn" data-a="mealRepeat" data-n="${esc(m.name)}">${esc(m.name)} <small>${Math.round(m.kcal)} kcal</small></button>`).join('')}</div>` : ''}`;
+  } else if (t === 'freezer') {
     const fr = storageItems();
     body += fr.length ? fld('Ką valgai?', `<div class="radios">${fr.map((f, i) => { const r = f.r, st = r ? recipeStats(r) : {}; return `<label><input type="radio" name="fid" value="${f.id}" ${i ? '' : 'checked'}><span>${f.place === 'fridge' ? '🧊' : '❄️'} ${r?.emoji || ''} ${esc(r?.name || '?')} <small>liko ${f.portions} porc. · ${leftText(f)} · ${st.kcal} kcal · ${st.p} g B</small></span></label>`; }).join('')}</div>`) + fld('Porcijos', inp('portions', 1, 'number', 'min="0.25" step="0.25"'))
       : empty('Atsargų nėra. Pagamink receptą ir paspausk „Pagaminau“.');
@@ -771,6 +813,10 @@ function mealModal() {
   }
   modal('Įrašyti maistą', body, o => {
     const m = {id: uid(), date: o.date, time: o.time};
+    if (t === 'ai') {
+      if (!o.aitext?.trim()) { toast('Parašyk, ką valgei'); return false; }
+      saveFoodText(o.aitext.trim(), o.date, o.time); return false;
+    }
     if (t === 'freezer') { const f = S.freezer.find(x => x.id === o.fid); if (!f) return false; const r = recipe(f.recipeId), st = recipeStats(r), n = +o.portions || 1;
       Object.assign(m, {name: r.name, recipeId: r.id, portions: n}, nutrOf(st, n)); takePortion(f.id, n); }
     else if (t === 'recipe') { const r = recipe(o.rid), st = recipeStats(r), n = +o.portions || 1; Object.assign(m, {name: r.name, recipeId: r.id, portions: n}, nutrOf(st, n)); }
@@ -807,13 +853,13 @@ A.viewRecipe = d => {
     <div class="macros big"><span>🔥 ${st.kcal} kcal</span><span>🥩 ${st.p} g baltymų</span><span>⏱ ${r.time} min</span><span title="${st.priceReal}% kainos – iš tavo čekių">💶 ${st.priceReal < 100 ? '~' : ''}${st.cost.toFixed(2)} €/porc.</span></div>
     <p class="center hint">${r.portions} porcijos · viso ${st.priceReal < 100 ? '~' : ''}${st.total.toFixed(2)} € (${st.priceReal ? `${st.priceReal}% kainų iš tavo čekių` : 'kainos apytikslės'})${lastCook ? ` (paskutinį kartą kainavo ${lastCook.cost.toFixed(2)} €)` : ''} · ${['', 'lengva', 'vidutinė', 'sudėtinga'][r.skill || 1]}${r.equip?.length ? ' · ' + r.equip.join(', ') : ''}${r.freezable ? ' · 🧊 tinka šaldyti' : ''}${fp ? ` · šaldiklyje ${fp} porc.` : ''}</p>
     <div class="rate">${btn(rt === 1 ? '❤️ Patinka' : '🤍 Patinka', 'rate', {id: r.id, v: 1}, 'sm ' + (rt === 1 ? 'on' : ''))}${btn('👎 Nepatinka', 'rate', {id: r.id, v: -1}, 'sm ' + (rt === -1 ? 'on' : ''))}${r.source ? `<a class="btn sm" href="${esc(r.source)}" target="_blank" rel="noopener">🔗 Originalas</a>` : ''}</div>
-    <div class="grid2"><div><h4>Ko reikia</h4><ul class="ing">${r.ing.map(([fid, g]) => { const f = food(fid); return `<li><span>${esc(f?.name || fid)}</span><b>${g >= 1000 ? round(g / 1000, 2) + ' kg' : g + ' g'}</b></li>`; }).join('')}</ul>
+    <div class="grid2"><div><h4>Ko reikia</h4><ul class="ing">${r.ing.map(([fid, g]) => { const f = food(fid); return `<li><span>${esc(f?.name || fid)}</span><b>${fmtIng(fid, g)}</b></li>`; }).join('')}</ul>
       <h4>Maistinė vertė porcijai ${st.fromSite ? '<small>(iš svetainės)</small>' : ''}</h4><table class="tbl nutri">${NUTR_LABELS.map(([k, l, u]) => `<tr><td>${l}</td><td><b>${st[k] ?? '–'}</b> ${u}</td></tr>`).join('')}</table></div>
     <div><h4>Kaip gaminti ${r.stepsOrig ? btn(UI.showOrig?.[r.id] ? '🌐 Rodyti vertimą' : `🌐 Originalas (${LANG_NAMES[r.lang] || r.lang || 'kita kalba'})`, 'toggleOrig', {id: r.id}, 'sm ghost') : !isLithuanian(r.steps.join(' ')) ? btn('🌐 Išversti į lietuvių', 'translateRecipe', {id: r.id}, 'sm') : ''}</h4>
       ${UI.showOrig?.[r.id] && r.nameOrig ? `<p class="hint">Originalus pavadinimas: ${esc(r.nameOrig)}</p>` : ''}
       <ol class="steps">${(UI.showOrig?.[r.id] && r.stepsOrig ? r.stepsOrig : r.steps).map(s => `<li>${esc(s)}</li>`).join('')}</ol>
       ${sim.length ? `<h4>Panašūs (įvairovei)</h4>${sim.map(x => `<div class="li click" data-a="viewRecipe" data-id="${x.id}">${x.emoji} ${esc(x.name)}</div>`).join('')}` : ''}</div></div>
-    <div class="choice row">${btn('✅ Pagaminau → į šaldiklį', 'cook', {id: r.id}, 'primary')}${btn('🛒 Į pirkinių sąrašą', 'planAdd', {id: r.id})}${btn('🍽️ Valgau dabar', 'eatRecipe', {id: r.id})}${btn('✏️ Redaguoti', 'editRecipe', {id: r.id})}</div>`, null, {wide: true});
+    <div class="choice row">${btn('✅ Pagaminau', 'cook', {id: r.id}, 'primary')}${btn('🛒 Į pirkinių sąrašą', 'planAdd', {id: r.id})}${btn('🍽️ Valgau dabar', 'eatRecipe', {id: r.id})}${btn('✏️ Redaguoti', 'editRecipe', {id: r.id})}</div>`, null, {wide: true});
 };
 A.rate = d => { S.ratings = S.ratings || {}; const v = +d.v; S.ratings[d.id] = S.ratings[d.id] === v ? 0 : v; commit({noRender: true}); A.viewRecipe({id: d.id}); toast(S.ratings[d.id] === 1 ? '❤️ Siūlysiu dažniau ir panašių' : S.ratings[d.id] === -1 ? '👎 Nebesiūlysiu' : 'Įvertinimas pašalintas'); };
 A.cook = d => {
@@ -832,20 +878,23 @@ A.cook = d => {
 A.eatRecipe = d => { UI.mealTab = freezerPortions(d.id) ? 'freezer' : 'recipe'; UI.mealDate = today(); mealModal(); if (UI.mealTab === 'recipe') { const s = $('#mform [name=rid]'); if (s) s.value = d.id; } };
 A.editRecipe = d => {
   const r = d.id ? recipe(d.id) : {name: '', emoji: '🍲', portions: 4, time: 30, freezable: true, tags: [], ing: [['', 100]], steps: [], skill: 1, equip: []};
-  const row = ([fid, g]) => `<div class="ingrow">${inp('ingf[]', food(fid)?.name || '', 'text', 'list="foodlist" placeholder="Produktas"')}${inp('ingg[]', g, 'number', 'min="0" placeholder="g"')}<button type="button" class="x" onclick="this.parentNode.remove()">✕</button></div>`;
+  const row = ([fid, g]) => `<div class="ingrow">${inp('ingf[]', food(fid)?.name || '', 'text', 'list="foodlist" placeholder="Produktas"')}${inp('ingg[]', g ? amtText(fid, g) : '', 'text', 'placeholder="kiekis" class="amt"')}<button type="button" class="x" onclick="this.parentNode.remove()">✕</button></div>`;
   modal(d.id ? 'Redaguoti receptą' : 'Naujas receptas', `<datalist id="foodlist">${allFoods().map(f => `<option value="${esc(f.name)}">`).join('')}</datalist>
-    <div class="row">${fld('Emoji', inp('emoji', r.emoji, 'text', 'maxlength="4"'), 'emojif')}${fld('Pavadinimas', inp('name', r.name, 'text', 'required'))}</div>
+    <div class="row">${fld('Emoji', inp('emoji', r.emoji, 'text', 'maxlength="16" inputmode="text" placeholder="auto"'), 'emojif')}${fld('Pavadinimas', inp('name', r.name, 'text', 'required'))}</div>${emojiPicks()}
     <div class="row">${fld('Porcijos', inp('portions', r.portions, 'number', 'min="1"'))}${fld('Laikas (min)', inp('time', r.time, 'number', 'min="1"'))}${fld('Sudėtingumas', sel('skill', [[1, 'Lengva'], [2, 'Vidutinė'], [3, 'Sudėtinga']], r.skill || 1))}</div>
     ${fld('Žymos (per kablelį)', inp('tags', r.tags.join(', '), 'text', 'placeholder="pvz. wrap, vištiena, greita"'))}
     ${fld('Reikalinga technika', `<div class="chips">${EQUIP_OPTS.map(([v, l]) => `<label class="chipbtn"><input type="checkbox" name="equip[]" value="${v}" ${(r.equip || []).includes(v) ? 'checked' : ''}>${l}</label>`).join('')}</div>`)}
     <label class="cb"><input type="checkbox" name="freezable" ${r.freezable ? 'checked' : ''}> 🧊 Tinka šaldyti</label>
-    <h4>Ingredientai (visam kiekiui, gramais)</h4><div id="ings">${r.ing.map(row).join('')}</div>
+    <h4>Ingredientai <small>(visam kiekiui: „3 vnt“, „200 g“, „2 šaukšt.“, „1 l“)</small></h4><div id="ings">${r.ing.map(row).join('')}</div>
     <button type="button" class="btn sm" onclick="document.getElementById('ings').insertAdjacentHTML('beforeend', ${esc(JSON.stringify(row(['', 100])))})">+ ingredientas</button>
     ${fld('Gaminimo žingsniai (kiekvienas naujoje eilutėje)', `<textarea name="steps" rows="5">${esc(r.steps.join('\n'))}</textarea>`)}`, o => {
     const ing = [], bad = [];
-    (o.ingf || []).forEach((n, i) => { if (!n.trim()) return; const f = allFoods().find(x => x.name.toLowerCase() === n.trim().toLowerCase()) || matchFood(n); if (!f) bad.push(n); else ing.push([f.id, +o.ingg[i] || 0]); });
-    if (bad.length) { warn('Nerasti produktai: ' + bad.join(', ') + '\nPasirink iš sąrašo arba pirma pridėk skiltyje „Produktai“.'); return false; }
-    const x = {name: o.name, emoji: o.emoji || '🍲', portions: +o.portions || 1, time: +o.time || 30, freezable: !!o.freezable, skill: +o.skill || 1, equip: o.equip || [], tags: o.tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean), ing, steps: o.steps.split('\n').map(s => s.trim()).filter(Boolean)};
+    (o.ingf || []).forEach((n, i) => { if (!n.trim()) return; const f = allFoods().find(x => x.name.toLowerCase() === n.trim().toLowerCase()) || matchFood(n); if (!f) bad.push(n); else ing.push([f.id, amtToG(o.ingg[i], f)]); });
+    if (bad.length && !UI.aiTried) { UI.aiTried = true; toast('✨ Ieškau nežinomų produktų…');
+      Promise.all(bad.map(n => aiFood(n))).then(() => { $('#mform')?.requestSubmit(); setTimeout(() => { UI.aiTried = false; }, 500); }); return false; }
+    UI.aiTried = false;
+    if (bad.length) { warn('Nerasti produktai: ' + bad.join(', ') + '\nPasirink iš sąrašo arba pridėk per „🛒 Pirkiniai → 🥕 Produktai ir kainos“.'); return false; }
+    const x = {name: o.name, emoji: oneEmoji(o.emoji) || suggestEmoji(o.name), portions: +o.portions || 1, time: +o.time || 30, freezable: !!o.freezable, skill: +o.skill || 1, equip: o.equip || [], tags: o.tags.split(',').map(t => t.trim().toLowerCase()).filter(Boolean), ing, steps: o.steps.split('\n').map(s => s.trim()).filter(Boolean)};
     if (d.id) { Object.assign(r, x); delete r.nutri; } else S.recipes.push({id: 'r_' + uid(), ...x});
     commit();
   }, {wide: true, extra: d.id ? btn('🗑', 'delRecipe', {id: d.id}, 'danger sm') : ''});
@@ -854,19 +903,32 @@ A.delRecipe = async d => { if (!await ask('Ištrinti receptą?', '', {danger: tr
 
 // ---------- Recepto importas ----------
 A.importRecipe = () => {
-  modal('🔗 Pridėti receptą', `<p>Įklijuok recepto nuorodą – ištrauksiu ingredientus, žingsnius ir maistinę vertę.</p>
-    <div class="row"><input id="impurl" class="search" placeholder="https://…" style="flex:1">${btn('Importuoti', 'importGo', {}, 'primary')}</div>
+  modal('🔗 Pridėti receptą', `<p>Įklijuok <b>nuorodą</b> arba <b>visą recepto tekstą</b> (ingredientus ir gaminimą) – sutvarkysiu pats: kiekius į g / ml, ingredientus, žingsnius lietuviškai.</p>
+    <textarea id="impbox" rows="7" placeholder="https://…  arba nukopijuotas recepto tekstas"></textarea>
     <p id="impmsg" class="hint"></p>
-    <details class="impalt"><summary>Nėra nuorodos arba neveikia? Įklijuok recepto tekstą</summary>
-      <textarea id="imptext" rows="8" placeholder="Pvz.:&#10;Vištienos makaronai&#10;Ingredientai:&#10;500 g vištienos krūtinėlės&#10;300 g makaronų&#10;1 svogūnas&#10;Gaminimas:&#10;Išvirk makaronus…"></textarea>
-      <div class="choice row">${btn('Atpažinti tekstą', 'importText', {}, 'sm')}${btn('📋 Įklijuoti iš iškarpinės', 'pasteRecipe', {}, 'sm')}</div></details>
-    <p class="center">${btn('✍️ Rašyti ranka', 'editRecipe', {}, 'sm ghost')}</p>`, null, {noFocus: true});
-  setTimeout(() => $('#impurl')?.focus(), 50);
+    <div class="choice row">${btn('✨ Pridėti', 'importAny', {}, 'primary')}${btn('📋 Įklijuoti', 'pasteRecipe', {}, 'sm')}<span class="sp"></span>${btn('✍️ Rašyti ranka', 'editRecipe', {}, 'sm ghost')}</div>`, null, {noFocus: true});
+  setTimeout(() => $('#impbox')?.focus(), 50);
 };
-A.importGo = async () => {
-  const url = $('#impurl').value.trim(), msg = $('#impmsg');
-  if (!/^https?:\/\//.test(url)) { msg.textContent = '⚠️ Įklijuok pilną nuorodą (prasideda https://)'; return; }
-  msg.textContent = '⏳ Skaitau receptą…';
+A.importAny = async () => {
+  const v = $('#impbox')?.value.trim() || '', msg = $('#impmsg'); if (!v) { msg.textContent = 'Įklijuok nuorodą arba recepto tekstą'; return; }
+  if (/^https?:\/\/\S+$/.test(v)) return importUrl(v);
+  return importSmart(v);
+};
+A.pasteRecipe = async () => {
+  try { const t = await navigator.clipboard.readText(); if (!t.trim()) throw 0; $('#impbox').value = t; A.importAny(); }
+  catch (e) { $('#impbox')?.focus(); toast('Įklijuok į laukelį (Ctrl+V arba ilgai paspaudus → Įklijuoti)'); }
+};
+// Tekstas -> Claude sutvarko; jei nepavyksta – tyliai atpažįstam patys
+async function importSmart(text) {
+  const msg = $('#impmsg'), bt = $('[data-a=importAny]'); if (bt) bt.disabled = true; if (msg) msg.textContent = '✨ Tvarkau receptą…';
+  const r = await DB.fn('recipe_parse', {text}).catch(() => null);
+  if (bt) bt.disabled = false;
+  if (r?.ok && r.ingredients?.length) return impFromAI(r);
+  if (DEV && r && !r.ok) console.warn('recipe_parse:', r.error);
+  if (!localImport(text) && msg) msg.innerHTML = '⚠️ Neradau ingredientų. Nukopijuok receptą su kiekiais (pvz. „500 g vištienos“) ir gaminimo žingsniais.';
+}
+async function importUrl(url) {
+  const msg = $('#impmsg'); msg.textContent = '⏳ Skaitau receptą…';
   try {
     let j;
     if (cloudOn()) {
@@ -875,27 +937,54 @@ A.importGo = async () => {
         r = await fetch(`${CLOUD.url}/functions/v1/${fn}`, {method: 'POST', headers: {apikey: CLOUD.key, Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json'}, body: JSON.stringify({url})});
         if (r.status !== 404) break;
       }
-      if (r.status === 404) throw new Error('Supabase nerado importo funkcijos – patikrink Edge Functions sąrašą. Kol kas gali įklijuoti recepto tekstą žemiau.');
-      if (r.status === 401) throw new Error('Supabase atmetė užklausą (401) – prisijunk iš naujo.');
+      if (r.status === 401) throw new Error('Prisijunk iš naujo.');
       j = await r.json();
     } else j = await (await fetch('/api/import?url=' + encodeURIComponent(url))).json();
     if (!j.ok) {
-      const blocked = /just a moment|attention required|cloudflare|access denied|simple page|robot|captcha|forbidden/i.test(j.name || '');
-      msg.innerHTML = `<div class="warnbox">${blocked ? '🛡️ Ši svetainė blokuoja automatinį skaitymą.' : `⚠️ ${esc(j.error || 'Nepavyko perskaityti recepto.')}`}<br>
-        <small>Atidaryk receptą, pažymėk ingredientus ir žingsnius, nukopijuok – ir spausk „Įklijuoti iš iškarpinės“.</small>
-        <div class="choice row"><a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener">🔗 Atidaryti receptą</a>${btn('📋 Įklijuoti iš iškarpinės', 'pasteRecipe', {}, 'sm primary')}</div></div>`;
-      $('.impalt').open = true; return;
+      msg.innerHTML = `<div class="warnbox">🛡️ Ši svetainė neleidžia automatiškai perskaityti recepto.<br><small>Atidaryk receptą, pažymėk viską (ingredientus ir gaminimą), nukopijuok ir įklijuok čia vietoj nuorodos.</small>
+        <div class="choice row"><a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener">🔗 Atidaryti receptą</a></div></div>`;
+      $('#impbox').value = ''; return;
     }
+    // svetainės duomenys – irgi per Claude (kiekiai į g, LT pavadinimai); nepavykus – kaip anksčiau
+    const txt = `${j.name}\nPortions: ${j.portions || ''}\nTime: ${j.time || ''} min\nIngredients:\n${(j.ingredients || []).join('\n')}\nSteps:\n${(j.steps || []).join('\n')}`;
+    msg.textContent = '✨ Tvarkau receptą…';
+    const r = await DB.fn('recipe_parse', {text: txt}).catch(() => null);
+    if (r?.ok && r.ingredients?.length) return impFromAI({...r, source: url, nutrition: j.nutrition});
     impOpen({...j, source: url});
   } catch (e) { msg.textContent = '⚠️ ' + e.message; }
-};
-A.pasteRecipe = async () => {
-  try { const t = await navigator.clipboard.readText(); if (!t.trim()) throw 0; $('#imptext').value = t; A.importText(); }
-  catch (e) { $('.impalt').open = true; $('#imptext').focus(); toast('Įklijuok tekstą į laukelį (Ctrl+V arba ilgai paspaudus → Įklijuoti)'); }
-};
-A.importText = () => {
-  const lines = $('#imptext').value.split('\n').map(s => s.trim()).filter(Boolean);
-  if (!lines.length) return;
+}
+function impFromAI(r) {
+  const lines = r.ingredients.map(x => {
+    let f = matchFood(x.name_lt) || matchFood(x.original);
+    // atpažintas, bet maistinė vertė visai kita (pvz. aštrus padažas ≠ pomidorų padažas) – kuriam savą
+    if (f && x.kcal >= 0 && Math.abs((f.kcal || 0) - x.kcal) > Math.max(80, x.kcal * 0.6)) f = null;
+    // tas pats produktas, bet kito dydžio vienetai (vyšniniai pomidorai ≠ pomidorai)
+    if (f && +x.piece_g > 0 && PIECE_G[f.id] && Math.max(PIECE_G[f.id], x.piece_g) / Math.min(PIECE_G[f.id], x.piece_g) > 2.5) f = null;
+    if (!f && x.name_lt) f = foodFromAI(x);
+    return {raw: x.original, foodId: f ? f.id : '', grams: Math.round(+x.grams || 0), qtyKnown: true};
+  });
+  const lt = String(r.lang || '').toLowerCase() === 'lt';
+  impOpen({name: lt ? r.name : r.name_lt || r.name, portions: Math.round(r.portions) || 4, time: Math.round(r.time_min) || 30, lines, steps: lt ? r.steps : (r.steps_lt?.length ? r.steps_lt : r.steps),
+    emoji: oneEmoji(r.emoji), freezable: r.freezable, source: r.source || '', nutrition: r.nutrition || null,
+    ...(lt ? {} : {nameOrig: r.name, stepsOrig: r.steps, lang: String(r.lang || '').toUpperCase()})});
+}
+// Naujas produktas iš Claude duomenų (100 g), kaina – iš čekių, jei tokį pirkai
+function foodFromAI(x) {
+  const name = String(x.name_lt).trim(); if (!name) return null;
+  let f = allFoods().find(y => y.name.toLowerCase() === name.toLowerCase()); if (f) return f;
+  f = {id: 'f_' + uid(), name, kcal: Math.round(+x.kcal || 0), p: round(+x.p || 0, 1), c: round(+x.c || 0, 1), f: round(+x.f || 0, 1), s: round(+x.s || 0, 1), sat: round(+x.sat || 0, 1), fi: round(+x.fi || 0, 1), salt: round(+x.salt || 0, 2), price: 0, ai: true};
+  if (x.liquid) f.liquid = true; else if (+x.piece_g > 0) f.pieceG = Math.round(+x.piece_g);
+  const rcp = (S.receiptFoods || []).find(y => { const a = norm(y.key || y.name), b = norm(name); return a && b && (a.includes(b.slice(0, 6)) || b.includes(a.slice(0, 6))); });
+  S.foods.push(f);
+  if (rcp) { S.priceOverrides = S.priceOverrides || {}; S.priceMeta = S.priceMeta || {}; S.priceOverrides[f.id] = rcp.price; S.priceMeta[f.id] = {date: rcp.date, src: 'čekis'}; S.receiptFoods = S.receiptFoods.filter(y => y !== rcp); }
+  return f;
+}
+// Atpažinimas be AI (atsarginis): išvalom puslapio šiukšles ir atskiriam ingredientus nuo žingsnių
+const cleanRecipeLine = l => String(l).replace(/\[([^\]]*)\]\(\s*https?:[^)]*\)/g, '$1').replace(/https?:\/\/\S+/g, '').replace(/^[\s*•·▪◦‣–—▢☐□◻■✓✔☑\-]+/u, '').replace(/\s+/g, ' ').trim();
+const ingCore = l => l.split(/,\s|\s\(|\.\s+(?=[A-ZĄČĘĖĮŠŲŪŽ])/)[0].trim();
+function localImport(text) {
+  const lines = String(text).split('\n').filter(l => !/^\s*\[[a-z][\w-]*\s+[\w-]+\s*=/i.test(l)).map(cleanRecipeLine).filter(Boolean);
+  if (!lines.length) return false;
   // Veikia ir su visu nukopijuotu puslapiu: meniu, reklamos ir kt. trumpos eilutės atmetamos
   let mode = '', name = '', ingredients = [], steps = [], portions = null, time = null;
   const ING_H = /^(ingredient|ingredienser|zutaten|produkt|reikes|reikia|ko reikia|sudetis|jums reikes)/, STEP_H = /^(gaminim|paruosim|eiga|instruk|method|direction|steps?|preparation|kaip gaminti|gor sa har|tillagning|zubereitung|gamybos)/;
@@ -907,28 +996,32 @@ A.importText = () => {
     const pm = n.match(/(\d+)\s*(porc|serv|portion|persons?|zmon)/) || n.match(/(?:serves|porcijos?|portioner|yield|makes)\s*:?\s*(\d+)/); if (pm && l.length < 40) { portions = +pm[1]; continue; }
     const tm = n.match(/(\d+)\s*(min|minut)/); if (tm && l.length < 30 && !mode) { time = +tm[1]; continue; }
     if (!mode && !/\d/.test(l)) continue; // prieš ingredientus – pavadinimas, meniu ir pan. (pavadinimą parenkam žemiau)
-    const ing = parseIngredient(l), looksIng = l.length < 90 && (/^[\d½¼¾⅓⅔]/.test(l) || (ing.foodId && l.split(/\s+/).length <= 4 && !/[.!]\s*$/.test(l)));
-    if ((mode === 'ing' || (!hasHeaders && mode !== 'steps')) && looksIng) { ingredients.push(l); if (!mode) mode = 'ing'; continue; }
+    const core = /^[\d½¼¾⅓⅔⅛]/.test(l) ? ingCore(l) : l, ing = parseIngredient(core), looksIng = core.length < 90 && (/^[\d½¼¾⅓⅔⅛]/.test(core) || (ing.foodId && core.split(/\s+/).length <= 4 && !/[.!]\s*$/.test(core)));
+    if ((mode === 'ing' || (!hasHeaders && mode !== 'steps')) && looksIng) { ingredients.push(core); if (!mode) mode = 'ing'; continue; }
     if (mode === 'ing' && !looksIng && l.length >= 30) mode = 'steps';
     if ((mode === 'steps' || (!hasHeaders && ingredients.length)) && l.length >= 25) steps.push(l.replace(/^(\d+[.)]|step \d+:?|žingsnis \d+:?)\s*/i, ''));
   }
-  if (!ingredients.length) { toast('Neradau ingredientų – nukopijuok ingredientų sąrašą (su kiekiais)'); return; }
+  if (!ingredients.length) return false;
   // pavadinimas: paskutinė „normali“ eilutė prieš ingredientus (ne meniu, ne reklama)
   const JUNK = /^(pradzia|receptai|prisijungti|registruotis|paieska|ieskoti|reklama|home|recipes?|menu|log ?in|sign ?in|search|advertisement|jump to recipe|print|share|dalintis|komentarai|subscribe|newsletter|skip to content)$/;
   const firstIng = lines.findIndex(l => ING_H.test(norm(l)) || l === ingredients[0]);
   const cands = lines.slice(0, firstIng < 0 ? 8 : firstIng).filter(l => !/\d/.test(l) && !JUNK.test(norm(l)) && l.length >= 5 && l.length < 90 && !ING_H.test(norm(l)));
   name = cands[cands.length - 1] || name;
   impOpen({name: name || 'Naujas receptas', ingredients, steps, portions, time, nutrition: null});
-};
+  return true;
+}
+A.importText = () => localImport($('#impbox')?.value || '');
 function impOpen(j) {
-  const lines = (j.ingredients || []).map(parseIngredient);
+  const lines = j.lines || (j.ingredients || []).map(parseIngredient);
   const text = norm((j.steps || []).join(' ') + ' ' + j.name);
   const equip = [['orkait', 'orkaitė'], ['oven', 'orkaitė'], ['air fryer', 'airfryer'], ['airfryer', 'airfryer'], ['gruzdintuv', 'airfryer'], ['slow cooker', 'lėtpuodis'], ['letpuod', 'lėtpuodis'], ['blender', 'blenderis'], ['blenderi', 'blenderis'], ['trintuv', 'blenderis'], ['keptuv', 'keptuvė'], ['pan ', 'keptuvė'], ['skillet', 'keptuvė'], ['puod', 'puodas'], ['boil', 'puodas'], ['virk', 'puodas'], ['pot ', 'puodas']].filter(([k]) => text.includes(k)).map(([, v]) => v);
   UI.imp = {name: j.name || 'Receptas', portions: j.portions || 4, time: j.time || 30, lines, steps: j.steps || [], nutri: j.nutrition, useSite: !!j.nutrition, source: j.source || '',
-    equip: [...new Set(equip)], skill: (j.steps || []).length > 8 || (j.time || 0) > 75 ? 2 : 1, emoji: '🍲'};
+    equip: [...new Set(equip)], skill: (j.steps || []).length > 8 || (j.time || 0) > 75 ? 2 : 1, emoji: j.emoji || suggestEmoji(`${j.name || ''} ${(j.steps || []).join(' ')}`), freezable: j.freezable ?? true};
+  if (j.nameOrig) Object.assign(UI.imp, {nameOrig: j.nameOrig, stepsOrig: j.stepsOrig, lang: j.lang, tr: {state: 'done', from: j.lang}});
   // kita kalba → verčiam į lietuvių (originalas išsaugomas)
-  if (!isLithuanian([UI.imp.name, ...UI.imp.steps].join(' '))) { UI.imp.tr = {state: 'busy'}; impModal(); translateImp(); }
+  if (!j.nameOrig && !isLithuanian([UI.imp.name, ...UI.imp.steps].join(' '))) { UI.imp.tr = {state: 'busy'}; impModal(); translateImp(); }
   else impModal();
+  if (lines.some(l => !l.foodId)) A.impAi();
 }
 // ===== Vertimas į lietuvių (DeepL per Supabase funkciją) =====
 function isLithuanian(t) {
@@ -968,7 +1061,7 @@ function trBox(I) {
   const t = I.tr; if (!t) return '';
   if (t.state === 'busy') return `<div class="okbox">🌐 Verčiu į lietuvių kalbą…</div>`;
   if (t.state === 'err') return `<div class="warnbox">🌐 Nepavyko išversti: ${esc(t.msg)} ${btn('Bandyti dar kartą', 'retryTr', {}, 'sm')}</div>`;
-  return `<div class="okbox">🌐 Išversta iš ${LANG_NAMES[t.from] || t.from} kalbos (DeepL). Kiekiai ir produktai paimti iš originalo. ${btn(I.showOrig ? 'Rodyti vertimą' : 'Rodyti originalą', 'toggleOrigImp', {}, 'sm ghost')}</div>`;
+  return `<div class="okbox">🌐 Išversta iš ${LANG_NAMES[t.from] || t.from} kalbos. Kiekiai ir produktai paimti iš originalo. ${btn(I.showOrig ? 'Rodyti vertimą' : 'Rodyti originalą', 'toggleOrigImp', {}, 'sm ghost')}</div>`;
 }
 // Jau išsaugoto recepto vertimas / originalas
 A.translateRecipe = async d => {
@@ -986,18 +1079,18 @@ function impCalc() {
 function impModal() {
   const I = UI.imp, st = impCalc(), unk = I.lines.filter(l => !l.foodId).length;
   modal('Peržiūrėk receptą', `<datalist id="foodlist">${allFoods().map(f => `<option value="${esc(f.name)}">`).join('')}</datalist>
-    <div class="row">${fld('Emoji', `<input data-imp="emoji" value="${esc(I.emoji)}" maxlength="4">`, 'emojif')}${fld('Pavadinimas', `<input data-imp="name" value="${esc(I.name)}">`)}</div>
+    <div class="row">${fld('Emoji', `<input data-imp="emoji" value="${esc(I.emoji)}" maxlength="16" placeholder="auto">`, 'emojif')}${fld('Pavadinimas', `<input data-imp="name" value="${esc(I.name)}">`)}</div>${emojiPicks()}
     <div class="row">${fld('Porcijos', `<input type="number" min="1" data-imp="portions" value="${I.portions}">`)}${fld('Laikas (min)', `<input type="number" min="1" data-imp="time" value="${I.time}">`)}</div>
-    <h4>Ingredientai ${unk ? `<small class="red">· ${unk} neatpažinti – pasirink arba palik (bus praleisti)</small>` : '<small class="green">· visi atpažinti ✓</small>'}</h4>
-    <div class="implines">${I.lines.map((l, i) => `<div class="impl ${l.foodId ? '' : 'unk'}"><small>${esc(l.raw)}</small><div class="row"><input list="foodlist" data-impf="${i}" value="${esc(food(l.foodId)?.name || '')}" placeholder="— neatpažinta —"><input type="number" min="0" data-impg="${i}" value="${l.grams}"><span class="u">g</span><button type="button" class="x" data-a="impDel" data-i="${i}">✕</button></div></div>`).join('') || empty('Ingredientų nerasta')}</div>
-    <h4>Porcijai: ${st.kcal} kcal · ${st.p} g baltymų · ~${st.cost.toFixed(2)} € ${I.nutri ? `<label class="cb inl"><input type="checkbox" data-imp="useSite" ${I.useSite ? 'checked' : ''}> naudoti svetainės maistinę vertę</label>` : ''}</h4>
+    <h4>Ingredientai ${I.aiBusy ? '<small>· ✨ atpažįstu nežinomus…</small>' : unk ? `<small class="red">· ${unk} neatpažinti – pasirink arba palik (bus praleisti)</small> ${btn('✨ Atpažinti', 'impAi', {}, 'sm')}` : '<small class="green">· visi atpažinti ✓</small>'}</h4>
+    <div class="implines">${I.lines.map((l, i) => `<div class="impl ${l.foodId ? '' : 'unk'}"><small>${esc(l.raw)}</small><div class="row"><input list="foodlist" data-impf="${i}" value="${esc(food(l.foodId)?.name || '')}" placeholder="— neatpažinta —"><input class="amt" data-impg="${i}" value="${esc(l.grams ? amtText(l.foodId, l.grams) : '')}" placeholder="kiekis"><button type="button" class="x" data-a="impDel" data-i="${i}">✕</button></div></div>`).join('') || empty('Ingredientų nerasta')}</div>
+    <h4>Porcijai ${I.nutri ? `<label class="cb inl"><input type="checkbox" data-imp="useSite" ${I.useSite ? 'checked' : ''}> naudoti svetainės maistinę vertę</label>` : ''}</h4><div class="nchips"><span>🔥 <b>${st.kcal}</b> kcal</span><span>🥩 <b>${st.p}</b> g baltymų</span><span>🍞 <b>${st.c}</b> g angliav.</span><span>🧈 <b>${st.f}</b> g riebalų</span><span>🍬 ${st.s} g cukrų</span><span>🌾 ${st.fi} g skaidulų</span><span>🧂 ${st.salt} g druskos</span><span>💶 ~${st.cost.toFixed(2)} €</span></div>
     ${trBox(I)}
     <h4>Žingsniai (${I.steps.length})</h4><ol class="steps small">${(I.showOrig && I.stepsOrig ? I.stepsOrig : I.steps).map(s => `<li>${esc(s)}</li>`).join('')}</ol>`,
     () => { impSync(); const I = UI.imp; const ing = I.lines.filter(l => l.foodId && l.grams > 0).map(l => [l.foodId, l.grams]);
       if (!ing.length && !(I.useSite && I.nutri)) { warn('Bent vienas ingredientas turi būti atpažintas'); return false; }
       const flags = new Set(); ing.forEach(([f]) => (FOOD_FLAGS[f] || []).forEach(x => flags.add(x)));
       const tags = [...new Set([...['paukštiena', 'kiauliena', 'jautiena', 'žuvis', 'ankštiniai'].filter(x => flags.has(x)).map(x => x === 'paukštiena' ? 'vištiena' : x), ...(norm(I.name).includes('wrap') ? ['wrap'] : []), ...(norm(I.name).includes('sriub') || norm(I.name).includes('soup') ? ['sriuba'] : [])])];
-      const r = {id: 'r_' + uid(), name: I.name, emoji: I.emoji || '🍲', portions: +I.portions || 1, time: +I.time || 30, freezable: true, skill: I.skill, equip: I.equip, tags, ing, steps: I.steps, source: I.source};
+      const r = {id: 'r_' + uid(), name: I.name, emoji: oneEmoji(I.emoji) || suggestEmoji(I.name), portions: +I.portions || 1, time: +I.time || 30, freezable: I.freezable ?? true, skill: I.skill, equip: I.equip, tags, ing, steps: I.steps, source: I.source};
       if (I.stepsOrig) { r.stepsOrig = I.stepsOrig; r.nameOrig = I.nameOrig; r.lang = I.lang; }
       if (I.useSite && I.nutri) r.nutri = I.nutri;
       S.recipes.push(r); UI.imp = null; commit(); toast('📗 Receptas pridėtas!', 'good'); setTimeout(() => A.viewRecipe({id: r.id}), 100); },
@@ -1007,7 +1100,7 @@ function impSync() {
   const I = UI.imp; if (!I) return;
   document.querySelectorAll('[data-imp]').forEach(el => { const k = el.dataset.imp; I[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value : el.value; });
   document.querySelectorAll('[data-impf]').forEach(el => { const l = I.lines[+el.dataset.impf]; const f = allFoods().find(x => x.name === el.value) || (el.value ? matchFood(el.value) : null); l.foodId = f ? f.id : ''; });
-  document.querySelectorAll('[data-impg]').forEach(el => { I.lines[+el.dataset.impg].grams = +el.value || 0; });
+  document.querySelectorAll('[data-impg]').forEach(el => { const l = I.lines[+el.dataset.impg]; l.grams = amtToG(el.value, food(l.foodId)); });
 }
 A.impDel = d => { impSync(); UI.imp.lines.splice(+d.i, 1); impModal(); };
 
@@ -1041,11 +1134,11 @@ function fShop() {
     ${card('💶 Savaitės maisto biudžetas', `<div class="budget"><div class="pbar big"><i style="width:${bw.budget ? clamp(bw.spent / bw.budget * 100, 0, 100) : 0}%"></i><i class="plan" style="width:${pct}%"></i></div>
       <div class="kv"><span>Biudžetas</span><b>${bw.budget.toFixed(2)} €</b><span>Jau išleista ${bw.fromReceipts ? '(pagal čekius)' : '(pagal pagamintus)'}</span><b>${bw.spent.toFixed(2)} €</b><span>Sąrašas kainuos ~</span><b>${total.toFixed(2)} €</b><span>Liks</span><b class="${bw.left - total < 0 ? 'red' : 'green'}">${(bw.left - total).toFixed(2)} €</b></div></div>
       ${rcpts.length ? `<p class="hint">Šios savaitės čekiai: ${rcpts.map(s => `${fmtDate(s.date)} – ${s.amount.toFixed(2)} €${s.note ? ' (' + esc(s.note) + ')' : ''}`).join(', ')}</p>` : ''}
-      <div class="choice row">${btn('🧾 Nuskaityti čekį', 'scanReceipt', {}, 'primary sm')}</div>
+      <div class="choice row">${btn('🧾 Nuskaityti čekį', 'scanReceipt', {}, 'primary sm')}${btn('🥕 Produktai ir kainos', 'foodTab', {v: 'foods'}, 'sm ghost')}</div>
       `)}
     ${card('📋 Ką gaminsiu šią savaitę', S.plan.length ? S.plan.map(p => { const r = recipe(p.rid); if (!r) return ''; const st = recipeStats(r); return `<div class="li"><span class="em2">${r.emoji}</span><b>${esc(r.name)}</b><small>× ${p.mult || 1} (${r.portions * (p.mult || 1)} porc.) · ${st.priceReal < 100 ? '~' : ''}${(st.total * (p.mult || 1)).toFixed(2)} €</small><span class="sp"></span>${btn('−', 'planMult', {id: p.rid, n: -1}, 'sm')}${btn('+', 'planMult', {id: p.rid, n: 1}, 'sm')}</div>`; }).join('') : empty('Pridėk receptų iš „Receptai“ → „Į pirkinių sąrašą“.'), btn('+ Receptas', 'foodTab', {v: 'recipes'}, 'sm'))}
   </div><div>
-    ${card('🛒 Pirkinių sąrašas', items.length ? items.map(i => `<label class="li shop ${checked[i.fid] ? 'on' : ''}"><input type="checkbox" data-c="shopCheck" data-id="${i.fid}" ${checked[i.fid] ? 'checked' : ''}><span>${esc(i.name)}</span><span class="sp"></span><b>${fmtG(i.g)}</b><small>${i.mine ? '' : '~'}${i.cost.toFixed(2)} €</small></label>`).join('') + `<div class="choice row">${btn('📋 Kopijuoti sąrašą', 'copyShop', {}, 'sm')}${btn('Išvalyti', 'clearPlan', {}, 'sm ghost')}</div>` : empty('Sąrašas tuščias'))}
+    ${card('🛒 Pirkinių sąrašas', items.length ? items.map(i => `<label class="li shop ${checked[i.fid] ? 'on' : ''}"><input type="checkbox" data-c="shopCheck" data-id="${i.fid}" ${checked[i.fid] ? 'checked' : ''}><span>${esc(i.name)}</span><span class="sp"></span><b>${fmtIng(i.fid, i.g)}</b><small>${i.mine ? '' : '~'}${i.cost.toFixed(2)} €</small></label>`).join('') + `<div class="choice row">${btn('📋 Kopijuoti sąrašą', 'copyShop', {}, 'sm')}${btn('Išvalyti', 'clearPlan', {}, 'sm ghost')}</div>` : empty('Sąrašas tuščias'))}
   </div></div>`;
 }
 
@@ -1255,12 +1348,26 @@ A.editPrice = async d => {
   commit(); toast('Kaina atnaujinta');
 };
 // Produktai iš čekių, kurių nėra bazėje
+// Seni čekių įrašai: dabar atpažinti → kaina perkeliama į produktą; ne maistas – išmetamas; senesni nei 120 d. – pamirštami
+function tidyReceiptFoods() {
+  const list = S.receiptFoods || [], old = addDays(today(), -120); let ch = false;
+  S.receiptFoods = list.filter(x => {
+    const nn = norm(x.name);
+    if (NONFOOD_WORDS.some(w => nn.includes(w)) || (x.date || '') < old) { ch = true; return false; }
+    const f = x.kind === 'snack' ? null : matchFood(x.name);
+    if (f) { S.priceOverrides = S.priceOverrides || {}; S.priceMeta = S.priceMeta || {}; if (!S.priceMeta[f.id] || S.priceMeta[f.id].date <= x.date) { S.priceOverrides[f.id] = x.price; S.priceMeta[f.id] = {date: x.date, src: 'čekis'}; } ch = true; return false; }
+    return true;
+  });
+  return ch;
+}
 function receiptFoodsCard() {
-  const rf = (S.receiptFoods || []).filter(x => x.kind !== 'snack'), sn = (S.receiptFoods || []).filter(x => x.kind === 'snack');
-  if (!rf.length && !sn.length) return '';
-  return card('🧾 Iš čekių (dar be maistinės vertės)', `${rf.map(x => `<div class="li"><b>${esc(x.name)}</b><small>${x.price.toFixed(2)} €/kg · ${fmtDate(x.date)}</small><span class="sp"></span>${btn('+ Papildyti', 'addFood', {rf: x.id}, 'sm')}${btn('✕', 'delRf', {id: x.id}, 'sm ghost')}</div>`).join('')}
-    ${sn.length ? `<details class="impalt"><summary>🍫 Užkandžiai (${sn.length}) – kainos išsaugotos</summary>${sn.map(x => `<div class="li"><span>${esc(x.name)}</span><span class="sp"></span><small>${x.price.toFixed(2)} €/kg</small>${btn('✕', 'delRf', {id: x.id}, 'sm ghost')}</div>`).join('')}</details>` : ''}
-    `);
+  if (tidyReceiptFoods()) setTimeout(() => commit({noRender: true}), 0);
+  const all = S.receiptFoods || [];
+  if (!all.length) return '';
+  // Nieko daryti nereikia: kaina saugoma tyliai ir panaudojama, kai toks produktas atsiras recepte
+  return `<details class="impalt card"><summary>🧾 Kitos prekės iš čekių (${all.length}) – kainos išsaugotos, nieko daryti nereikia</summary>
+    ${all.map(x => `<div class="li"><span>${x.kind === 'snack' ? '🍫 ' : ''}${esc(x.name)}</span><span class="sp"></span><small>${x.price.toFixed(2)} €/kg</small>${btn('✕', 'delRf', {id: x.id}, 'sm ghost')}</div>`).join('')}
+    <p class="hint">Kai šis produktas atsiras recepte, jo kaina bus paimta iš čia. Po 120 d. įrašas pasimiršta.</p></details>`;
 }
 A.delRf = d => { S.receiptFoods = S.receiptFoods.filter(x => x.id !== d.id); commit(); };
 A.addFood = (d = {}) => { const rf = d.rf && (S.receiptFoods || []).find(x => x.id === d.rf), L = d.label && UI.lastLabel ? UI.lastLabel : {}, lv = k => L[k] ?? ''; modal('Naujas produktas', `<p class="hint">${d.label ? '🏷️ Užpildžiau pagal etiketės nuotrauką – patikrink skaičius ir įrašyk pavadinimą.' : 'Vertes rasi ant pakuotės (100 g).'}</p>${fld('Pavadinimas', inp('name', rf ? rf.name.replace(/\d+([.,]\d+)?\s*(kg|g|gr|l|ml)\b/gi, '').trim() : '', 'text', 'required'))}
@@ -1726,8 +1833,8 @@ function vSettings() {
   ${m.sport || m.food ? card('📊 Tavo normos', `<div class="kv"><span>Kalorijų tikslas</span><b>${tg.kcal} kcal</b><span>Sudegini per dieną</span><b>~${tg.tdee} kcal</b><span>Baltymai</span><b>${tg.protein} g / d.</b><span>Vanduo</span><b>~${tg.water} l</b><span>KMI</span><b>${tg.bmi || '–'}</b></div>`) : ''}
   ${card('🕒 Laiko juosta', `${fld('Laikas skaičiuojamas pagal', sel('tz', [['', `Įrenginį (${deviceTZ() || '?'})`], ...TZ_OPTS], S.settings.tz, 'data-set="tz"'))}${S.settings.tz && deviceTZ() && S.settings.tz !== deviceTZ() ? `<p class="hint">Įrenginys šiuo metu rodo <b>${esc(deviceTZ())}</b> (gali būti dėl VPN) – programėlė naudoja tavo pasirinktą.</p>` : ''}`)}
   ${card('🪞 Patikrinimai', fld('Priminti apie apžvalgą', sel('review', [['week', 'Kas savaitę ir mėnesį'], ['month', 'Tik kas mėnesį'], ['off', 'Nepriminti']], S.settings.review, 'data-set="review"')))}
-  ${card('🏷️ Veiklų kategorijos', S.categories.map((c, i) => `<div class="catrow"><input value="${esc(c.emoji)}" data-cat="${i}" data-k="emoji" maxlength="4"><input value="${esc(c.name)}" data-cat="${i}" data-k="name"><input type="color" value="${c.color}" data-cat="${i}" data-k="color">${sel('t', [[1, '✅ produktyvu'], [0, '⚪ neutralu'], [-1, '📺 ekranas/laisvalaikis']], c.type, `data-cat="${i}" data-k="type"`)}<button class="x" data-a="delCat" data-i="${i}">✕</button></div>`).join('') + btn('+ Kategorija', 'addCat', {}, 'sm'))}
-  ${card('🔔 Priminimai', `<p>Naršyklės pranešimai: <b>${'Notification' in window ? ({granted: 'įjungti ✓', denied: 'užblokuoti', default: 'neįjungti'})[Notification.permission] : 'nepalaikoma'}</b></p>${btn('Įjungti pranešimus', 'enableNotif', {}, 'sm')} ${btn('📲 Eksportuoti į telefono kalendorių', 'exportIcs', {}, 'sm')}<p class="hint">Pranešimai veikia, kol programėlė atidaryta. Patikimiems priminimams telefone naudok kalendoriaus eksportą.</p>`)}
+  ${card('🏷️ Veiklų kategorijos', S.categories.map((c, i) => `<div class="catrow"><input value="${esc(c.emoji)}" data-cat="${i}" data-k="emoji" maxlength="16"><input value="${esc(c.name)}" data-cat="${i}" data-k="name"><input type="color" value="${c.color}" data-cat="${i}" data-k="color">${sel('t', [[1, '✅ produktyvu'], [0, '⚪ neutralu'], [-1, '📺 ekranas/laisvalaikis']], c.type, `data-cat="${i}" data-k="type"`)}<button class="x" data-a="delCat" data-i="${i}">✕</button></div>`).join('') + btn('+ Kategorija', 'addCat', {}, 'sm'))}
+  ${card('🔔 Priminimai', pushCardHtml())}
   ${cloudOn() ? card('👤 Paskyra', `<p>Prisijungęs kaip <b>${esc(Auth.user()?.email)}</b>. Duomenys saugomi debesyje ir sinchronizuojasi tarp įrenginių.</p>${btn('Atsijungti', 'logout', {}, 'sm danger')}`) : ''}
   ${privacyCard()}
   ${card('💬 Atsiliepimai', `<p>Radai klaidą ar turi idėją? Parašyk – pamatysiu.</p><div class="choice row">${btn('💬 Parašyti', 'feedback', {}, 'sm primary')}${btn('Mano pokalbiai', 'myFeedback', {}, 'sm')}</div>`)}
@@ -1740,7 +1847,6 @@ function vSettings() {
 }
 A.addCat = () => { S.categories.push({id: 'c_' + uid(), name: 'Nauja', emoji: '⭐', color: '#888888', type: 0}); commit(); };
 A.delCat = async d => { if (!await ask('Ištrinti kategoriją?', 'Seni įrašai liks, bet be spalvos.', {danger: true, icon: '🗑️', yes: 'Ištrinti'})) return; S.categories.splice(+d.i, 1); commit(); };
-A.enableNotif = async () => { if (!('Notification' in window)) return toast('Ši naršyklė nepalaiko pranešimų'); const r = await Notification.requestPermission(); toast(r === 'granted' ? 'Pranešimai įjungti 🔔' : 'Pranešimai neleisti'); render(); };
 A.exportData = () => download(`life-schedule-${today()}.json`, JSON.stringify(S, null, 1), 'application/json');
 A.theme = () => { S.settings.theme = S.settings.theme === 'dark' ? 'light' : 'dark'; applyTheme(); commit(); };
 function applyTheme() { document.documentElement.dataset.theme = S?.settings?.theme || 'dark'; }
@@ -1792,13 +1898,16 @@ async function checkNewVersion() {
   if (window.CLOUD?.test || verOverride()) return;
   let rel = null; try { rel = await (await fetch('releases.json', {cache: 'no-cache'})).json(); } catch (e) { return; }
   let pub = rel.stable;
-  if (cloudOn()) { try { const j = await (await fetch(`${CLOUD.url}/rest/v1/app_config?key=eq.stable&select=value`, {headers: {apikey: CLOUD.key}, cache: 'no-store'})).json(); if (j[0]?.value?.version) pub = j[0].value.version; } catch (e) {} }
-  if (pub && pub !== window.APP_VERSION && rel.versions.some(x => x.v === pub)) { window.RELEASES = rel; if (UI.newVer !== pub) { UI.newVer = pub; render(); } }
+  let info = null;
+  if (cloudOn()) { try { const j = await (await fetch(`${CLOUD.url}/rest/v1/app_config?key=eq.stable&select=value`, {headers: {apikey: CLOUD.key}, cache: 'no-store'})).json(); if (j[0]?.value?.version) { pub = j[0].value.version; info = j[0].value; } } catch (e) {} }
+  // tylus atnaujinimas – nieko nerodom; persikraunam tyliai, kai naudotojas išeina iš programėlės (telefone ji retai užsidaro iki galo)
+  if (info?.silent) { if (pub && pub !== window.APP_VERSION && rel.versions.some(x => x.v === pub)) { UI.silentReload = true; if (document.hidden) location.reload(); } return; }
+  if (pub && pub !== window.APP_VERSION && rel.versions.some(x => x.v === pub)) { window.RELEASES = rel; UI.newInfo = info; if (UI.newVer !== pub) { UI.newVer = pub; render(); } }
 }
 function updateBanner() {
   if (!UI.newVer) return '';
-  const n = verNotes(UI.newVer);
-  return `<div class="banner update">✨ <div><b>Atsirado nauja versija ${esc(UI.newVer)}</b>${n ? `<br><small>${esc(n)}</small>` : ''}</div><span class="sp"></span>${btn('🔄 Atnaujinti', 'reloadApp', {}, 'sm primary')}</div>`;
+  const n = UI.newInfo?.version === UI.newVer && UI.newInfo.notes != null ? UI.newInfo.notes : verNotes(UI.newVer);
+  return `<div class="banner update">✨ <div><b>Atsirado nauja versija ${esc(UI.newVer)}</b>${n ? `<br><small>${esc(n.split('\n')[0])}</small>` : ''}</div><span class="sp"></span>${btn('🔄 Atnaujinti', 'reloadApp', {}, 'sm primary')}</div>`;
 }
 A.reloadApp = () => location.reload();
 // po atnaujinimo vieną kartą parodom, kas pasikeitė
@@ -1806,8 +1915,11 @@ function showWhatsNew() {
   if (window.CLOUD?.test || verOverride() || !window.APP_VERSION) return;
   let seen = null; try { seen = localStorage.getItem('ls_seen_ver'); localStorage.setItem('ls_seen_ver', window.APP_VERSION); } catch (e) { return; }
   if (seen && seen !== window.APP_VERSION) {
-    const n = verNotes(window.APP_VERSION);
-    modal(`✨ Kas naujo – versija ${esc(window.APP_VERSION)}`, `${n ? `<p>${esc(n)}</p>` : '<p>Programėlė atnaujinta.</p>'}<p class="hint">Radai klaidą? Spausk 💬 viršuje.</p>`);
+    const info = window.PUBLIC_INFO, mine = info && info.version === window.APP_VERSION;
+    if (mine && info.silent) return;
+    const n = mine && info.notes != null ? info.notes : verNotes(window.APP_VERSION);
+    if (!n) return;
+    modal(`✨ Kas naujo`, `${n.split('\n').filter(Boolean).map(l => `<p>${esc(l)}</p>`).join('')}<p class="hint">Radai klaidą? Spausk 💬 viršuje.</p>`);
   }
 }
 
@@ -1818,16 +1930,24 @@ function versionsCard() {
   return card('🏷️ Versijos', `<p class="hint">Šiame lange: <b>${esc(cur)}</b>${cur !== pub ? ' (bandoma)' : ''} · Vieša: <b>${esc(pub || '–')}</b></p>
     ${list.map(x => `<div class="li"><b>${esc(x.v)}</b>${x.v === pub ? '<span class="tag">vieša</span>' : ''}${x.v === cur ? '<span class="tag warn">šiame lange</span>' : ''}<small>${esc(x.date || '')} ${esc(x.notes || '')}</small><span class="sp"></span>
       ${x.v !== cur ? btn('Išbandyti', 'tryVersion', {v: x.v}, 'sm') : ''}${x.v !== pub && x.v !== 'src' ? btn('🚀 Paleisti viešai', 'publishVersion', {v: x.v}, 'sm primary') : ''}</div>`).join('')}
-    ${cur !== pub ? `<div class="choice row">${btn('↩ Grįžti į viešą versiją', 'tryVersion', {v: ''}, 'sm')}</div>` : ''}
+    <div class="choice row">${cur !== pub ? btn('↩ Grįžti į viešą versiją', 'tryVersion', {v: ''}, 'sm') : ''}${btn('🤖 Patikrinti AI', 'aiCheck', {}, 'sm')}</div>
     <p class="hint">„Išbandyti“ pakeičia versiją tik tavo naršyklėje. „Paleisti viešai“ – visiems, iškart. Seną versiją grąžinsi tuo pačiu mygtuku.</p>`);
 }
 A.tryVersion = d => { try { if (d.v && d.v !== window.PUBLIC_VERSION) { localStorage.setItem('ls_ver_override', d.v); localStorage.setItem('ls_ver_override_pub', window.PUBLIC_VERSION || ''); } else localStorage.removeItem('ls_ver_override'); } catch (e) {} location.reload(); };
 A.publishVersion = async d => {
-  if (!isDeveloper() || !await ask(`Paleisti ${esc(d.v)} viešai?`, 'Versija iškart atsiras visiems naudotojams.', {icon: '🚀', yes: 'Paleisti'})) return;
-  try {
-    await DB.upsert('app_config', {key: 'stable', value: {version: d.v}, updated_at: new Date().toISOString(), ...(cloudOn() ? {updated_by: DB.uid()} : {})}, 'key');
-    window.PUBLIC_VERSION = d.v; render(); toast(`🚀 Versija ${d.v} dabar vieša`, 'good');
-  } catch (e) { toast('⚠️ Nepavyko: ' + esc(e.message)); }
+  if (!isDeveloper()) return;
+  // pasiūlom tekstą: visų naujesnių nei dabar vieša versijų aprašymai
+  const vs = ((window.RELEASES || {}).versions || []), iNew = vs.findIndex(x => x.v === d.v), iPub = vs.findIndex(x => x.v === window.PUBLIC_VERSION);
+  const draft = vs.slice(iNew, iPub < 0 ? iNew + 1 : iPub).map(x => x.notes).filter(Boolean).join('\n');
+  modal(`🚀 Paleisti ${esc(d.v)} viešai`, `${fld('Ką parodyti naudotojams („Kas naujo“)', `<textarea name="notes" rows="5" placeholder="pvz. Nauja skiltis 💚 Savijauta – pažymėk, kaip jautiesi">${esc(draft)}</textarea>`)}
+    <p class="hint">Rašyk naudotojams suprantamai – kiekviena eilutė bus atskira pastraipa. Juostoje „Atsirado nauja versija“ rodoma pirma eilutė.</p>
+    <label class="cb"><input type="checkbox" name="silent"> 🙈 Tylus atnaujinimas – naudotojams nieko nerodyti (įsijungs kitą kartą atsidarius)</label>`, async o => {
+    try {
+      const value = {version: d.v, notes: o.silent ? '' : (o.notes || '').trim(), silent: !!o.silent};
+      await DB.upsert('app_config', {key: 'stable', value, updated_at: new Date().toISOString(), ...(cloudOn() ? {updated_by: DB.uid()} : {})}, 'key');
+      window.PUBLIC_VERSION = d.v; window.PUBLIC_INFO = value; render(); toast(`🚀 Versija ${d.v} dabar vieša${value.silent ? ' (tyliai)' : ''}`, 'good');
+    } catch (e) { toast('⚠️ Nepavyko: ' + esc(e.message)); }
+  }, {submit: '🚀 Paleisti viešai', wide: true});
 };
 
 // ================= ATSILIEPIMAI =================
@@ -1926,6 +2046,7 @@ async function reportMeta() {
   } catch (e) { /* lentelės dar nėra – nieko baisaus */ }
 }
 // ----- Komandos pakeitimai (XP dovana / pataisymas, profilio taisymas) – pritaikom patys -----
+const FIX_COLLS = ['recipes', 'meals', 'freezer', 'foods', 'spend', 'checkins', 'weights', 'workouts', 'plans', 'events', 'tasks', 'wellbeing', 'sleep', 'timelog'];
 async function applyAdjustments() {
   if (DEV || readOnly()) return;
   let rows; try { rows = await DB.list('account_adjustments', `user_id=eq.${DB.uid()}&applied=eq.false&order=created_at.asc`); } catch (e) { return; }
@@ -1938,9 +2059,22 @@ async function applyAdjustments() {
       S.xpAdjust = [...(S.xpAdjust || []).filter(a => a.id !== r.id), {id: r.id, date: today(), amount: n, reason: r.reason || ''}];
       xp.push({n, reason: r.reason || ''});
     }
+    // 🧰 Komanda pašalino / pataisė įrašą (receptą, valgį, įvykį…) – tik iš leistinų sąrašų
+    if ((r.kind === 'remove_item' || r.kind === 'edit_item') && FIX_COLLS.includes(p.coll) && Array.isArray(S[p.coll])) {
+      const key = x => String(x?.id ?? JSON.stringify(x)), i = S[p.coll].findIndex(x => key(x) === String(p.key));
+      if (i >= 0 && r.kind === 'remove_item') {
+        const [x] = S[p.coll].splice(i, 1);
+        if (p.coll === 'recipes' && x?.id && !(S.deletedRecipes || []).includes(x.id)) (S.deletedRecipes = S.deletedRecipes || []).push(x.id);
+      }
+      if (i >= 0 && r.kind === 'edit_item' && p.patch && typeof p.patch === 'object') {
+        const it = S[p.coll][i];
+        for (const [k, v] of Object.entries(p.patch)) if (k !== 'id' && ['string', 'number', 'boolean'].includes(typeof v) && (it[k] == null || typeof it[k] === typeof v)) it[k] = v;
+      }
+    }
     if (r.kind === 'profile') {
       if (p.name != null && String(p.name).trim()) { S.profile.name = String(p.name).trim().slice(0, 60); prof = true; }
       if (p.birthYear != null && +p.birthYear > 1900) { S.profile.birthYear = +p.birthYear; prof = true; }
+      if (p.sex === 'm' || p.sex === 'f') { S.profile.sex = p.sex; prof = true; }
     }
   }
   commit();
@@ -1948,7 +2082,6 @@ async function applyAdjustments() {
   const tot = sum(xp.map(x => x.n));
   if (tot > 0) await ask(`🎁 Gavai +${tot} XP!`, xp.map(x => x.reason ? `<p>${esc(x.reason)}</p>` : '').join('') || '<p>Dovana nuo Life Schedule komandos.</p>', {icon: '⭐', yes: 'Ačiū!', no: false});
   else if (tot < 0) await info('XP pataisyti', `<p>Tavo XP pakeisti: <b>${tot}</b>.</p>${xp.map(x => x.reason ? `<p>${esc(x.reason)}</p>` : '').join('')}`);
-  if (prof) toast('👤 Komanda atnaujino tavo profilį', 'good');
 }
 // Komandos atsiųstas failas – trumpalaikė saugi nuoroda (5 min.)
 A.openAtt = async d => {
@@ -2164,7 +2297,7 @@ function remindOnce(key, title, body) {
   let seen = {}; try { seen = JSON.parse(localStorage.getItem('manogyv_seen') || '{}'); } catch (e) {}
   if (seen[key]) return; seen[key] = today();
   for (const k in seen) if (seen[k] < addDays(today(), -14)) delete seen[k];
-  localStorage.setItem('manogyv_seen', JSON.stringify(seen)); notify(title, body);
+  localStorage.setItem('manogyv_seen', JSON.stringify(seen)); notify(title, body, key);
 }
 function checkReminders() {
   if (!S || readOnly()) return; const t = today(), now = nowMin();
@@ -2224,7 +2357,7 @@ document.addEventListener('change', e => {
   if ((el.dataset.rcf !== undefined || el.dataset.rcg !== undefined || el.dataset.rck !== undefined || el.dataset.rcp !== undefined || el.dataset.rct === 'addSpend') && UI.rc) { const st = $('.implines')?.scrollTop; rcSync(); rcModal(); const il = $('.implines'); if (il) il.scrollTop = st; }
   if (el.dataset.c === 'receipt' && el.files[0]) runReceiptOCR(el.files[0]);
   if (el.dataset.c === 'mealSuggest') { S.foodPrefs.mealSuggest = el.checked; commit(); toast(el.checked ? '🍽️ „Šiandien“ skiltyje siūlysiu, ką valgyti' : 'Pasiūlymai išjungti'); }
-  if (el.dataset.cat !== undefined && el.dataset.k) { const c = S.categories[+el.dataset.cat]; c[el.dataset.k] = el.dataset.k === 'type' ? +el.value : el.value; commit({noRender: true}); }
+  if (el.dataset.cat !== undefined && el.dataset.k) { const c = S.categories[+el.dataset.cat], v = el.dataset.k === 'emoji' ? oneEmoji(el.value) : el.value; if (el.dataset.k === 'emoji' && !v) return; c[el.dataset.k] = el.dataset.k === 'type' ? +v : v; commit({noRender: true}); }
   if (el.dataset.c === 'shopCheck') { S.shopChecked = S.shopChecked || {}; S.shopChecked[el.dataset.id] = el.checked; el.closest('.shop').classList.toggle('on', el.checked); commit({noRender: true}); }
   if (el.dataset.c === 'importData') { const f = el.files[0]; if (!f) return; f.text().then(async t => { try { const d = JSON.parse(t); if (!d.profile) throw 0; if (!await ask('Pakeisti visus duomenis?', 'Dabartiniai duomenys bus pakeisti šia kopija.', {danger: true, yes: 'Pakeisti'})) return; S = migrate(d); commit(); toast('Duomenys įkelti ✓', 'good'); } catch (x) { warn('Netinkamas failas'); } }); }
 });
@@ -2271,7 +2404,7 @@ A.logout = async () => { if (!await ask('Atsijungti?', 'Atsijungsi tik šiame į
   // jei buvai kūrėjo režime ir perkrovei puslapį – liekam smėlio dėžėje
   try { const sb = sessionStorage.getItem(DEV_KEY); if (sb && isDeveloper()) { REAL = S; DEV = true; S = migrate(JSON.parse(sb)); } } catch (e) {}
   applyTheme(); render();
-  reportMeta(); setTimeout(applyAdjustments, 1500); setInterval(applyAdjustments, 300000);
+  reportMeta(); setTimeout(applyAdjustments, 1500); setInterval(() => { if (!document.hidden) applyAdjustments(); }, 10000);
   if (!S.settings.onboarded) A.onboard();
   checkReminders();
   setInterval(() => { checkReminders(); if (!$('#modal.open') && ['today', 'calendar'].includes(UI.view) && document.activeElement?.tagName !== 'INPUT') render(); }, 60000);
@@ -2301,17 +2434,20 @@ const wellOn = d => S.wellbeing.filter(w => w.date === d);
 const dayWell = d => S.wellbeing.find(w => w.date === d && w.kind === 'day');
 const moments = d => wellOn(d).filter(w => w.kind !== 'day').sort((a, b) => (a.time || '') < (b.time || '') ? -1 : 1);
 // Dienos nuotaika: dienos įrašas, o jei jo nėra – akimirkų vidurkis
-function dayMood(d) { const w = dayWell(d); if (w?.mood) return w.mood; const m = moments(d).filter(x => x.mood); return m.length ? Math.round(m.reduce((s, x) => s + x.mood, 0) / m.length) : 0; }
-function saveWell(rec, moment) {
-  const d = today();
-  if (!moment) { const w = dayWell(d); if (w) Object.assign(w, rec); else S.wellbeing.push({id: uid(), date: d, kind: 'day', ...rec}); return; }
-  const ms = moments(d), last = ms[ms.length - 1], now = fromMin(nowMin());
-  if (last && (nowMin() - toMin(last.time || '00:00') < MOMENT_GAP || ms.length >= MOMENT_MAX)) Object.assign(last, rec, {time: now});
-  else S.wellbeing.push({id: uid(), date: d, kind: 'moment', time: now, ...rec});
+function dayMood(d) { const all = wellOn(d).filter(x => x.mood); return all.length ? Math.round(all.reduce((s, x) => s + x.mood, 0) / all.length) : 0; }
+const curMoment = () => { const ms = moments(today()), last = ms[ms.length - 1]; return last && !UI.newMoment && Date.now() - (last.upd || 0) < MOMENT_GAP * 60e3 ? last : null; };
+const lastMoment = () => { const ms = moments(today()); return ms[ms.length - 1] || null; };
+function saveWell(rec) {
+  const d = today(), ms = moments(d), cur = curMoment(), now = fromMin(nowMin());
+  if (cur) Object.assign(cur, rec, {upd: Date.now()});
+  else if (ms.length >= MOMENT_MAX) Object.assign(ms[ms.length - 1], rec, {time: now, upd: Date.now()});
+  else S.wellbeing.push({id: uid(), date: d, kind: 'moment', time: now, upd: Date.now(), why: [], sym: [], note: '', ctx: '', ...rec});
+  UI.newMoment = false;
 }
+
 const feelChips = (list, cur) => list.map(([k, l]) => `<label class="chipbtn"><input type="checkbox" name="sym[]" value="${k}" ${cur.includes(k) ? 'checked' : ''}><span>${gtxt(l)}</span></label>`).join('');
 A.addWell = (d = {}) => {
-  const w = d.id ? S.wellbeing.find(x => x.id === d.id) : (d.ctx === 'workout' ? null : dayWell(today())), ctx = d.ctx || w?.ctx || '', cur = w?.sym || [], own = cur.filter(k => String(k).startsWith('c:')).map(k => k.slice(2)).join(', ');
+  const w = d.id ? S.wellbeing.find(x => x.id === d.id) : (d.ctx === 'workout' ? null : curMoment()), ctx = d.ctx || w?.ctx || '', cur = w?.sym || [], own = cur.filter(k => String(k).startsWith('c:')).map(k => k.slice(2)).join(', ');
   const momentDefault = ctx === 'workout' || (w && w.kind !== 'day');
   modal(ctx === 'workout' ? '💪 Kaip jautiesi po treniruotės?' : '💚 Kaip jautiesi?', `
     <div class="emo big">${MOODS.map(([e, l], i) => `<label title="${l}"><input type="radio" name="mood" value="${i + 1}" ${(w?.mood || 0) === i + 1 ? 'checked' : ''}><span>${e}</span></label>`).join('')}</div>
@@ -2320,12 +2456,11 @@ A.addWell = (d = {}) => {
     <h4>Kaip jautiesi? <small>(nebūtina)</small></h4>
     <div class="chips big">${feelChips(FEEL_GOOD, cur)}</div><div class="chips big" style="margin-top:6px">${feelChips(FEEL_BAD, cur)}</div>
     <div class="row">${fld('Savais žodžiais (nebūtina)', inp('own', own, 'text', 'placeholder="pvz. įkvėptas, liūdnas, alkanas" maxlength="60"'))}${fld('Pastaba (nebūtina)', inp('note', w?.note || '', 'text', 'placeholder="kas nutiko?" maxlength="200"'))}</div>
-    ${w && d.id ? '' : `<div class="seg wseg"><label><input type="radio" name="when" value="day" ${momentDefault ? '' : 'checked'}><span>☀️ Visai dienai</span></label><label><input type="radio" name="when" value="moment" ${momentDefault ? 'checked' : ''}><span>⏱️ Tik šiuo metu</span></label></div>
-    <p class="hint">„Visai dienai“ – pakeičia šiandienos savijautą. „Tik šiuo metu“ – prideda akimirką (pvz. pasidžiaugti ar užfiksuoti, kad pradėjo skaudėti galvą).</p>`}`, o => {
+    <p class="hint">Įrašoma kaip akimirka su laiku. Viskas, išskyrus jaustuką, – nebūtina.</p>`, o => {
     if (!o.mood) { toast('Pasirink jaustuką'); return false; }
     const ownTags = (o.own || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 3).map(x => 'c:' + x.slice(0, 30));
     const rec = {mood: +o.mood, sym: [...(o.sym || []), ...ownTags], why: o.why || [], note: (o.note || '').trim(), ctx};
-    if (w && d.id) Object.assign(w, rec); else saveWell(rec, o.when === 'moment');
+    if (w) Object.assign(w, rec, {upd: Date.now()}); else saveWell(rec);
     commit(); toast(`${MOODS[o.mood - 1][0]} ${moodLine(today(), +o.mood)}`, 'good');
   }, {submit: 'Įrašyti', noFocus: true, extra: w && d.id ? btn('🗑', 'delWell', {id: w.id}, 'danger sm') : ''});
 };
@@ -2333,11 +2468,13 @@ A.delWell = d => { S.wellbeing = S.wellbeing.filter(w => w.id !== d.id); A.close
 // Vienas paspaudimas – šiandienos savijauta (paspaudus kitą – tik pasikeičia)
 // Jau pažymėta? Keičiasi palaipsniui – vienu laipteliu link pasirinkto (be staigių šuolių 😫 ↔ 😁)
 A.quickMood = d => {
-  const w = dayWell(today()), cur = w?.mood || 0, want = +d.m, m = cur ? cur + Math.sign(want - cur) : want;
-  if (cur === want) return toast(`Šiandien jau ${MOODS[want - 1][0]}`);
-  saveWell({mood: m, sym: w?.sym || [], why: w?.why || [], note: w?.note || '', ctx: ''}, false); commit();
-  toast(m === want ? `Šiandien: ${MOODS[m - 1][0]} ${MOODS[m - 1][1].toLowerCase()}` : `Šiandien: ${MOODS[m - 1][0]} – paspausk dar kartą, jei tikrai ${MOODS[want - 1][0]}`, 'good');
+  const cur = curMoment(), want = +d.m, m = cur ? cur.mood + Math.sign(want - cur.mood) : want;
+  if (cur && cur.mood === want) return toast(`Dabar jau ${MOODS[want - 1][0]}`);
+  saveWell({mood: m}); commit();
+  toast(m === want ? `${MOODS[m - 1][0]} ${moodLine(today(), m)}` : `${MOODS[m - 1][0]} – paspausk dar kartą, jei tikrai ${MOODS[want - 1][0]}`, 'good');
 };
+A.newMoment = () => { if (moments(today()).length >= MOMENT_MAX) return toast(`Šiandien jau ${MOMENT_MAX} akimirkos – paskutinė bus atnaujinta`); UI.newMoment = true; render(); toast('Pasirink, kaip jautiesi dabar'); };
+
 // Švelnus palaikymas sunkesnei dienai / džiaugsmas geresnei
 // Trumpos, šiltos žinutės – kasdien vis kitokios (be patarimų)
 const MOOD_LINES = {
@@ -2367,7 +2504,7 @@ function wellInsights() {
     return t;
   };
   const good = daysWith(true), bad = daysWith(false);
-  const whyTop = f => { const c = {}; range(from, 30).forEach(x => { const w = dayWell(x); if (w && f(w.mood)) (w.why || []).forEach(k => c[k] = (c[k] || 0) + 1); }); return Object.entries(c).sort((a, b) => b[1] - a[1])[0]; };
+  const whyTop = f => { const c = {}; rec.forEach(w => { if (w.mood && f(w.mood)) (w.why || []).forEach(k => c[k] = (c[k] || 0) + 1); }); return Object.entries(c).sort((a, b) => b[1] - a[1])[0]; };
   const gw = whyTop(m => m >= 4), bw = whyTop(m => m <= 2);
   if (gw && gw[1] >= 2) out.push(`🌞 Geras dienas dažniausiai lemia: <b>${whyName(gw[0])}</b> (${gw[1]} k.).`);
   if (bw && bw[1] >= 2) out.push(`🌧️ Sunkesnes dienas dažniausiai lemia: <b>${whyName(bw[0])}</b> (${bw[1]} k.).`);
@@ -2380,31 +2517,273 @@ function wellInsights() {
 // Mažas rodiklis pagrindiniame ekrane
 const wellRing = d => { const m = dayMood(d); return `<div class="rc wellrc" data-a="addWell" title="Kaip jautiesi šiandien?"><div class="wbig">${m ? MOODS[m - 1][0] : '➕'}</div><span>${m ? MOODS[m - 1][1] : 'Savijauta'}</span></div>`; };
 function vWellbeing() {
-  const d = today(), m = dayMood(d), dw = dayWell(d), ms = moments(d);
+  const d = today(), m = dayMood(d), cm = curMoment(), lm = lastMoment(), today_ms = wellOn(d).sort((a, b) => (a.time || '00:00') < (b.time || '00:00') ? -1 : 1);
   // Vienas mėnuo: 1..31, pirmadienis–sekmadienis
   const mon = UI.wellMonth || d.slice(0, 7), first = mon + '-01', dim = new Date(+mon.slice(0, 4), +mon.slice(5, 7), 0).getDate(), days = range(first, dim), lead = dow(first) - 1;
   const ins = wellInsights();
   const recent = [...new Set(S.wellbeing.map(w => w.date))].sort().reverse().slice(0, 14);
   return `<div class="grid2"><div>
-    ${card('💚 Šiandien', `<div class="emo big quick">${MOODS.map(([e, l], i) => `<button type="button" class="emob ${m === i + 1 ? 'on' : ''}" data-a="quickMood" data-m="${i + 1}" title="${l}">${e}<small>${l}</small></button>`).join('')}</div>
-      ${moodCard(d)}
-      ${dw?.mood ? `<div class="quickwhy"><h4>Kas lėmė? <small>vienu paspaudimu</small></h4><div class="chips big">${WHY.map(([k, l]) => `<button type="button" class="chipbtn ${(dw.why || []).includes(k) ? 'on' : ''}" data-a="toggleWhy" data-k="${k}">${l}</button>`).join('')}</div>
-        <h4>Kaip jautiesi?</h4><div class="chips big">${(dw.mood >= 3 ? [...FEEL_GOOD, ...FEEL_BAD] : [...FEEL_BAD, ...FEEL_GOOD]).map(([k, l]) => `<button type="button" class="chipbtn ${(dw.sym || []).includes(k) ? 'on' : ''}" data-a="toggleFeel" data-k="${k}">${gtxt(l)}</button>`).join('')}</div></div>` : ''}
-      <div class="choice row">${btn(dw ? '✏️ Pastaba ar savi žodžiai' : '+ Pojūčiai ar pastaba', 'addWell', {}, 'sm')}${btn('⏱️ Akimirka', 'addMoment', {}, 'sm')}</div>
-      ${ms.length ? `<div class="moments">${ms.map(w => `<span class="mom" data-a="addWell" data-id="${w.id}">${w.time} ${MOODS[w.mood - 1]?.[0] || ''}${(w.sym || []).length ? ' ' + esc(w.sym.map(symName).join(', ')) : ''}</span>`).join('')}</div>` : dw ? '' : '<p class="hint">Paspausk jaustuką – tai šiandienos savijauta. Persigalvojai? Tiesiog paspausk kitą.</p>'}`)}
+    ${card('💚 Kaip jautiesi?', `<div class="emo big quick">${MOODS.map(([e, l], i) => `<button type="button" class="emob ${cm?.mood === i + 1 ? 'on' : ''}" data-a="quickMood" data-m="${i + 1}" title="${l}">${e}<small>${l}</small></button>`).join('')}</div>
+      ${lm ? `<div class="quickwhy"><p class="hint">${MOODS[lm.mood - 1][0]} ${lm.time} – ${cm ? 'gali dar pakeisti arba pažymėti, kas lėmė (nebūtina)' : 'paspaudus jaustuką prasidės nauja akimirka'}</p>
+        <h4>Kas lėmė?</h4><div class="chips big">${WHY.map(([k, l]) => `<button type="button" class="chipbtn ${(lm.why || []).includes(k) ? 'on' : ''}" data-a="toggleWhy" data-k="${k}">${l}</button>`).join('')}</div>
+        <h4>Kaip jautiesi?</h4><div class="chips big">${(lm.mood >= 3 ? [...FEEL_GOOD, ...FEEL_BAD] : [...FEEL_BAD, ...FEEL_GOOD]).map(([k, l]) => `<button type="button" class="chipbtn ${(lm.sym || []).includes(k) ? 'on' : ''}" data-a="toggleFeel" data-k="${k}">${gtxt(l)}</button>`).join('')}</div></div>`
+      : '<p class="hint">Paspausk jaustuką – tai užtenka. Jei nori, vėliau pažymėk, kas lėmė.</p>'}
+      <div class="choice row">${lm ? btn('＋ Nauja akimirka', 'newMoment', {}, 'sm primary') : ''}${lm ? btn('✏️ Pastaba', 'addWell', {id: lm.id}, 'sm') : ''}</div>
+      ${UI.newMoment ? '<p class="hint">👆 Pasirink jaustuką – bus nauja akimirka.</p>' : ''}`)}
+    ${today_ms.length ? card(`🕒 Šiandien ${m ? MOODS[m - 1][0] : ''}`, `${moodCard(d)}<div class="tline">${today_ms.map(w => `<div class="tl" data-a="addWell" data-id="${w.id}"><b>${w.time || '–'}</b><span class="te">${MOODS[w.mood - 1]?.[0] || '•'}</span><span>${esc([...(w.why || []).map(whyName), ...(w.sym || []).map(symName)].join(' · ') || MOODS[w.mood - 1]?.[1] || '')}${w.note ? `<small>${esc(w.note)}</small>` : ''}</span></div>`).join('')}</div>`) : ''}
     </div><div>
-    ${card(`📅 ${MONTHS[+mon.slice(5, 7) - 1][0].toUpperCase() + MONTHS[+mon.slice(5, 7) - 1].slice(1)} ${mon.slice(0, 4)}`, `<div class="moodcal">${DOW.map(x => `<b>${x}</b>`).join('')}${'<span></span>'.repeat(lead)}${days.map(x => { const mm = x > d ? 0 : dayMood(x), bad = wellOn(x).some(w => (w.sym || []).some(k => !GOOD_KEYS.has(k) && !String(k).startsWith('c:'))); return `<div class="wcell m${mm} ${x > d ? 'fut' : ''} ${x === d ? 'tod' : ''}" title="${fmtDate(x)}${mm ? ' · ' + MOODS[mm - 1][1] : ''}">${mm ? MOODS[mm - 1][0] : ''}${bad ? '<i></i>' : ''}<small>${parseD(x).getDate()}</small></div>`; }).join('')}</div>
+    ${card(`📅 ${MONTHS[+mon.slice(5, 7) - 1][0].toUpperCase() + MONTHS[+mon.slice(5, 7) - 1].slice(1)} ${mon.slice(0, 4)}`, `<div class="moodcal">${DOW.map(x => `<b>${x}</b>`).join('')}${'<span></span>'.repeat(lead)}${days.map(x => { const mm = x > d ? 0 : dayMood(x), bad = wellOn(x).some(w => (w.sym || []).some(k => !GOOD_KEYS.has(k) && !String(k).startsWith('c:'))); return `<div class="wcell m${mm} ${x > d ? 'fut' : ''} ${x === d ? 'tod' : ''}" ${wellOn(x).length ? `data-a="wellDay" data-d="${x}"` : ''} title="${fmtDate(x)}${mm ? ' · ' + MOODS[mm - 1][1] : ''}">${mm ? MOODS[mm - 1][0] : ''}${bad ? '<i></i>' : ''}<small>${parseD(x).getDate()}</small></div>`; }).join('')}</div>
       <p class="hint">Raudonas taškelis – tą dieną buvo sunkesnių pojūčių.</p>`, btn('‹', 'wellMon', {d: -1}, 'sm ghost') + (mon < d.slice(0, 7) ? btn('›', 'wellMon', {d: 1}, 'sm ghost') : ''))}
     ${card('🔎 Pastebėjimai', ins.length ? ins.map(t => `<p class="ins">${t}</p>`).join('') : empty('Pažymėk savijautą kelias dienas – čia atsiras pastebėjimai (pvz. kada jautiesi energingiausias ar kada dažniau skauda galvą).'))}
     ${card('🗒️ Paskutinės dienos', recent.length ? recent.map(x => { const dw2 = dayWell(x), mm = dayMood(x), all = wellOn(x), tags = [...new Set(all.flatMap(w => [...(w.why || []).map(whyName), ...(w.sym || []).map(symName)]))], notes = all.map(w => w.note).filter(Boolean);
-      return `<div class="li ${dw2 ? 'click' : ''}" ${dw2 ? `data-a="addWell" data-id="${dw2.id}"` : ''}><span>${mm ? MOODS[mm - 1][0] : '•'} <b>${fmtDate(x)}</b>${moments(x).length ? ` <small class="inl">+ ${moments(x).length} akimirk.</small>` : ''}
+      return `<div class="li click" data-a="wellDay" data-d="${x}"><span>${mm ? MOODS[mm - 1][0] : '•'} <b>${fmtDate(x)}</b>${moments(x).length ? ` <small class="inl">+ ${moments(x).length} akimirk.</small>` : ''}
         ${tags.length ? `<small>${esc(tags.join(', '))}</small>` : ''}${notes.length ? `<small>${esc(notes.join(' · '))}</small>` : ''}</span></div>`; }).join('') : empty('Dar nėra įrašų'))}
   </div></div>`;
 }
-A.addMoment = () => { A.addWell({ctx: ''}); setTimeout(() => { const r = document.querySelector('input[name="when"][value="moment"]'); if (r) r.checked = true; const t = $('#modal h3'); if (t) t.textContent = '⏱️ Kaip jautiesi šiuo metu?'; }, 30); };
 
 A.wellMon = d => { const [y, m] = (UI.wellMonth || today().slice(0, 7)).split('-').map(Number), dt = new Date(y, m - 1 + +d.d, 1); UI.wellMonth = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}`; render(); };
 // Vienu paspaudimu – ką lėmė / kaip jautiesi (prie šiandienos savijautos)
 const toggleIn = (arr, k) => arr.includes(k) ? arr.filter(x => x !== k) : [...arr, k];
-A.toggleWhy = d => { const w = dayWell(today()); if (!w) return; w.why = toggleIn(w.why || [], d.k); commit(); };
-A.toggleFeel = d => { const w = dayWell(today()); if (!w) return; w.sym = toggleIn(w.sym || [], d.k); commit(); };
+A.toggleWhy = d => { const w = lastMoment(); if (!w) return; w.why = toggleIn(w.why || [], d.k); w.upd = Date.now(); commit(); };
+A.toggleFeel = d => { const w = lastMoment(); if (!w) return; w.sym = toggleIn(w.sym || [], d.k); w.upd = Date.now(); commit(); };
+
+// Diena kalendoriuje: visos akimirkos – redaguoti ar ištrinti (paspaudus šalia – užsidaro)
+A.wellDay = d => {
+  const day = d.d, list = wellOn(day).sort((a, b) => (a.time || '') < (b.time || '') ? -1 : 1);
+  if (!list.length) return A.closeModal();
+  modal(`${MOODS[dayMood(day) - 1]?.[0] || '💚'} ${fmtDateDow(day)}`, `<div class="tline">${list.map(w => `<div class="tl nohover"><b>${w.time || 'diena'}</b><span class="te">${MOODS[w.mood - 1]?.[0] || '•'}</span>
+    <span class="grow">${esc([...(w.why || []).map(whyName), ...(w.sym || []).map(symName)].join(' · ') || MOODS[w.mood - 1]?.[1] || '')}${w.note ? `<small>${esc(w.note)}</small>` : ''}</span>
+    ${btn('✏️', 'addWell', {id: w.id}, 'sm ghost')}${btn('🗑', 'delWellDay', {id: w.id, d: day}, 'sm ghost')}</div>`).join('')}</div>`);
+};
+A.delWellDay = async d => {
+  if (!await ask('Ištrinti šį įrašą?', '', {danger: true, icon: '🗑️', yes: 'Ištrinti'})) return;
+  S.wellbeing = S.wellbeing.filter(w => w.id !== d.id); commit(); A.wellDay({d: d.d});
+};
+
+// Pagrindiniame ekrane – šilta eilutė pagal šiandienos savijautą (ypač sunkesnę dieną)
+const wellHomeLine = d => { const m = dayMood(d); return m ? `<div class="wellline ${m <= 2 ? 'hard' : m === 3 ? 'ok' : 'good'}" data-a="go" data-v="wellbeing">${MOODS[m - 1][0]} ${moodLine(d, m)}</div>` : ''; };
+
+// Vienas emoji (net ir sudėtiniai, pvz. 🧑‍🍳, 🏋️‍♂️) – paimam pirmą „simbolį“ taip, kaip jį mato žmogus
+function oneEmoji(v) { v = String(v || '').trim(); if (!v) return ''; try { return [...new Intl.Segmenter('lt', {granularity: 'grapheme'}).segment(v)][0].segment; } catch (e) { return [...v].slice(0, 2).join(''); } }
+
+// Dažniausiai valgomi (60 d.) – vienu paspaudimu
+function recentMeals() {
+  const from = addDays(today(), -60), by = {};
+  for (const m of S.meals) if (m.date >= from && m.name) { const k = m.name.toLowerCase(); (by[k] = by[k] || {n: 0, m}).n++; if (m.date >= by[k].m.date) by[k].m = m; }
+  return Object.values(by).filter(x => x.n >= 1).sort((a, b) => b.n - a.n).slice(0, 8).map(x => x.m);
+}
+A.mealRepeat = d => {
+  const src = recentMeals().find(m => m.name === d.n); if (!src) return;
+  const f = $('#mform'), {id, recipeId, ...rest} = src;
+  S.meals.push({...rest, id: uid(), date: f?.date?.value || today(), time: f?.time?.value || nowHM()});
+  A.closeModal(); commit(); toast(`🍽️ ${esc(src.name)} – ${Math.round(src.kcal || 0)} kcal`);
+};
+// Kūrėjui: ar AI raktas veikia
+A.aiCheck = async () => { toast('🤖 Tikrinu…'); const r = await DB.fn('ai_check').catch(e => ({ok: false, error: e.message})); r.ok ? info('🤖 AI veikia', `<p>Raktas tinkamas, modelis <b>${esc(r.model)}</b>.</p>`) : warn('AI neveikia: ' + (r.error || '?')); };
+
+// ===== Ingredientai – kaip žmonės sako: skysčiai ml / šaukštais, skaičiuojami dalykai vienetais, kita – g =====
+const LIQUID_IDS = ['pienas', 'kefyras', 'grietinele', 'alyv_al', 'saul_al', 'sojos', 'sultys', 'gazuotas', 'alus'];
+const PIECE_EXTRA = {burokeliai: 150, salotos: 300, kiaus_balt: 33}, BY_WEIGHT = ['vist_krut', 'vist_slaun', 'lasisa'];
+const PIECE_WORD = {cesnakai: 'skiltel.', duona_rug: 'riek.', duona_pg: 'riek.', suris: 'riek.', kumpis: 'griežin.', pom_konserv: 'skard.', pup_raud: 'skard.', pup_balt: 'skard.',
+  avinz: 'skard.', kukuruzai: 'skard.', kok_pienas: 'skard.', tunas: 'skard.', brokoliai: 'galv.', ziedinis: 'galv.', kopustai: 'galv.', salotos: 'galv.'};
+const fmtNum = n => String(n).replace('.', ',');
+function fmtIng(fid, g) {
+  const fd = food(fid) || {};
+  // skysčiai: mažai – šaukštais, daugiau – ml / l
+  if (LIQUID_IDS.includes(fid) || fd.liquid) {
+    const ml = g / (DENSITY[fid] ?? 1);
+    if (ml <= 60) { const sp = Math.round(ml / 15 * 2) / 2; if (sp >= 1 && Math.abs(sp * 15 - ml) <= 4) return `${fmtNum(sp)} šaukšt.`; const ts = Math.round(ml / 5); if (ts >= 1 && ts <= 3) return `${ts} šaukštel.`; }
+    return ml >= 1000 ? `${fmtNum(round(ml / 1000, 2))} l` : `${Math.round(ml / 10) * 10 || Math.round(ml)} ml`;
+  }
+  // skaičiuojami: kiaušiniai, daržovės, vaisiai, konservai, riekės
+  const pg = BY_WEIGHT.includes(fid) ? 0 : PIECE_G[fid] || PIECE_EXTRA[fid] || fd.pieceG, n = pg ? g / pg : 0, half = Math.round(n * 2) / 2;
+  if (pg && n >= 0.5 && n <= (['suris', 'kumpis'].includes(fid) ? 4 : ['kiausiniai', 'kiaus_balt', 'cesnakai', 'datules', 'ridikeliai', 'lavasas', 'pita', 'bandele', 'trapuciai', 'batonas', 'duona_rug', 'duona_pg'].includes(fid) || fd.pieceG ? 30 : 6) && Math.abs(n - half) <= 0.25 * Math.max(1, half)) return `${fmtNum(half)} ${PIECE_WORD[fid] || fd.pieceWord || 'vnt'} <small>(~${Math.round(g)} g)</small>`;
+  return g >= 1000 ? fmtNum(round(g / 1000, 2)) + ' kg' : Math.round(g) + ' g';
+}
+// ===== Nežinomas produktas → sukuriamas automatiškai (maistinė vertė 100 g) =====
+async function aiFood(text) {
+  const r = await DB.fn('food_parse', {text: /\d/.test(text) ? text : '100 g ' + text}).catch(() => null);
+  const it = r?.ok && r.items?.[0]; if (!it || !(+it.grams > 0)) return null;
+  const k = 100 / +it.grams, name = String(it.name || text).trim();
+  let f = allFoods().find(x => x.name.toLowerCase() === name.toLowerCase());
+  const rcp = (S.receiptFoods || []).find(x => { const a = norm(x.key || x.name), b = norm(name); return a && b && (a.includes(b.slice(0, 6)) || b.includes(a.slice(0, 6))); });
+  if (!f) { f = {id: 'f_' + uid(), name, kcal: Math.round(it.kcal * k), p: round(it.p * k, 1), c: round(it.c * k, 1), f: round(it.f * k, 1), s: 0, sat: 0, fi: 0, salt: 0, price: 0, ai: true}; if (/^(ml|l)$/i.test(it.unit)) f.liquid = true; else if (+it.qty > 0 && !/^(g|kg)$/i.test(it.unit)) f.pieceG = Math.round(+it.grams / +it.qty); S.foods.push(f);
+    if (rcp) { S.priceOverrides = S.priceOverrides || {}; S.priceMeta = S.priceMeta || {}; S.priceOverrides[f.id] = rcp.price; S.priceMeta[f.id] = {date: rcp.date, src: 'čekis'}; S.receiptFoods = S.receiptFoods.filter(x => x !== rcp); } }
+  return {food: f, grams: Math.round(+it.grams)};
+}
+A.impAi = async () => {
+  const I = UI.imp; if (!I || I.aiBusy) return; impSync();
+  const todo = I.lines.filter(l => !l.foodId).slice(0, 15); if (!todo.length) return;
+  I.aiBusy = true; if ($('#modal.open')) impModal();
+  const res = await Promise.all(todo.map(l => aiFood(l.raw)));
+  todo.forEach((l, i) => { const x = res[i]; if (x) { l.foodId = x.food.id; if (!l.grams) l.grams = x.grams; } });
+  I.aiBusy = false; if (UI.imp === I && $('#modal.open')) impModal();
+  const ok = res.filter(Boolean).length; if (ok) { commit({noRender: true}); toast(`✨ Atpažinta ${ok} iš ${todo.length}`); }
+};
+
+// ================= PRANEŠIMAI Į TELEFONĄ (Web Push) =================
+// Programėlė apskaičiuoja artimiausių ~36 val. priminimus ir nusiunčia į Supabase; ten laikmatis kas 5 min. išsiunčia, kam laikas –
+// net kai programėlė uždaryta. Tas pats „tag“ kaip programėlės priminimo, todėl telefone nebūna dviejų vienodų.
+const pushOn = () => { try { return localStorage.getItem('ls_push') === '1'; } catch (e) { return false; } };
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+// vietinis laikas (programėlės laiko juostoje) → tikslus momentas
+function localAt(date, min) {
+  const z = zonedParts(), [y, m, d] = z.date.split('-').map(Number);
+  const off = Date.UTC(y, m - 1, d) + z.min * 60e3 - Math.floor(Date.now() / 60e3) * 60e3;
+  const [Y, M, D] = date.split('-').map(Number);
+  return new Date(Date.UTC(Y, M - 1, D) + min * 60e3 - off).toISOString();
+}
+function upcomingReminders() {
+  const out = [], t = today(), tm = addDays(t, 1), soon = Date.now() - 5 * 60e3;
+  const add = (key, date, min, title, body = '') => { const at = localAt(date, min); if (Date.parse(at) > soon) out.push({key, at, title, body, url: './'}); };
+  const wake = toMin(S.profile.wake); let bed = toMin(S.profile.bed); if (bed <= wake) bed += 1440;
+  for (const d of [t, tm]) {
+    for (const e of eventsOn(d)) { const s = toMin(e.start) - (+e.travel || 0); add(`ev|${e.id}|${d}`, d, s - 15, `${cat(e.cat).emoji} ${e.title}`, `Prasideda ${e.start}${+e.travel ? ' – laikas išeiti' : ''}`); }
+    for (const k of S.tasks.filter(x => !x.done && x.due)) {
+      const dd = diffDays(d, k.due), offs = (k.remind || '1,0') === 'none' ? [] : (k.remind || '1,0').split(',').map(Number);
+      if (!offs.length) continue;
+      if (dd < 0) add(`late|${k.id}|${d}`, d, 9 * 60, '🚨 Nepadaryta laiku', `${k.title} (buvo iki ${fmtDate(k.due)})`);
+      else if (dd === 0 && offs.includes(0)) add(`today|${k.id}|${d}`, d, 9 * 60, '📌 Šiandien', `${k.title}${k.dueTime ? ' iki ' + k.dueTime : ''}${+k.progress ? ` · padaryta ${k.progress}%` : ''}`);
+      else if (offs.includes(dd)) add(`pre|${k.id}|${d}`, d, 9 * 60, dd === 1 ? '⏰ Rytoj' : `⏰ Po ${dd} d.`, `Nepamiršk: ${k.title}`);
+      else if (+k.est && dd <= 3 && (+k.progress || 0) < 50) add(`slow|${k.id}|${d}`, d, 9 * 60, '🐢 Atsilieka', `${k.title}: liko ${dd} d., padaryta tik ${+k.progress || 0}%`);
+    }
+    add(`bed|${d}`, d, bed - 30, '🌙 Po 30 min – miegas', 'Padėk telefoną, pasiruošk rytojui (ir išsiimk porciją iš šaldiklio 🧊)');
+    for (const p of plansOn(d)) {
+      add(`plan30|${p.id}`, d, toMin(p.start) - 30, `🏋️ Po 30 min: ${wtypeName(p.type)}`, `${p.exercises.length} pratimai, ~${p.duration} min.`);
+      add(`plan0|${p.id}`, d, toMin(p.start), '💪 Laikas sportuoti!', `${wtypeName(p.type)} – spausk „▶ Pradėti“`);
+    }
+    for (const x of storageItems().filter(x => x.place === 'fridge')) {
+      const left = x.left - diffDays(t, d); if (left > 1 || left < 0) continue;
+      add(`exp|${x.id}|${d}`, d, 9 * 60, left === 0 ? '⏰ Suvalgyk šiandien' : '⏰ Suvalgyk iki rytojaus', `${x.r?.name || ''} šaldytuve (${x.portions} porc.)${x.r?.freezable && left === 1 ? ' – arba užšaldyk' : ''}`);
+    }
+    if (S.foodPrefs.mealSuggest) {
+      try {
+        const {mealTimes: mt, sportSlot} = recommendations(d);
+        for (const x of mealSuggestions(d, mt, sportSlot)) add(`meal|${d}|${x.slot.t}`, d, x.slot.pack ? x.slot.t - 60 : x.slot.t, x.slot.pack ? '🥡 Pasiimk maistą su savimi' : '🍽️ Laikas pavalgyti',
+          x.r ? `${x.r.emoji} ${x.r.name}${x.item?.place === 'freezer' ? ' (iš šaldiklio)' : ''}` : x.slot.note || 'Atsargų nėra – greitas valgis');
+      } catch (e) {}
+    }
+  }
+  if (S.timer) { const at = new Date(S.timer.ts + 3 * 3600e3).toISOString(); if (Date.parse(at) > soon) out.push({key: `timer|${S.timer.ts}`, at, title: '⏱️ Laikmatis vis dar veikia', body: `${cat(S.timer.cat).name} – jau daugiau nei 3 val. Gal pamiršai sustabdyti?`, url: './'}); }
+  const ci = checkinDue(); if (ci) add(`ci|${ci}|${t}`, t, 10 * 60, '🪞 Laikas patikrinimui', ci === 'week' ? 'Savaitės patikrinimas – pasisverk ir pažiūrėk, kaip sekėsi' : 'Mėnesio patikrinimas laukia');
+  if (sportReviewDue()) add(`review|${t}`, t, 10 * 60, '📊 Sporto apžvalga', 'Praėjo 2 savaitės – pažiūrėk, ką treniravai, o ką praleidai');
+  try { const sp = recommendations(t).recs.find(r => r.kind === 'sport' && r.slot); if (sp) add(`sport|${t}`, t, sp.slot[0] - 10, '💪 Laisvas langas sportui!', sp.title); } catch (e) {}
+  return out.sort((a, b) => a.at < b.at ? -1 : 1).slice(0, 150);
+}
+let PUSH_T = null, PUSH_LAST = '';
+function pushSoon(ms = 15000) { if (!pushOn()) return; clearTimeout(PUSH_T); PUSH_T = setTimeout(pushSync, ms); }
+async function pushSync() {
+  if (!pushOn() || DEV || readOnly() || !S) return;
+  const items = upcomingReminders(), sig = JSON.stringify(items);
+  if (sig === PUSH_LAST) return;
+  try { await DB.rpc('push_sync', {items}); PUSH_LAST = sig; } catch (e) {}
+}
+setInterval(() => pushSync(), 15 * 60e3);
+setTimeout(() => pushSync(), 8000);
+const b64u = s => { const b = atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+function pushCardHtml() {
+  const perm = 'Notification' in window ? Notification.permission : 'nepalaikoma', on = pushOn() && perm === 'granted';
+  const iosHint = isIOS() && !isStandalone() ? '<div class="warnbox">📱 iPhone: pranešimai veikia tik programėlei, pridėtai į pradžios ekraną. Safari → Bendrinti → „Į pradžios ekraną“, tada atidaryk iš ten.</div>' : '';
+  return `${iosHint}<p>Pranešimai telefone: <b>${on ? 'įjungti ✓' : perm === 'denied' ? 'užblokuoti naršyklėje' : 'neįjungti'}</b></p>
+    <p class="hint">Primins apie įvykius, užduotis, sportą${S.foodPrefs.mealSuggest ? ', valgymą' : ''} ir miegą – net kai programėlė uždaryta.</p>
+    <div class="choice row">${on ? btn('🔔 Bandomasis pranešimas', 'pushTest', {}, 'sm') + btn('Išjungti šiame įrenginyje', 'pushDisable', {}, 'sm ghost') : btn('📲 Įjungti pranešimus', 'pushEnable', {}, 'sm primary')}${btn('📅 Eksportuoti į kalendorių', 'exportIcs', {}, 'sm ghost')}</div>
+    ${perm === 'denied' ? '<p class="hint">Naršyklė juos užblokavo – leisk naršyklės / telefono nustatymuose (svetainės leidimai → Pranešimai).</p>' : ''}
+    ${DEV ? `<p class="hint">🐞 Kūrėjui: ${btn('🔑 Pranešimų raktai', 'vapidKeys', {}, 'sm ghost')}</p>` : ''}`;
+}
+A.enableNotif = () => A.pushEnable();
+A.pushEnable = async () => {
+  if (!pushSupported()) return info('📲 Pranešimai', isIOS() ? 'iPhone: pirma pridėk programėlę į pradžios ekraną (Safari → Bendrinti → „Į pradžios ekraną“), atidaryk iš ten ir bandyk dar kartą.' : 'Ši naršyklė nepalaiko pranešimų.');
+  const perm = await Notification.requestPermission(); if (perm !== 'granted') { render(); return toast('Pranešimai neleisti'); }
+  if (!cloudOn()) { localStorage.setItem('ls_push', '1'); render(); return toast('Testavimo režimas: pranešimai rodomi tik kol programėlė atidaryta'); }
+  const k = await DB.fn('push_key');
+  if (!k.ok || !k.key) return DEV ? warn('Supabase\'e nėra VAPID raktų. Spausk „🔑 Pranešimų raktai“ ir įrašyk juos į Edge Functions → Secrets.') : toast('Pranešimai dar ruošiami – pabandyk vėliau');
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    const same = sub && sub.options?.applicationServerKey && btoa(String.fromCharCode(...new Uint8Array(sub.options.applicationServerKey))) === btoa(String.fromCharCode(...b64u(k.key)));
+    if (sub && !same) { await sub.unsubscribe().catch(() => {}); sub = null; }
+    sub = sub || await reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: b64u(k.key)});
+    const j = sub.toJSON();
+    await DB.rpc('push_subscribe', {p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_device: fbContext().device});
+    localStorage.setItem('ls_push', '1'); PUSH_LAST = ''; await pushSync();
+    toast('📲 Pranešimai įjungti', 'good'); render();
+  } catch (e) { warn('Nepavyko įjungti pranešimų: ' + (e.message || e)); }
+};
+A.pushDisable = async () => {
+  try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (sub) { await DB.rpc('push_unsubscribe', {p_endpoint: sub.endpoint}).catch(() => {}); await sub.unsubscribe(); } } catch (e) {}
+  localStorage.removeItem('ls_push'); toast('Pranešimai šiame įrenginyje išjungti'); render();
+};
+A.pushTest = async () => {
+  if (!cloudOn()) return notify('🔔 Pranešimai veikia', 'Taip atrodys priminimai.', 'test');
+  toast('Siunčiu…'); const r = await DB.fn('push_test'); r.ok ? toast('🔔 Išsiųsta – pažiūrėk į telefoną', 'good') : warn(r.error || 'Nepavyko');
+};
+// Kūrėjui: VAPID raktų pora sukuriama tavo naršyklėje ir niekur nesiunčiama – nukopijuok į Supabase Secrets
+A.vapidKeys = async () => {
+  const kp = await crypto.subtle.generateKey({name: 'ECDSA', namedCurve: 'P-256'}, true, ['sign', 'verify']);
+  const raw = new Uint8Array(await crypto.subtle.exportKey('raw', kp.publicKey)), jwk = await crypto.subtle.exportKey('jwk', kp.privateKey);
+  const pub = btoa(String.fromCharCode(...raw)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const row = (name, v) => `<label class="fld"><span>${name}</span><div class="row"><input readonly value="${esc(v)}" style="flex:1;font-family:monospace;font-size:12px"><button type="button" class="btn sm" onclick="navigator.clipboard.writeText(this.previousElementSibling.value);this.textContent='✓'">Kopijuoti</button></div></label>`;
+  modal('🔑 Pranešimų raktai', `<p>Supabase → <b>Edge Functions → Secrets</b> → pridėk du įrašus (pavadinimas ir reikšmė):</p>${row('VAPID_PUBLIC_KEY', pub)}${row('VAPID_PRIVATE_KEY', jwk.d)}
+    <p class="hint">Raktai sukurti šiame naršyklės lange ir niekur nesiunčiami. Uždarius langą jie dingsta – jei nespėjai nukopijuoti, sukurk naujus. Pakeitus raktus, pranešimus reikės įjungti iš naujo.</p>`, null, {noFocus: true});
+};
+
+// ===== „✨ Parašyk“: vienas mygtukas – apskaičiuoja ir išsaugo =====
+// Pirmiausia AI; jei jis nepasiekiamas – tyliai atpažįstam iš savo produktų bazės (naudotojui jokių „AI klaidų“)
+function localFoodParse(text) {
+  const items = [], miss = [];
+  for (const part of text.split(/[,;\n+]|\s+ir\s+|\s+su\s+(?=\d)/i).map(x => x.trim()).filter(Boolean)) {
+    const r = parseIngredient(part), f = r.foodId && food(r.foodId);
+    if (!f) { miss.push(part); continue; }
+    const g = r.grams || PIECE_G[f.id] || 100, k = g / 100;
+    items.push({name: f.name.replace(/\s*\(.*?\)\s*/g, ' ').trim(), qty: 0, unit: '', grams: g, kcal: Math.round(f.kcal * k), p: round(f.p * k, 1), c: round(f.c * k, 1), f: round(f.f * k, 1), s: round((f.s || 0) * k, 1), fi: round((f.fi || 0) * k, 1), sat: round((f.sat || 0) * k, 1), salt: round((f.salt || 0) * k, 2)});
+  }
+  return {items, miss};
+}
+async function saveFoodText(text, date, time) {
+  const sb = $('#mform button[type=submit]'); if (sb) { sb.disabled = true; sb.textContent = '⏳ Skaičiuoju…'; }
+  let items = [], miss = [];
+  const r = await DB.fn('food_parse', {text}).catch(() => null);
+  let note = '';
+  if (r?.ok && r.items?.length) { items = r.items; note = String(r.note || '').trim(); }
+  else { ({items, miss} = localFoodParse(text)); if (DEV && r && !r.ok) console.warn('food_parse:', r.error); }
+  if (!items.length) {
+    if (sb) { sb.disabled = false; sb.textContent = 'Išsaugoti'; }
+    return warn('Neatpažinau, ką valgei. Parašyk paprasčiau, pvz. „2 kiaušiniai, 200 g varškės“, arba įrašyk per „⚡ Greitas“.');
+  }
+  for (const it of items) S.meals.push({id: uid(), date, time, name: it.name + (it.qty && it.unit && it.unit !== 'porcija' && !(it.qty == 1 && it.unit === 'vnt') ? ` (${it.qty} ${it.unit})` : ''),
+    kcal: Math.round(+it.kcal || 0), p: +it.p || 0, c: +it.c || 0, f: +it.f || 0, s: +it.s || 0, fi: +it.fi || 0, sat: +it.sat || 0, salt: +it.salt || 0, g: +it.grams || undefined, ai: true});
+  UI.aiText = ''; A.closeModal(); commit();
+  const tot = Math.round(sum(items.map(x => +x.kcal || 0)));
+  toast(`🍽️ Įrašyta: ${items.map(x => esc(x.name)).join(', ')} – ${tot} kcal${note ? `<br><small>💡 ${esc(note)}</small>` : ''}${miss.length ? `<br><small>Neatpažinau: ${esc(miss.join(', '))}</small>` : ''}`, 'good');
+}
+
+// ===== Emoji: greitas pasirinkimas + automatiškai pagal pavadinimą =====
+const FOOD_EMOJI = ['🍲', '🥗', '🍝', '🍛', '🍚', '🌯', '🌮', '🥪', '🍔', '🍕', '🍗', '🥩', '🐟', '🍤', '🍳', '🥞', '🥣', '🥘', '🫕', '🥟', '🍜', '🥔', '🥦', '🍰', '🍪', '🥤'];
+function emojiPicks() { return `<div class="emopick">${FOOD_EMOJI.map(e => `<button type="button" data-a="pickEmo" data-e="${e}">${e}</button>`).join('')}</div>`; }
+A.pickEmo = d => { const i = document.querySelector('#mform [name=emoji], #mform [data-imp=emoji]'); if (!i) return; i.value = d.e; i.dispatchEvent(new Event('input', {bubbles: true})); document.querySelectorAll('.emopick button').forEach(b => b.classList.toggle('on', b.dataset.e === d.e)); };
+function suggestEmoji(name) {
+  const n = norm(name || '');
+  const map = [[/wrap|burrito|lavas|tortil|kebab/, '🌯'], [/taco/, '🌮'], [/sriub|soup|bulvien|ramen/, '🍲'], [/salot|salad/, '🥗'], [/makaron|pasta|spaget|lazanij|lasagn|penne/, '🍝'], [/pic|pizza/, '🍕'],
+    [/burger|mesain/, '🍔'], [/kari|curry/, '🍛'], [/ryz|rice|risot|plov/, '🍚'], [/sumust|sandwich|tost/, '🥪'], [/blyn|pancake|blynel/, '🥞'], [/aviz|oat|kose|porridge|granol/, '🥣'],
+    [/kiaus|omlet|egg|kiausin/, '🍳'], [/krevet|shrimp|prawn/, '🍤'], [/zuv|lasis|fish|salmon|menk|tun/, '🐟'], [/vist|chicken|kalakut|turkey/, '🍗'], [/jaut|beef|kepsn|steak|kiaul|pork/, '🥩'],
+    [/troskin|stew|goulash|gulias/, '🥘'], [/kotlet|frikadel|meatball/, '🍖'], [/virtin|cepelin|dumpl|koldun/, '🥟'], [/pyrag|cake|tort|keks|muffin/, '🍰'], [/sausain|cookie/, '🍪'], [/kokteil|smoothie|shake/, '🥤'], [/bulv|potato/, '🥔']];
+  for (const [re, e] of map) if (re.test(n)) return e;
+  return '🍽️';
+}
+
+// ===== Kiekis žmonių kalba ↔ gramai =====
+const amtText = (fid, g) => fmtIng(fid, g).replace(/\s*<small>.*<\/small>/, '');
+function amtToG(val, f) {
+  const v = String(val ?? '').trim().replace(',', '.'); if (!v) return 0;
+  const pg = f && !['suris', 'kumpis', 'vist_krut', 'vist_slaun', 'lasisa'].includes(f.id) ? (PIECE_G[f.id] || f.pieceG) : 0;
+  if (/^\d+(\.\d+)?$/.test(v)) { const n = +v; return pg && n <= 12 ? Math.round(n * pg) : Math.round(n); } // „3“ pomidorai = 3 vnt, „500“ = 500 g
+  if (!f) return Math.round(parseFloat(v) || 0);
+  const r = parseIngredient(`${v} ${f.name}`);
+  return r.grams || Math.round(parseFloat(v) || 0);
+}
+// Tylus atnaujinimas: kai programėlė paslėpta (perjungei į kitą programėlę / kortelę) – persikraunam, grįžus jau nauja versija
+document.addEventListener('visibilitychange', () => { if (document.hidden && UI.silentReload && !$('#modal.open')) location.reload(); });
+// grįžus į programėlę – iškart pasitikrinam, ar nėra naujos versijos
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkNewVersion(); });

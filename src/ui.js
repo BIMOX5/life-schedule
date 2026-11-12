@@ -2745,7 +2745,8 @@ async function saveFoodText(text, date, time) {
   const sb = $('#mform button[type=submit]'); if (sb) { sb.disabled = true; sb.textContent = '⏳ Skaičiuoju…'; }
   let items = [], miss = [];
   const r = await DB.fn('food_parse', {text}).catch(() => null);
-  if (r?.ok && r.items?.length) items = r.items;
+  let note = '';
+  if (r?.ok && r.items?.length) { items = r.items; note = String(r.note || '').trim(); }
   else { ({items, miss} = localFoodParse(text)); if (DEV && r && !r.ok) console.warn('food_parse:', r.error); }
   if (!items.length) {
     if (sb) { sb.disabled = false; sb.textContent = 'Išsaugoti'; }
@@ -2755,7 +2756,7 @@ async function saveFoodText(text, date, time) {
     kcal: Math.round(+it.kcal || 0), p: +it.p || 0, c: +it.c || 0, f: +it.f || 0, s: +it.s || 0, fi: +it.fi || 0, sat: +it.sat || 0, salt: +it.salt || 0, g: +it.grams || undefined, ai: true});
   UI.aiText = ''; A.closeModal(); commit();
   const tot = Math.round(sum(items.map(x => +x.kcal || 0)));
-  toast(`🍽️ Įrašyta: ${items.map(x => esc(x.name)).join(', ')} – ${tot} kcal${miss.length ? `<br><small>Neatpažinau: ${esc(miss.join(', '))}</small>` : ''}`, 'good');
+  toast(`🍽️ Įrašyta: ${items.map(x => esc(x.name)).join(', ')} – ${tot} kcal${note ? `<br><small>💡 ${esc(note)}</small>` : ''}${miss.length ? `<br><small>Neatpažinau: ${esc(miss.join(', '))}</small>` : ''}`, 'good');
 }
 
 // ===== Emoji: greitas pasirinkimas + automatiškai pagal pavadinimą =====

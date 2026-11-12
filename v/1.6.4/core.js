@@ -269,6 +269,7 @@ async function loadData() {
   return true;
 }
 function commit(opts = {}) {
+  if (typeof pushSoon === 'function') pushSoon();
   if (readOnly()) { if (SNAP) S = migrate(JSON.parse(SNAP)); if (typeof toast === 'function') toast('🗑️ Paskyra trinama – pakeitimai negalimi. Gali atšaukti trynimą Profilyje.'); render(); return; }
   if (DEV) { storeLocal(); if (!opts.noRender) render(); return; } // smėlio dėžė – į debesį nesiunčiama
   DIRTY = true; storeLocal();
@@ -436,16 +437,21 @@ function busyDetail(d) {
   return b.sort((x, y) => x.s - y.s);
 }
 // Įpročiai: kada dažniausiai valgai (paskutinės 3 sav.)
-function mealHabits(defaults) {
-  const from = addDays(today(), -21), ms = S.meals.filter(m => m.date >= from && m.time && !m.snack), ts = ms.map(m => toMin(m.time));
-  if (ts.length < 8 || new Set(ms.map(m => m.date)).size < 4) return null;
-  let c = [...defaults];
+// Grąžina valgymų centrus ir kaip dažnai kiekvienas valgymas iš tikro būna (0–1). Darbo dienos ir savaitgaliai – atskirai, jei duomenų pakanka.
+function mealHabits(defaults, d) {
+  const from = addDays(today(), -28), all = S.meals.filter(m => m.date >= from && m.date < today() && m.time && !m.snack);
+  const wk = x => [0, 6].includes(parseD(x).getDay()), same = d ? all.filter(m => wk(m.date) === wk(d)) : all;
+  const ms = new Set(same.map(m => m.date)).size >= 4 && same.length >= 8 ? same : all;
+  const days = new Set(ms.map(m => m.date)), ts = ms.map(m => toMin(m.time));
+  if (ts.length < 8 || days.size < 4) return null;
+  let c = [...defaults], g = [];
   for (let it = 0; it < 12; it++) {
-    const g = c.map(() => []);
-    for (const t of ts) { let bi = 0; c.forEach((x, i) => { if (Math.abs(t - x) < Math.abs(t - c[bi])) bi = i; }); g[bi].push(t); }
-    c = c.map((x, i) => g[i].length >= 2 ? sum(g[i]) / g[i].length : x);
+    g = c.map(() => []);
+    ms.forEach((m, k) => { const t = ts[k]; let bi = 0; c.forEach((x, i) => { if (Math.abs(t - x) < Math.abs(t - c[bi])) bi = i; }); g[bi].push(m); });
+    c = c.map((x, i) => g[i].length >= 2 ? sum(g[i].map(m => toMin(m.time))) / g[i].length : x);
   }
-  return c;
+  const use = g.map(list => new Set(list.map(m => m.date)).size / days.size);
+  return {c, use};
 }
 // Įpročiai: kada dažniausiai sportuoji
 function sportHabit() {
@@ -648,10 +654,10 @@ const UNIT_RULES = [
   [/^(ml|millilit\w*|mililitr\w*)$/, 'v', 1], [/^(l|lit(er|re)s?|litr\w*)$/, 'v', 1000], [/^(dl|decilit\w*)$/, 'v', 100], [/^(cl)$/, 'v', 10],
   [/^(fl\.?\s?oz|fluid)$/, 'v', 29.57], [/^(pints?|pt)$/, 'v', 473], [/^(quarts?|qt)$/, 'v', 946], [/^(gallons?|gal)$/, 'v', 3785],
   [/^(cups?|c\.|stiklin\w*|puodel\w*|kopp\w*|tasse\w*)$/, 'v', 240],
-  [/^(saukstel\w*|arb\w*|tsp|teaspoons?|tsk|tesked\w*|tl|teeloffel)$/, 'v', 5], [/^(sauks\w*|valg\w*|tbsp|tbs|tablespoons?|msk|matsked\w*|el|essloffel)$/, 'v', 15],
+  [/^(a\.?\s?s\.?)$/, 'v', 5], [/^(v\.?\s?s\.?)$/, 'v', 15], [/^(saukstel\w*|arb\w*|tsp|teaspoons?|tsk|tesked\w*|tl|teeloffel)$/, 'v', 5], [/^(sauks\w*|valg\w*|tbsp|tbs|tablespoons?|msk|matsked\w*|el|essloffel)$/, 'v', 15],
   [/^(krm|kryddmatt|ziupsn\w*|pinch\w*|dash\w*|prise)$/, 'fix', 1], [/^(skiltel\w*|cloves?|klyft\w*)$/, 'fix', 5], [/^(sticks?)$/, 'fix', 113],
   [/^(skardin\w*|cans?|tins?|burk\w*|dose)$/, 'fix', 400], [/^(pakel\w*|pak\.?|packs?|packages?|paket\w*)$/, 'fix', 200],
-  [/^(vnt\.?|vienet\w*|pcs|pieces?|whole|gabal\w*|st|styck\w*|stk)$/, 'pc', 1], [/^(rieke\w*|slices?|skiv\w*)$/, 'pc', 1],
+  [/^(vnt\.?|vienet\w*|pcs|pieces?|whole|gabal\w*|st|styck\w*|stk)$/, 'pc', 1], [/^(riek\w*|slices?|skiv\w*|griezin\w*|galv\w*|guz\w*)$/, 'pc', 1],
 ];
 // Tankis g/ml – kad „1 cup miltų“ ≠ „1 cup pieno“
 const DENSITY = {miltai:0.53, cukrus:0.85, ryziai:0.78, ryziai_rudi:0.78, avizos:0.38, grikiai:0.73, kuskusas:0.73, bulguras:0.7, kinva:0.72, lesiai:0.8, perlines:0.8,
@@ -659,7 +665,10 @@ const DENSITY = {miltai:0.53, cukrus:0.85, ryziai:0.78, ryziai_rudi:0.78, avizos
   migdolai:0.6, graikiniai:0.45, saulegrazos:0.6, chia:0.7, makaronai:0.42, makaronai_pg:0.42, majonezas:0.95, kecupas:1.1, sojos:1.15, pienas:1.03, kefyras:1.03,
   jogurtas:1.03, graik_jog:1.05, skyr:1.05, varske_0:1.0, grietine20:1.0, grietine10:1.0, grietinele:1.0, kok_pienas:1.0, pom_konserv:1.0, pom_pasta:1.1, baltymai:0.4,
   pup_raud:0.75, pup_balt:0.75, avinz:0.7, prieskoniai:0.5, riesut_sv:1.1, kakava:0.45, humusas:1.0, pesto:1.0};
+// papildomų produktų tankiai (g/ml), kad „1 cup kale“ ≠ 240 g
+Object.assign(DENSITY, {morkos: 0.45, pomidorai: 0.62, svogunai: 0.6, salieras: 0.5, paprika: 0.6, agurkai: 0.55, brokoliai: 0.37, ziedinis: 0.45, kopustai: 0.37, grybai: 0.3, bulves: 0.65, obuoliai: 0.5, bananai: 0.6, cukinija: 0.52, kale: 0.28, rukola: 0.1, sparag_pup: 0.5, rud_cukrus: 0.9, granola: 0.45, kuk_dribsn: 0.12, razinos: 0.6, zem_riesut: 0.6, anakard: 0.55, lazdyno: 0.55, sezamas: 0.6, linai: 0.65, mol_sekl: 0.55, kok_drozl: 0.35, manai: 0.7, soros: 0.8, tahini: 1.0, garstycios: 1.05, klevu_sir: 1.32, uogiene: 1.3, alyvuoges: 0.55, kokos_al: 0.92, ghee: 0.91, feta: 0.6, parmezanas: 0.4, cedaras: 0.45, kremsuris: 1.0, cottage: 0.95, ricotta: 1.0, mascarpone: 1.0, rug_milt: 0.5, pg_milt: 0.55, krakmolas: 0.6, dz_abrikos: 0.6, datules: 0.6, zal_lesiai: 0.8, edamame: 0.6, raug_kop: 0.6, salsa: 1.0, bbq: 1.1, pom_padaz: 1.05});
 function unitOf(word) { const w = norm(word).replace(/\.$/, ''); for (const [re, kind, k] of UNIT_RULES) if (re.test(w) || re.test(norm(word))) return {kind, k}; return null; }
+const ltStem = w => { if (w.length < 5) return w; const s = w.replace(/(iams|iems|uose|ams|oms|ems|ose|iai|ios|ies|iu|as|is|ys|us|os|ai|es|ei|ui|a|e|i|o|u|y)$/, ''); return s.length >= 4 ? s : w; };
 function matchFood(text) {
   const t = norm(text).replace(/\(.*?\)/g, ' ').replace(/[^a-z0-9 ]/g, ' ');
   const toks = t.split(/\s+/).filter(w => w.length >= 3);
@@ -668,7 +677,7 @@ function matchFood(text) {
   for (const f of allFoods()) {
     const phrases = [f.name.replace(/\(.*?\)/g, ''), ...(FOOD_SYN[f.id] || [])];
     for (const ph of phrases) {
-      const words = norm(ph).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length >= 3), stems = words.map(w => w.slice(0, 5));
+      const words = norm(ph).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length >= 3), stems = words.map(w => ltStem(w).slice(0, 5));
       if (!stems.length || !stems.every(hit)) continue;
       // premija už ilgesnį sutapimą (grietinėlė ≠ grietinė)
       const bonus = sum(words.map(w => { const b = w.slice(0, Math.max(3, w.length - 1)); return toks.some(t => t.startsWith(b)) ? b.length : 0; }));
@@ -678,6 +687,7 @@ function matchFood(text) {
       if (s > bestS) { bestS = s; best = f; }
     }
   }
+  if (best && best.id === 'pomidorai' && /skardin|\bcans?\b|\btins?\b|konserv|canned|burk|krossad|passata|chopped tomato/.test(norm(text))) best = food('pom_konserv') || best;
   return bestS >= 4 ? best : null;
 }
 const toNum = x => { x = String(x).replace(',', '.').trim(); if (x.includes('/')) { const p = x.split(/\s+/); return p.reduce((a, v) => { if (v.includes('/')) { const [q, w] = v.split('/'); return a + +q / +w; } return a + +v; }, 0); } return x.split(/\s+/).reduce((acc, v) => acc + +v, 0); };
@@ -705,10 +715,12 @@ function parseIngredient(line) {
     if (e) { rest = e[1]; qty = toNum(e[2]); if (e[3]) unit = unitOf(e[3]); }
   }
   rest = rest.replace(/^(of|su|av|von)\s+/i, '');
-  const f = matchFood(rest || s);
+  let f = matchFood(rest || s);
+  // „1 skardinė pomidorų“ → konservuoti
+  if (f && /skardin|\bcans?\b|\btins?\b|konserv|canned|burk|krossad|passata|chopped tomato/.test(norm(s)) && {pomidorai: 'pom_konserv'}[f.id]) f = food({pomidorai: 'pom_konserv'}[f.id]);
   let grams = 0;
   if (qty != null) {
-    if (!unit || unit.kind === 'pc') grams = f ? qty * (PIECE_G[f.id] || 100) : 0;
+    if (!unit || unit.kind === 'pc') grams = f ? qty * (PIECE_G[f.id] || f.pieceG || 100) : 0;
     else if (unit.kind === 'v') grams = qty * unit.k * (f ? (DENSITY[f.id] ?? 1) : 1);
     else grams = qty * unit.k; // svoris arba fiksuotas
   } else if (f && f.id === 'prieskoniai') grams = 3;
