@@ -283,8 +283,8 @@ const FOOD_SYN = {
   jaut_farsas:['ground beef','minced beef','beef mince','jautienos fars','fars'], mix_farsas:['minced meat','malta mes','mesos fars'], jaut_gab:['beef','steak','jautien'],
   lasisa:['salmon','lasis'], menke:['cod','menk'], tunas:['tuna','tun'], krevetes:['shrimp','prawn','krevet'], silke:['herring','silk'],
   kumpis:['ham','kump'], desreles:['sausage','desrel','dešr'], kiausiniai:['egg','kiausin','kiaušin'], kiaus_balt:['egg white','kiausiniu baltym'],
-  varske_0:['cottage cheese','varsk','varšk','quark'], graik_jog:['greek yogurt','graikisk','graikišk'], jogurtas:['yogurt','yoghurt','jogurt'], skyr:['skyr'],
-  pienas:['milk','pien'], kefyras:['kefir','kefyr'], suris:['cheese','cheddar','parmesan','suri','sūri'], mozzarella:['mozzarella','mocarel'],
+  varske_0:['varsk','varšk','quark'], graik_jog:['greek yogurt','graikisk','graikišk'], jogurtas:['yogurt','yoghurt','jogurt'], skyr:['skyr'],
+  pienas:['milk','pien'], kefyras:['kefir','kefyr'], suris:['cheese','suri','sūri','gouda','edam','dziugas'], mozzarella:['mozzarella','mocarel'],
   grietine20:['sour cream','grietin'], sviestas:['butter','sviest'], grietinele:['cream','heavy cream','grietinele'], baltymai:['protein powder','whey'],
   ryziai:['rice','ryz','ryž'], ryziai_rudi:['brown rice','rudieji ryz'], grikiai:['buckwheat','grik'], avizos:['oats','oatmeal','oat','aviz','dribsn'],
   makaronai:['pasta','spaghetti','penne','noodle','makaron','spaget'], makaronai_pg:['whole wheat pasta','pilno grudo makaron'], bulves:['potato','bulv'],
@@ -292,22 +292,22 @@ const FOOD_SYN = {
   kuskusas:['couscous','kuskus'], bulguras:['bulgur','bulgur'], kinva:['quinoa','kinv','balanda'], miltai:['flour','milt'], perlines:['barley','perlin'],
   lesiai:['lentil','lesi','lęši'], avinz:['chickpea','garbanzo','avinz'], pup_raud:['kidney bean','red bean','black bean','raudonosios pupel','pupel','beans'], pup_balt:['white bean','cannellini','baltosios pupel'],
   tofu:['tofu'], svogunai:['onion','shallot','svogun'], cesnakai:['garlic','cesnak','česnak'], morkos:['carrot','mork'], pomidorai:['tomato','pomidor'],
-  pom_konserv:['canned tomato','crushed tomato','diced tomato','chopped tomato','konservuoti pomidor','pomidoru padaz'], pom_pasta:['tomato paste','tomato puree','pomidoru past','pomidorų past'],
+  pom_konserv:['canned tomato','crushed tomato','diced tomato','chopped tomato','konservuoti pomidor'], pom_pasta:['tomato paste','tomato puree','pomidoru past','pomidorų past'],
   paprika:['bell pepper','red pepper','capsicum','paprik'], agurkai:['cucumber','pickle','agurk'], brokoliai:['broccoli','brokol'], ziedinis:['cauliflower','ziedin'],
   spinatai:['spinach','spinat'], kopustai:['cabbage','kopust','kopūst'], cukinija:['zucchini','courgette','cukinij'], baklazanas:['eggplant','aubergine','baklazan'],
-  grybai:['mushroom','champignon','grib','gryb','pievagryb'], kukuruzai:['corn','sweetcorn','kukuruz'], zirneliai:['peas','zirnel'], darz_mix:['mixed vegetables','frozen vegetables','darzoviu mis'],
+  grybai:['mushroom','champignon','grib','gryb','pievagryb'], kukuruzai:['corn','sweetcorn','kukuruz'], zirneliai:['peas','zirnel'], darz_mix:['saldytos darzoves','mixed vegetables','frozen vegetables','darzoviu mis'],
   salieras:['celery','salier'], burokeliai:['beet','beetroot','burok'], salotos:['lettuce','salad','salot','romaine','rukol','arugula'], porai:['leek','porai','poro'], moliugas:['pumpkin','squash','moliug'],
   bananai:['banana','banan'], obuoliai:['apple','obuol'], uogos:['berries','blueberr','strawberr','raspberr','uog','melyn','braskes'], apelsinai:['orange','apelsin'], citrina:['lemon','lime','citrin','laim'],
   kriause:['pear','kriaus'], avokadas:['avocado','avokad'], alyv_al:['olive oil','alyvuogiu aliej','alyvuogių aliej'], saul_al:['oil','vegetable oil','sunflower oil','aliej'],
-  riesut_sv:['peanut butter','riesutu sviest'], migdolai:['almond','migdol'], graikiniai:['walnut','graikini'], saulegrazos:['sunflower seed','saulegraz'], chia:['chia'],
+  riesut_sv:['peanut butter','riesutu sviest'], migdolai:['almond','migdol'], graikiniai:['walnut','graikini','riesut','nuts'], saulegrazos:['sunflower seed','saulegraz'], chia:['chia'],
   kok_pienas:['coconut milk','kokos'], sojos:['soy sauce','sojos padaz','soja'], majonezas:['mayonnaise','mayo','majonez'], kecupas:['ketchup','kecup','kečup'],
-  medus:['honey','medus','medaus'], cukrus:['sugar','cukr'], prieskoniai:['salt','pepper','paprika powder','chilli powder','chili powder','smoked paprika','ground paprika','cumin','spice','oregano','basil','thyme','cinnamon','marjoram','rosemary','parsley','coriander','dill','herbs','stock cube','bouillon','broth','stock','sultinio kubel','sultin','petrazol','krap','mairunas','kalendr','rozmarin','chilli flakes','ciberžol','druska','druskos','pipir','prieskon','kmyn','bazilik','ciberzol','cinamon'],
+  medus:['honey','medus','medaus'], cukrus:['sugar','cukr'], prieskoniai:['salt','pepper','cilantro','ginger','imbier','baking powder','baking soda','kepimo milt','soda','yeast','miel','vanilla','vanil','curry','kario milt','kari','cesnako milt','paprika powder','chilli powder','chili powder','smoked paprika','ground paprika','cumin','spice','oregano','basil','thyme','cinnamon','marjoram','rosemary','parsley','coriander','dill','herbs','stock cube','sultinio kubel','petrazol','krap','mairunas','kalendr','rozmarin','chilli flakes','ciberžol','druska','druskos','pipir','prieskon','kmyn','bazilik','ciberzol','cinamon'],
   pesto:['pesto'], humusas:['hummus','humus'], sokoladas:['chocolate','sokolad','šokolad'],
 };
 // ===== Čekio eilučių kategorijos =====
 const SNACK_IDS = ['traskuciai', 'sokoladas', 'gazuotas', 'alus', 'batonelis', 'pica'];
-const SNACK_WORDS = ['traskuc', 'cips', 'chips', 'sokolad', 'saldain', 'sausain', 'cola', 'kola', 'pepsi', 'fanta', 'sprite', 'energet', 'redbull', 'monster', 'ledai', 'ledu', 'gumin', 'zelej', 'vafl', 'pyrag', 'tortas', 'spurg', 'bandel', 'kruasan', 'alus', 'vynas', 'sidras', 'degtin', 'kokteil', 'snack', 'popcorn', 'spragesi', 'riestain', 'batonel', 'kremas', 'desert', 'pudin', 'limonad', 'gerimas', 'gazuot'];
-const NONFOOD_WORDS = ['maisel', 'maisas', 'maisai', 'maisu ', 'siuksl', 'sukl', 'tualetin', 'drezg', 'lipn', 'aliumin', 'pakuot', 'servetel', 'popier', 'tualet', 'sampun', 'muil', 'dant', 'skalb', 'plovikl', 'indaplov', 'bateri', 'krepš', 'krep', 'kauc', 'uzstat', 'tara', 'cigaret', 'zurnal', 'valikl', 'kempin', 'folij', 'plevel', 'kosmet', 'dezodor', 'skust', 'vata', 'higien', 'vaist', 'zvak', 'gelė', 'gele', 'puodel', 'lempute', 'dovan'];
+const SNACK_WORDS = ['choklad', 'godis', 'lask', 'kex', 'glass', 'bulle', 'chokladkaka', 'candy', 'cookie', 'ice cream', 'traskuc', 'cips', 'chips', 'sokolad', 'saldain', 'sausain', 'cola', 'kola', 'pepsi', 'fanta', 'sprite', 'energet', 'redbull', 'monster', 'ledai', 'ledu', 'gumin', 'zelej', 'vafl', 'pyrag', 'tortas', 'spurg', 'bandel', 'kruasan', 'alus', 'vynas', 'sidras', 'degtin', 'kokteil', 'snack', 'popcorn', 'spragesi', 'riestain', 'batonel', 'kremas', 'desert', 'pudin', 'limonad', 'gerimas', 'gazuot'];
+const NONFOOD_WORDS = ['soppas', 'barkasse', 'kasse', 'plastpase', 'papperspase', 'pant', 'toalett', 'hushallspapper', 'papper', 'diskmedel', 'tvatt', 'tandkram', 'schampo', 'tval', 'batteri', 'servett', 'ljus', 'blomm', 'folie', 'trash bag', 'bin bag', 'carrier bag', 'toilet', 'detergent', 'soap', 'shampoo', 'toothpaste', 'battery', 'napkin', 'deposit', 'maisel', 'maisas', 'maisai', 'maisu ', 'siuksl', 'sukl', 'tualetin', 'drezg', 'lipn', 'aliumin', 'pakuot', 'servetel', 'popier', 'tualet', 'sampun', 'muil', 'dant', 'skalb', 'plovikl', 'indaplov', 'bateri', 'krepš', 'krep', 'kauc', 'uzstat', 'tara', 'cigaret', 'zurnal', 'valikl', 'kempin', 'folij', 'plevel', 'kosmet', 'dezodor', 'skust', 'vata', 'higien', 'vaist', 'zvak', 'gelė', 'gele', 'puodel', 'lempute', 'dovan'];
 // Sveiki užkandžiai (porcija): pavadinimas, kcal, baltymai
 const HEALTHY_SNACKS = [
   ['🥣 Graikiškas jogurtas su uogomis (200 g + 80 g)', 186, 19], ['🍎 Obuolys + 1 š. riešutų sviesto', 165, 4.5], ['🧀 Varškė 0,5% (200 g)', 140, 26], ['🥕 Morkos su humusu (150 g + 50 g)', 186, 5],
@@ -318,22 +318,135 @@ const HEALTHY_SNACKS = [
 const FOOD_SYN_SV = {
   pienas:['mjolk','mellanmjolk','standardmjolk'], kefyras:['filmjolk'], vist_krut:['kycklingfile','kycklingbrost'], vist_slaun:['kycklinglar','kyckling'],
   jaut_farsas:['notfars','nötfärs'], mix_farsas:['blandfars','blandfärs'], kiaul_nug:['flaskfile','fläskfilé','flask'], lasisa:['lax','laxfile'], tunas:['tonfisk'],
-  kiausiniai:['agg','ägg'], sviestas:['smor','smör'], suris:['hushallsost','prastost','ost '], graik_jog:['grekisk yoghurt'], varske_0:['kvarg','keso'], grietinele:['gradde','grädde','vispgradde'],
+  kiausiniai:['agg','ägg'], sviestas:['smor','smör'], suris:['hushallsost','prastost','ost '], graik_jog:['grekisk yoghurt'], varske_0:['kvarg'], grietinele:['gradde','grädde','vispgradde'],
   grietine20:['creme fraiche','gräddfil','graddfil'], bulves:['potatis'], svogunai:['gul lok','lök'], morkos:['morot','morötter'], agurkai:['gurka'], pomidorai:['tomat'],
   ryziai:['jasminris','basmatiris','ris '], avizos:['havregryn'], duona_pg:['brod','bröd','limpa'], lavasas:['tortillabrod'], obuoliai:['apple','äpple'], bananai:['banan'],
   kopustai:['vitkal','vitkål'], brokoliai:['broccoli'], paprika:['paprika'], cesnakai:['vitlok','vitlök'], uogos:['blabar','blåbär','hallon','jordgubb'], zirneliai:['arter','ärter'],
-  makaronai:['pasta','spaghetti','makaroner'], miltai:['vetemjol','vetemjöl'], cukrus:['socker'], saul_al:['rapsolja','olja'], alyv_al:['olivolja'], lesiai:['linser'], kecupas:['ketchup'],
+  citrina:['citron'], duona_rug:['ragbrod','rågbröd'], pom_konserv:['krossade','passata'], desreles:['korv','falukorv','prinskorv','wienerkorv'],
+  sokoladas:['choklad','mjolkchoklad'], gazuotas:['lask','läsk','coca cola','pepsi'], kumpis:['skinka'], grietine10:['matlagningsgradde'],
+  makaronai:['pasta','spaghetti','makaroner'], miltai:['vetemjol','vetemjöl'], cukrus:['socker'], saul_al:['olja'], alyv_al:['olivolja'], lesiai:['linser'], kecupas:['ketchup'],
 };
 for (const [id, arr] of Object.entries(FOOD_SYN_SV)) FOOD_SYN[id] = [...(FOOD_SYN[id] || []), ...arr];
 // Vieneto svoris (g), kai receptas sako „1 vnt.“
-const PIECE_G = {kiausiniai:60, svogunai:110, cesnakai:5, pomidorai:120, bananai:120, obuoliai:150, paprika:150, morkos:80, bulves:150, sald_bulves:200, citrina:80, avokadas:150,
+const PIECE_G = {kiaus_balt:33, burokeliai:150, salotos:300, kiausiniai:60, svogunai:110, cesnakai:5, pomidorai:120, bananai:120, obuoliai:150, paprika:150, morkos:80, bulves:150, sald_bulves:200, citrina:80, avokadas:150,
   lavasas:60, agurkai:200, cukinija:250, baklazanas:300, brokoliai:400, ziedinis:600, apelsinai:180, kriause:170, vist_krut:200, vist_slaun:100, lasisa:150, duona_pg:35, duona_rug:35,
   kopustai:1000, porai:200, salieras:50, grybai:20, tunas:120, pom_konserv:400, pup_raud:240, pup_balt:240, avinz:240, kukuruzai:200, kok_pienas:400, desreles:50, kumpis:20, suris:20, mozzarella:125};
+
+// ===== Papildomi produktai (dažni receptuose ir čekiuose) =====
+// [id, pavadinimas, kcal, baltymai, angliav., riebalai, €/kg, [cukrūs, skaidulos, sotieji, druska], žymos, sinonimai (LT/EN/SV), vnt. svoris arba 'L' (skystis), vieneto žodis]
+const FOOD_MORE = [
+  ['feta','Feta sūris',265,14,4,21,12,[4,0,15,2.8],'pienas','feta,fetos,fetaost'],
+  ['halloumi','Halloumi sūris',320,22,2,25,18,[2,0,17,2.7],'pienas','halloumi'],
+  ['mascarpone','Maskarponė',430,4.6,4,44,14,[4,0,30,0.1],'pienas','mascarpone,maskarpon'],
+  ['ricotta','Rikota',150,10,3.5,11,10,[0.3,0,7,0.2],'pienas','ricotta,rikot'],
+  ['cottage','Grūdėta varškė',100,11,3,4.5,6,[3,0,2.8,0.8],'pienas','cottage cheese,grudeta varsk,keso'],
+  ['kremsuris','Kreminis sūris',250,6,4,24,10,[3,0,15,0.8],'pienas','cream cheese,kreminis sur,philadelphia,farskost'],
+  ['parmezanas','Parmezanas',400,35,0,29,25,[0,0,19,1.6],'pienas','parmesan,parmezan,grana padano,parmigiano'],
+  ['cedaras','Čederio sūris',400,25,1.3,33,14,[0.5,0,21,1.8],'pienas','cheddar,cedari'],
+  ['bri','Brie / Camembert sūris',330,20,0.5,28,15,[0.5,0,17,1.5],'pienas','brie,camembert,kamamber'],
+  ['pasukos','Pasukos',40,3.3,4.8,0.9,1.5,[4.8,0,0.6,0.1],'pienas','buttermilk,pasuk,karnmjolk','L'],
+  ['avizu_ger','Avižų gėrimas',45,1,6.5,1.5,2.5,[4,0.8,0.2,0.1],'','oat milk,oat drink,avizu gerim,havredryck,oatly','L'],
+  ['sojos_ger','Sojų gėrimas',39,3.3,2.5,1.8,2.5,[2.5,0.5,0.3,0.1],'soja','soy milk,soy drink,soju gerim,sojadryck','L'],
+  ['migdolu_ger','Migdolų gėrimas',24,0.5,3,1.1,3,[3,0.3,0.1,0.1],'riešutai','almond milk,almond drink,migdolu gerim,mandeldryck','L'],
+  ['ghee','Lydytas sviestas (ghee)',900,0,0,100,20,[0,0,62,0],'pienas','ghee,lydytas sviest'],
+  ['ledai','Ledai',207,3.5,24,11,6,[21,0.5,7,0.2],'pienas','ice cream,ledai,ledu,glass'],
+  ['sonine','Šoninė',420,13,1,40,9,[0,0,14,2],'kiauliena|mėsa','bacon,sonin,bekon'],
+  ['salamis','Salami / rūkyta dešra',400,22,1.5,34,14,[0.5,0,12,4.5],'kiauliena|mėsa','salami,saliam,chorizo,pepperoni,rukyta desr'],
+  ['vist_sparn','Vištienos sparneliai',200,18,0,14,5,[0,0,4,0.2],'paukštiena|mėsa','chicken wings,sparnel,kycklingvingar'],
+  ['antiena','Antiena',337,19,0,28,10,[0,0,10,0.2],'paukštiena|mėsa','duck,antien,anka'],
+  ['eriena','Ėriena',280,17,0,23,14,[0,0,10,0.2],'mėsa','lamb,erien,lamm'],
+  ['jaut_kepsn','Jautienos kepsnys',200,26,0,10,22,[0,0,4,0.2],'jautiena|mėsa','steak,beef steak,jautienos kepsn,entrecote,biff'],
+  ['kiaul_fars','Kiaulienos faršas',260,17,0,21,6,[0,0,8,0.2],'kiauliena|mėsa','ground pork,pork mince,kiaulienos fars,flaskfars'],
+  ['skumbre','Skumbrė',205,19,0,14,8,[0,0,3.3,0.2],'žuvis','mackerel,skumbr,makrill'],
+  ['sardines','Sardinės (konserv.)',210,25,0,12,9,[0,0,2.5,0.8],'žuvis','sardine,sardin',120,'skard.'],
+  ['krabu','Krabų lazdelės',95,7,14,1,6,[5,0,0.2,1.6],'žuvis','crab sticks,krabu lazdel,surimi,crabfish'],
+  ['midijos','Midijos',86,12,3.7,2.2,8,[0,0,0.4,0.7],'jūros gėrybės','mussels,midij,musslor'],
+  ['batonas','Batonas (balta duona)',265,9,49,3.2,2,[5,2.7,0.7,1.2],'gliutenas','white bread,baton,balta duon,toast,franskbrod,formfranska',30,'riek.'],
+  ['bagete','Bagetė',270,9,55,1.2,3,[3,2.5,0.3,1.4],'gliutenas','baguette,baget',250],
+  ['bandele','Mėsainio bandelė',270,9,48,4.5,4,[6,2,1,1.1],'gliutenas','burger bun,hamburger bun,mesainio bandel,hamburgerbrod',60],
+  ['pita','Pita duona',275,9,56,1.2,4,[1.5,2.2,0.2,1.2],'gliutenas','pita',60],
+  ['trapuciai','Trapučiai (traški duona)',370,10,70,2,6,[2,15,0.3,1],'gliutenas','crispbread,trapuc,knackebrod,wasa',10],
+  ['granola','Granola / musli',420,9,64,14,6,[20,7,3,0.1],'gliutenas','granola,musli,muesli'],
+  ['kuk_dribsn','Kukurūzų dribsniai',380,7,84,0.9,4,[8,3,0.2,1.1],'','cornflakes,corn flakes,kukuruzu dribsn'],
+  ['manai','Manų kruopos',360,10,73,1,1.5,[0.3,3.9,0.2,0],'gliutenas','semolina,manu kruop,mannagryn'],
+  ['soros','Soros',378,11,73,4.2,3,[0,8.5,0.7,0],'','millet,soros,hirs'],
+  ['ryziu_mak','Ryžių makaronai (sausi)',360,6,80,0.6,6,[0,1.6,0.2,0],'','rice noodles,ryziu makaron,risnudlar'],
+  ['kiaus_mak','Kiaušininiai makaronai (sausi)',380,14,71,4.4,4,[2,3.3,1,0.1],'gliutenas|kiaušiniai','egg noodles,kiausinin makaron,aggnudlar,noodles,nudlar'],
+  ['lazanija','Lazanijos lakštai (sausi)',360,12,72,1.5,4,[3,3,0.3,0],'gliutenas','lasagne,lasagna,lazanij'],
+  ['gnocchi','Bulvių kukuliai (gnocchi)',150,3.5,32,0.5,5,[0.5,2,0.1,1],'gliutenas','gnocchi,njoki'],
+  ['krakmolas','Krakmolas',350,0.3,86,0.1,2,[0,0.9,0,0],'','starch,cornstarch,krakmol,maizena,potatismjol'],
+  ['rug_milt','Ruginiai miltai',325,9,66,1.7,1.5,[1,13,0.2,0],'gliutenas','rye flour,ruginiai milt,ragmjol'],
+  ['pg_milt','Pilno grūdo miltai',340,13,64,2.5,1.5,[0.4,11,0.4,0],'gliutenas','whole wheat flour,wholemeal flour,pilno grudo milt,grahamsmjol'],
+  ['rukola','Rukola',25,2.6,3.7,0.7,15,[2,1.6,0.1,0],'','arugula,rocket,rukol,ruccola'],
+  ['kale','Lapiniai kopūstai (kale)',49,4.3,9,0.9,8,[2.3,3.6,0.1,0.1],'','kale,lapiniai kopust,gronkal'],
+  ['raud_kop','Raudongūžiai kopūstai',31,1.4,7,0.2,1.2,[3.8,2.1,0,0],'','red cabbage,raudonguz,rodkal',1000,'galv.'],
+  ['ridikeliai','Ridikėliai',16,0.7,3.4,0.1,3,[1.9,1.6,0,0],'','radish,ridikel,radisor',15],
+  ['smidrai','Smidrai',20,2.2,3.9,0.1,10,[1.9,2.1,0,0],'','asparagus,smidr,sparris',20],
+  ['sparag_pup','Šparaginės pupelės',31,1.8,7,0.2,4,[3.3,2.7,0,0],'ankštiniai','green beans,sparagin pupel,haricots verts,grona bonor'],
+  ['svog_laisk','Svogūnų laiškai',32,1.8,7,0.2,10,[2.3,2.6,0,0],'','spring onion,green onion,scallion,svogunu laisk,salladslok,varlok',15],
+  ['cili','Čili pipiras',40,1.9,9,0.4,12,[5,1.5,0,0],'','chili pepper,red chili,jalapeno,cili pipir,chilipeppar',15],
+  ['alyvuoges','Alyvuogės',145,1,4,15,9,[0,3.3,2,2.1],'','olives,alyvuog,oliver,kalamata'],
+  ['raug_agurk','Rauginti / marinuoti agurkai',12,0.5,2,0.2,3,[1,1,0,2.5],'','pickles,pickled cucumber,raugint agurk,marinuot agurk,saltgurka,inlagd gurka',60],
+  ['raug_kop','Rauginti kopūstai',19,0.9,4.3,0.1,2.5,[1.8,2.9,0,1.7],'','sauerkraut,raugint kopust,surkal'],
+  ['edamame','Edamame pupelės',120,11,9,5,8,[2,5,0.6,0],'soja|ankštiniai','edamame'],
+  ['juod_pup','Juodosios pupelės (konserv.)',91,6,13,0.5,2.5,[0.3,6,0.1,0.5],'ankštiniai','black beans,juodosios pupel,svarta bonor',400,'skard.'],
+  ['zal_lesiai','Žalieji lęšiai (sausi)',350,25,60,1,3,[2,11,0.2,0],'ankštiniai','green lentils,brown lentils,zalieji lesi,grona linser'],
+  ['kiviai','Kiviai',61,1.1,15,0.5,3,[9,3,0,0],'','kiwi,kivi',75],
+  ['vynuoges','Vynuogės',69,0.7,18,0.2,4,[16,0.9,0,0],'','grapes,vynuog,vindruv'],
+  ['mandarinai','Mandarinai',53,0.8,13,0.3,2.5,[10.6,1.8,0,0],'','mandarin,clementine,tangerine,klementin',80],
+  ['ananasas','Ananasas',50,0.5,13,0.1,3,[10,1.4,0,0],'','pineapple,ananas',1000],
+  ['mangas','Mangas',60,0.8,15,0.4,5,[13.7,1.6,0.1,0],'','mango',300],
+  ['arbuzas','Arbūzas',30,0.6,7.6,0.2,1.5,[6.2,0.4,0,0],'','watermelon,arbuz,vattenmelon'],
+  ['melionas','Melionas',34,0.8,8,0.2,2.5,[7.9,0.9,0,0],'','melon,melion,cantaloupe,honungsmelon'],
+  ['persikai','Persikai / nektarinai',39,0.9,10,0.3,3,[8.4,1.5,0,0],'','peach,persik,nectarine,nektarin',150],
+  ['slyvos','Slyvos',46,0.7,11,0.3,3,[10,1.4,0,0],'','plum,slyv,plommon',60],
+  ['datules','Datulės',280,2.5,75,0.4,10,[63,8,0,0],'','dates,datul,dadlar,medjool',8],
+  ['dz_abrikos','Džiovinti abrikosai',240,3.4,63,0.5,12,[53,7,0,0],'','dried apricot,dziovint abrikos,torkade aprikoser'],
+  ['razinos','Razinos',300,3,79,0.5,5,[59,3.7,0,0],'','raisins,razin,russin'],
+  ['dz_slyvos','Džiovintos slyvos',240,2.2,64,0.4,8,[38,7,0,0],'','prunes,dziovint slyv,katrinplommon'],
+  ['kok_drozl','Kokoso drožlės',660,6.9,24,65,10,[7,16,57,0],'','coconut flakes,desiccated coconut,kokoso drozl,kokosflingor'],
+  ['zem_riesut','Žemės riešutai',590,26,16,49,6,[4,8,7,0],'riešutai','peanuts,zemes riesut,jordnotter'],
+  ['anakard','Anakardžiai',575,18,30,46,18,[6,3.3,8,0],'riešutai','cashew,anakard,cashewnotter'],
+  ['lazdyno','Lazdyno riešutai',630,15,17,61,15,[4,10,4.5,0],'riešutai','hazelnut,lazdyno riesut,hasselnotter'],
+  ['sezamas','Sezamo sėklos',573,18,23,50,8,[0.3,12,7,0],'sezamas','sesame seeds,sezam,sesamfro'],
+  ['linai','Linų sėmenys',534,18,29,42,5,[1.6,27,3.7,0],'','flaxseed,linseed,linu semen,linfro'],
+  ['mol_sekl','Moliūgų sėklos',560,30,11,49,14,[1.4,6,8.7,0],'','pumpkin seeds,moliugu sekl,pumpafro'],
+  ['tahini','Tahini (sezamų pasta)',595,17,21,54,12,[0.5,9,7.5,0.1],'sezamas','tahini,tahina,sezamu past'],
+  ['garstycios','Garstyčios',66,4,6,3.3,4,[3,3,0.2,5.5],'','mustard,garstyc,senap'],
+  ['bbq','BBQ padažas',170,1,40,0.6,6,[33,0.9,0.1,2],'','bbq sauce,barbecue,bbq'],
+  ['pom_padaz','Pomidorų padažas',50,1.5,9,1,3,[6,1.5,0.1,1],'','tomato sauce,pasta sauce,marinara,pomidoru padaz,tomatsas'],
+  ['salsa','Salsa padažas',36,1.5,7,0.2,6,[4,1.5,0,1.5],'','salsa'],
+  ['actas','Actas',20,0,0.5,0,1.5,[0.4,0,0,0],'','vinegar,actas,acto,attika','L'],
+  ['balzamik','Balzamiko actas',88,0.5,17,0,8,[15,0,0,0],'','balsamic,balsamic vinegar,balzamiko act,balzamik','L'],
+  ['uogiene','Uogienė / džemas',250,0.4,62,0.1,4,[48,1,0,0],'','jam,uogien,sylt,marmelad,dzem'],
+  ['klevu_sir','Klevų sirupas',260,0,67,0.1,15,[60,0,0,0],'','maple syrup,klevu sirup,lonnsirap'],
+  ['rud_cukrus','Rudasis cukrus',380,0,98,0,2.5,[97,0,0,0],'','brown sugar,rudasis cukr,farinsocker'],
+  ['kakava','Kakavos milteliai',230,20,13,14,15,[1.8,33,8,0],'','cocoa,kakav,kakao'],
+  ['kokos_al','Kokosų aliejus',860,0,0,100,10,[0,0,87,0],'','coconut oil,kokosu aliej,kokosolja'],
+  ['rapsu_al','Rapsų aliejus',884,0,0,100,3,[0,0,7,0],'','rapeseed oil,canola,rapsu aliej,rapsolja','L'],
+  ['sultinys','Sultinys (paruoštas)',5,0.6,0.3,0.2,1,[0.2,0,0.1,0.8],'','broth,stock,sultin,buljong,bouillon','L'],
+  ['vanduo','Vanduo',0,0,0,0,0,[0,0,0,0],'','water,vanduo,vandens,vandeni,vatten','L'],
+  ['kava','Kava (juoda)',2,0.1,0,0,10,[0,0,0,0],'','coffee,kava,kavos,kaffe,espresso','L'],
+  ['arbata','Arbata',1,0,0.2,0,10,[0,0,0,0],'','tea,arbat','L'],
+  ['vynas','Vynas',83,0.1,2.6,0,8,[0.8,0,0,0],'','wine,vynas,vyno','L'],
+  ['sausainiai','Sausainiai',480,6,68,20,6,[30,2,9,0.6],'gliutenas','cookies,biscuits,sausain,kex,kakor'],
+  ['kruasanas','Kruasanas',406,8,46,21,10,[11,2.6,12,0.9],'gliutenas|pienas','croissant,kruasan',60],
+  ['nachos','Kukurūzų traškučiai',500,7,63,24,8,[1,5,3,1.2],'','tortilla chips,nachos,kukuruzu trask'],
+];
+for (const [id, name, kcal, p, c, f, price, x, flags, syn, piece, word] of FOOD_MORE) {
+  const fd = {id, name, kcal, p, c, f, price, s: x[0], fi: x[1], sat: x[2], salt: x[3], builtin: true};
+  if (piece === 'L') fd.liquid = true; else if (piece) { PIECE_G[id] = piece; if (word) fd.pieceWord = word; }
+  BUILTIN_FOODS.push(fd);
+  FOOD_SYN[id] = syn.split(',');
+  for (const fl of flags ? flags.split('|') : []) { (FOOD_FLAGS[id] = FOOD_FLAGS[id] || []).push(fl); (FLAG_GROUPS[fl] = FLAG_GROUPS[fl] || []).push(id); }
+}
+SNACK_IDS.push('ledai', 'vynas', 'sausainiai', 'kruasanas', 'nachos');
+
 
 // Raumenų grupės
 const MUSCLES = {
   kru:'Krūtinė', nug:'Nugara (plačiausieji)', pec:'Pečiai', tra:'Trapecija', kak:'Kaklas', bic:'Bicepsas', tri:'Tricepsas', dil:'Dilbiai / riešai',
-  pre:'Pilvo presas', son:'Šoniniai pilvo', apn:'Apatinė nugara', sed:'Sėdmenys', ket:'Šlaunys (priekis)', uzp:'Šlaunys (užpakalis)', bla:'Blauzdos', kar:'Kardio'
+  pre:'Pilvo presas', son:'Šoniniai pilvo', apn:'Apatinė nugara', sed:'Sėdmenys', ket:'Šlaunys (priekis)', uzp:'Šlaunys (užpakalis)', pri:'Šlaunies vidus', bla:'Blauzdos', kar:'Kardio'
 };
 // Treniruočių tipai planavimui
 const WTYPES = [

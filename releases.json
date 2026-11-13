@@ -2,6 +2,11 @@
   "stable": "1.7.0",
   "versions": [
     {
+      "v": "1.8.1",
+      "date": "2026-11-13",
+      "notes": "Sportas: žingsniai ir ėjimas pirmame plane, dideli mygtukai pradėti, telefono ir laikrodžio prijungimas; telefono mygtukas Atgal veikia programos viduje"
+    },
+    {
       "v": "1.8.0",
       "date": "2026-11-13",
       "notes": "Naujas Sportas: tikri pratimai su video, 95 sportai, žemėlapis bėgimui ir dviračiui, detalus raumenų žemėlapis"
@@ -35,11 +40,6 @@
       "v": "1.6.0",
       "date": "2026-11-11",
       "notes": "✨ Parašyk, ką valgei – kalorijos apskaičiuojamos pačios; protingesni pasiūlymai ir kiekiai; pranešimai į telefoną; išsamesnis mėnesio kalendorius"
-    },
-    {
-      "v": "1.5.6",
-      "date": "2026-11-11",
-      "notes": "Nauja skiltis 💚 Savijauta – pažymėk, kaip jautiesi, ir pamatyk, kas tau padeda"
     }
   ]
 }
