@@ -162,11 +162,11 @@ function render() {
     + `<button class="${bt.includes(UI.view) ? '' : 'on'}" data-a="moreSheet">${ic('more')}Daugiau</button>`;
   const title = UI.view === 'today' ? '' : VIEWS.find(v => v[0] === UI.view)[2];
   $('#top').innerHTML = `<div class="hd">${window.CLOUD?.test ? '<span class="testbadge" title="Bandomoji versija – tikri duomenys neliečiami">TESTAS</span> ' : ''}${title ? `<h1>${title}</h1>` : ''}<small>${fmtDateDow(today())}</small></div>
-    <div class="tr">${S.active ? `<button class="tpill wk" data-a="workoutMode"><span class="rec"></span>Treniruotė · <span class="wClock">${clock(S.active.ts)}</span></button>` : S.run ? `<button class="tpill wk" data-a="spRunOpen"><span class="rec"></span>${esc(sportById(S.run.sport)?.[1] || 'Sportas')} · <span class="wClock">${fmtClock(runSec(S.run))}</span></button>` : ''}${timerWidget()}<button class="lvchip" data-a="levelInfo" title="${g.xp} XP">${g.level} lygis · ${g.xp} XP${g.streak > 1 ? ` · ${g.streak} d. serija` : ''}</button><span id="sync" class="sync"></span></div>`;
+    <div class="tr">${timerWidget()}<button class="lvchip" data-a="levelInfo" title="${g.xp} XP">${g.level} lygis · ${g.xp} XP${g.streak > 1 ? ` · ${g.streak} d. serija` : ''}</button><span id="sync" class="sync"></span></div>`;
   document.body.classList.toggle('devmode', DEV);
   devBubble();
   const fn = {today: vToday, calendar: vCalendar, tasks: vTasks, food: vFood, sport: vSport, time: vTime, progress: vProgress, wellbeing: vWellbeing, notes: vNotes, settings: vSettings}[UI.view];
-  $('#main').innerHTML = updateBanner() + deletionBanner() + fn();
+  $('#main').innerHTML = updateBanner() + deletionBanner() + activityBar() + fn();
   const spP = UI.view === 'sport' && UI.sp?.p && UI.sp.p !== 'home' ? UI.sp.p : '';
   document.body.classList.toggle('spsub', !!spP); document.body.classList.toggle('spfull', ['live', 'run', 'done', 'draft', 'act', 'wv', 'ex'].includes(spP));
   mountMaps();
@@ -174,6 +174,13 @@ function render() {
   updateSyncBadge();
 }
 const tabBtn = v => { const x = VIEWS.find(y => y[0] === v); return `<button class="${UI.view === v ? 'on' : ''}" data-a="go" data-v="${v}">${ic(x[1])}${x[2]}</button>`; };
+// veikla vyksta (treniruotė, ėjimas, bėgimas, laikmatis) – juosta per visą plotį visuose skirtukuose
+function activityBar() {
+  if (UI.view === 'sport' && ['live', 'run'].includes(UI.sp?.p)) return '';
+  if (S.active) return `<button class="sp-pill actbar" data-a="workoutMode"><span>Treniruotė vyksta · ${esc(exercise(S.active.ex[curEx(S.active)]?.id)?.name || '')}</span><b class="wClock">${clock(S.active.ts)}</b><i>Grįžti</i></button>`;
+  if (S.run) return `<button class="sp-pill actbar" data-a="spRunOpen"><span>${esc(sportById(S.run.sport)?.[1] || 'Sportas')} vyksta</span><b class="wClock">${fmtClock(runSec(S.run))}</b><i>Grįžti</i></button>`;
+  return '';
+}
 // ＋ – greitas įrašas
 A.quickSheet = () => {
   const it = [['addMeal', 'food', 'Maistas', 'Parašyk, ką valgei', foodOn() || S.meals.length || true], ['timerStart', 'clock', 'Ką veikiu', 'Paleisti laikmatį', true], ['addLog', 'clock', 'Ką veikiau', 'Įrašyti praėjusį laiką', true],
@@ -613,7 +620,7 @@ function vToday() {
     ${foodOn() && tg.missing.length ? `<p class="hint">Kad apskaičiuotume normas, įrašyk: ${esc(tg.missing.join(', '))}. ${btn('Profilis', 'go', {v: 'settings'}, 'sm')}</p>` : ''}
     <div class="choice row" style="margin-top:10px">${btn(`${ic('plus', 'sm')} Įrašyti maistą`, 'addMeal', {}, 'primary sm')}</div></section>` : '';
   const tips = recs.length ? `<section class="card td-card"><h2>Patarimai šiandienai</h2>${recs.map(r => `<div class="td-tip"><span class="ic">${recIcon(r)}</span><div><b>${r.title}</b><p>${r.text}</p>${r.act ? `<div class="ra">${r.act}</div>` : ''}</div></div>`).join('')}</section>` : '';
-  const checkin = ci ? `<div class="banner" data-a="checkin" data-t="${ci}"><b>${ci === 'week' ? 'Kaip praėjo savaitė?' : 'Kaip praėjo mėnuo?'}</b> Trumpa apžvalga su tavo statistika. <span class="sp"></span><button class="btn sm primary">Pradėti</button></div>` : '';
+  const checkin = ci ? `<div class="banner" data-a="checkin" data-t="${ci}"><span class="bn-t"><b>${ci === 'week' ? 'Kaip praėjo savaitė?' : 'Kaip praėjo mėnuo?'}</b><small>Trumpa apžvalga su tavo statistika</small></span><button class="btn sm primary">Pradėti</button></div>` : '';
   const meals = S.foodPrefs.mealSuggest ? mealSuggestCard(d, mealTimes, sportSlot) : '';
   return `<div class="td-hello">${hi}${p.name ? ', ' + esc(p.name) : ''}</div>
   <div class="td-grid"><div>${hero}${checkin}${day}${moodCard}${tips}</div><div style="margin-top:12px">${plan}${dl}${meals}${food}</div></div>`;
@@ -1788,12 +1795,12 @@ function vSport() {
   const active = S.active ? `<button class="sp-pill" data-a="workoutMode"><span>Treniruotė vyksta · ${esc(exercise(S.active.ex[curEx(S.active)]?.id)?.name || '')}</span><b class="wClock">${clock(S.active.ts)}</b><i>Grįžti</i></button>` : '';
   const run = S.run ? `<button class="sp-pill" data-a="spGo" data-p="run"><span>${esc(sportById(S.run.sport)?.[1] || 'Sportas')} vyksta</span><b class="wClock">${fmtClock(runSec(S.run))}</b><i>Grįžti</i></button>` : '';
   if (!sportOn()) {
-    return `<div class="sp">${head}<div class="sp-cols"><div>${active}${run}${stepsHero()}${conn}${startGrid()}
+    return `<div class="sp">${head}<div class="sp-cols"><div>${stepsHero()}${conn}${startGrid()}
       <div class="sp-acts"><button class="btn big" data-a="spLogSheet">${ic('check', 'sm')} Įrašyti atliktą</button></div>${weekSmall()}</div><div>${recentCard()}
       <div class="quiet"><span class="qi">${ic('wauto')}</span><span>Nori, kad parinkčiau treniruotes?<small>Rekomendacijos išjungtos</small></span>${btn('Įjungti', 'spRecOn', {}, 'sm')}</div></div></div></div>`;
   }
   const sw = swapCandidate();
-  const left = `${active}${run}${stepsHero()}${conn}${startGrid()}${plan ? plannedCard(plan) + `<div class="sp-acts"><button class="btn big" data-a="spPlanSheet">${ic('cal', 'sm')} Suplanuoti dar</button><button class="btn big" data-a="spLogSheet">${ic('check', 'sm')} Įrašyti atliktą</button></div>` : suggestCard(todaysSuggestion())}
+  const left = `${stepsHero()}${conn}${startGrid()}${plan ? plannedCard(plan) + `<div class="sp-acts"><button class="btn big" data-a="spPlanSheet">${ic('cal', 'sm')} Suplanuoti dar</button><button class="btn big" data-a="spLogSheet">${ic('check', 'sm')} Įrašyti atliktą</button></div>` : suggestCard(todaysSuggestion())}
     ${undoRow()}${sw ? swapNudge(sw) : ''}${weekSmall()}`;
   const right = `${recentCard()}<section class="card sp-card"><h2 class="sp-ct">Raumenys<small>paspausk raumenį ›</small></h2>${bodySvg(muscleHeat())}${bodyLegend}</section>`;
   return `<div class="sp">${head}<div class="sp-cols"><div>${left}</div><div>${right}</div></div></div>`;

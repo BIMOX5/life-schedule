@@ -1,6 +1,11 @@
 {
-  "stable": "1.7.0",
+  "stable": "1.8.3",
   "versions": [
+    {
+      "v": "1.8.4",
+      "date": "2026-11-13",
+      "notes": "Juosta „Ėjimas vyksta“ – per visą plotį po antrašte visuose skirtukuose; antraštė nebesuspaudžiama"
+    },
     {
       "v": "1.8.3",
       "date": "2026-11-13",
@@ -35,11 +40,6 @@
       "v": "1.6.3",
       "date": "2026-11-12",
       "notes": "Smulkūs patobulinimai ir greitesni atnaujinimai"
-    },
-    {
-      "v": "1.6.2",
-      "date": "2026-11-12",
-      "notes": "Receptai: įklijuok nuorodą ar tekstą – viskas sutvarkoma pačios, su visa maistine verte; kiekiai vienetais ir šaukštais"
     }
   ]
 }

@@ -1072,3 +1072,9 @@ body::before { content:''; position:fixed; top:0; left:0; right:0; height:max(en
 .banner { margin-top:12px; }
 .td-hero { margin-bottom:12px; }
 .sp-rhead { gap:10px; margin-bottom:10px; } .sp-rhead b { flex:1; } .sp-rhead .gps { position:static; display:flex; align-items:center; gap:6px; background:var(--card); border-radius:99px; padding:5px 10px; font-weight:900; font-size:12px; } .sp-rhead .gps i { width:8px; height:8px; border-radius:50%; background:var(--br); }
+/* veiklos juosta per visą plotį (design/sportas-v4/v5 „Treniruotė vyksta“) */
+.sp-pill.actbar { width:100%; border:0; font:900 13.5px Nunito, sans-serif; text-align:left; margin:0 0 12px; }
+.sp-pill.actbar span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .sp-pill.actbar b { font-variant-numeric:tabular-nums; }
+/* antraštė telefone: jei dešinėje netelpa (pvz. laiko laikmatis), dešinė dalis nukeliama žemiau, o ne suspaudžia datą */
+@media (max-width:700px) { header { flex-wrap:wrap; row-gap:6px; } header .hd { flex:1 1 55%; } header .hd small { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; } header .tr { margin-left:auto; } }
+.banner .bn-t { flex:1; min-width:0; } .banner .bn-t b { display:block; font-weight:900; } .banner .bn-t small { display:block; color:var(--muted); font-weight:700; font-size:13px; }
