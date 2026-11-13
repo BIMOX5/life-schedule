@@ -1066,3 +1066,9 @@ a.btn.sp-go { display:flex; text-decoration:none; } .hint.c { text-align:center;
 
 /* Android programėlė: po telefono būsenos juosta – vientisas fonas, kad slenkamas turinys nelįstų po laikrodžiu ir baterija */
 body::before { content:''; position:fixed; top:0; left:0; right:0; height:max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)); background:var(--bg); z-index:95; pointer-events:none; }
+
+/* tarpai tarp kortelių telefone: dviejų stulpelių išdėstymas virsta vienu – antro stulpelio pirma kortelė neturi prilipti */
+@media (max-width:899px) { .sp-cols > div + div > *:first-child, .mf-cols > div + div > *:first-child { margin-top:12px; } }
+.banner { margin-top:12px; }
+.td-hero { margin-bottom:12px; }
+.sp-rhead { gap:10px; margin-bottom:10px; } .sp-rhead b { flex:1; } .sp-rhead .gps { position:static; display:flex; align-items:center; gap:6px; background:var(--card); border-radius:99px; padding:5px 10px; font-weight:900; font-size:12px; } .sp-rhead .gps i { width:8px; height:8px; border-radius:50%; background:var(--br); }

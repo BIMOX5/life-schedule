@@ -2,6 +2,11 @@
   "stable": "1.7.0",
   "versions": [
     {
+      "v": "1.8.3",
+      "date": "2026-11-13",
+      "notes": "Ėjimą ir kitą sportą galima palikti – viršuje juosta grąžina atgal; kortelės nebelimpa viena prie kitos"
+    },
+    {
       "v": "1.8.2",
       "date": "2026-11-13",
       "notes": "Telefono mygtukas Atgal grąžina programos viduje, patraukus žemyn – perkrovimas, viršutinė juosta nebelenda ant turinio"
@@ -35,11 +40,6 @@
       "v": "1.6.2",
       "date": "2026-11-12",
       "notes": "Receptai: įklijuok nuorodą ar tekstą – viskas sutvarkoma pačios, su visa maistine verte; kiekiai vienetais ir šaukštais"
-    },
-    {
-      "v": "1.6.1",
-      "date": "2026-11-11",
-      "notes": "Maistą įrašyti dar paprasčiau – parašyk ir spausk „Išsaugoti“"
     }
   ]
 }

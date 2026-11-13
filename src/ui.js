@@ -162,7 +162,7 @@ function render() {
     + `<button class="${bt.includes(UI.view) ? '' : 'on'}" data-a="moreSheet">${ic('more')}Daugiau</button>`;
   const title = UI.view === 'today' ? '' : VIEWS.find(v => v[0] === UI.view)[2];
   $('#top').innerHTML = `<div class="hd">${window.CLOUD?.test ? '<span class="testbadge" title="Bandomoji versija – tikri duomenys neliečiami">TESTAS</span> ' : ''}${title ? `<h1>${title}</h1>` : ''}<small>${fmtDateDow(today())}</small></div>
-    <div class="tr">${S.active ? `<button class="tpill wk" data-a="workoutMode"><span class="rec"></span>Treniruotė · <span class="wClock">${clock(S.active.ts)}</span></button>` : ''}${timerWidget()}<button class="lvchip" data-a="levelInfo" title="${g.xp} XP">${g.level} lygis · ${g.xp} XP${g.streak > 1 ? ` · ${g.streak} d. serija` : ''}</button><span id="sync" class="sync"></span></div>`;
+    <div class="tr">${S.active ? `<button class="tpill wk" data-a="workoutMode"><span class="rec"></span>Treniruotė · <span class="wClock">${clock(S.active.ts)}</span></button>` : S.run ? `<button class="tpill wk" data-a="spRunOpen"><span class="rec"></span>${esc(sportById(S.run.sport)?.[1] || 'Sportas')} · <span class="wClock">${fmtClock(runSec(S.run))}</span></button>` : ''}${timerWidget()}<button class="lvchip" data-a="levelInfo" title="${g.xp} XP">${g.level} lygis · ${g.xp} XP${g.streak > 1 ? ` · ${g.streak} d. serija` : ''}</button><span id="sync" class="sync"></span></div>`;
   document.body.classList.toggle('devmode', DEV);
   devBubble();
   const fn = {today: vToday, calendar: vCalendar, tasks: vTasks, food: vFood, sport: vSport, time: vTime, progress: vProgress, wellbeing: vWellbeing, notes: vNotes, settings: vSettings}[UI.view];
@@ -2245,12 +2245,14 @@ function spRunPage() {
   const r = S.run; if (!r) return spHome();
   const sp = sportById(r.sport), t = runTiles(r), spl = r.gps && r.pts.length > 2 ? splits(r.pts) : [];
   UI.mapNeed = r.gps ? [{el: 'runMap', route: r.pts, live: true}] : [];
-  return `<div class="sp-run ${r.gps ? 'gps' : ''}">${r.gps ? `<div class="sp-map live" id="runMap"><span class="gps"><i></i>GPS</span></div>` : `<div class="sp-rhead"><span class="sp-fi">${ic(sportIcon(r.sport))}</span><b>${esc(sp?.[1] || '')}</b></div><div class="sp-clk" id="runClock">${fmtClock(runSec(r))}</div>`}
+  return `<div class="sp-run ${r.gps ? 'gps' : ''}"><div class="sp-rhead"><button class="sp-back" data-a="spGo" data-p="home" aria-label="Atgal (${esc(sp?.[1] || '')} tęsiasi)">${ic('back')}</button><span class="sp-fi">${ic(sportIcon(r.sport))}</span><b>${esc(sp?.[1] || '')}</b>${r.gps ? `<span class="gps"><i></i>GPS</span>` : ''}</div>
+    ${r.gps ? `<div class="sp-map live" id="runMap"></div>` : `<div class="sp-clk" id="runClock">${fmtClock(runSec(r))}</div>`}
     <div class="sp-g4 ${r.gps ? '' : 'two'}">${t.map(([v, l]) => `<div class="sp-rt"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
     ${spl.length ? `<section class="card sp-card"><h2 class="sp-ct">Kilometrai</h2>${spl.map((s, k) => `<div class="sp-spl"><b>${k + 1} km</b><i style="width:70%"></i><small>${fmtPace(s, 1000)}</small></div>`).join('')}</section>` : ''}
     ${r.gps && !isWalk(r.sport) ? '' : `<div class="sp-say">${daigelis(4)}<p>${esc(isWalk(r.sport) ? (stepsOn(today()) + walkSteps(r) >= stepGoal() ? 'Su šiuo ėjimu dienos tikslas jau pasiektas!' : `Iki dienos tikslo – ${fmtThousands(stepGoal() - stepsOn(today()) - walkSteps(r))} žingsnių.`) : spMsg('live'))}</p></div>`}
     <div class="sp-runctl"><button data-a="spRunPause" aria-label="${r.pauseAt ? 'Tęsti' : 'Pauzė'}">${ic(r.pauseAt ? 'play' : 'pause')}</button><button class="main" data-a="spRunStop" aria-label="Baigti">${ic('stop')}</button></div></div>`;
 }
+A.spRunOpen = () => spGo('run');
 A.spRunPause = () => { const r = S.run; if (r.pauseAt) { r.paused += Date.now() - r.pauseAt; r.pauseAt = null; } else r.pauseAt = Date.now(); commit({noRender: true}); render(); };
 A.spRunStop = async () => { if (!await ask('Baigti?', '', {yes: 'Baigti ir išsaugoti', no: 'Tęsti'})) return; spRunStop(); };
 async function spRunStop(silent) {

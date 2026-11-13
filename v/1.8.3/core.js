@@ -7,7 +7,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const round = (v, d = 0) => { const m = 10 ** d; return Math.round(v * m) / m; };
 const sum = a => a.reduce((x, y) => x + (+y || 0), 0);
 const pick = (arr, seed) => arr[Math.abs(seed ?? Math.floor(Math.random() * 1e6)) % arr.length];
-const fill = (t, x) => t.replace('{x}', x);
+const fill = (t, x) => t.replace('{x}', /^-?\d+\.\d+$/.test(String(x)) ? String(x).replace('.', ',') : x);   // kablelis dešimtainėse
 
 // Datos (vietinis laikas, formatas YYYY-MM-DD)
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -37,7 +37,7 @@ const fromMin = m => { m = Math.round(m); m = ((m % 1440) + 1440) % 1440; return
 const nowMin = () => zonedParts().min;
 const nowHM = () => fromMin(nowMin());
 const fmtDur = m => { m = Math.round(m); if (m < 60) return `${m} min`; const h = Math.floor(m / 60), r = m % 60; return r ? `${h} val ${r} min` : `${h} val`; };
-const fmtH = m => `${round(m / 60, 1)} val`;
+const fmtH = m => `${String(round(m / 60, 1)).replace('.', ',')} val`;
 const DOW = ['Pr','An','Tr','Kt','Pn','Št','Sk'];
 const DOW_LONG = ['Pirmadienis','Antradienis','Trečiadienis','Ketvirtadienis','Penktadienis','Šeštadienis','Sekmadienis'];
 const MONTHS = ['sausis','vasaris','kovas','balandis','gegužė','birželis','liepa','rugpjūtis','rugsėjis','spalis','lapkritis','gruodis'];
@@ -48,20 +48,20 @@ const relDay = s => { const n = diffDays(today(), s); if (n === 0) return 'šian
 
 // ===== Numatyti duomenys =====
 const DEFAULT_CATS = [
-  {id:'darbas', name:'Darbas', emoji:'💼', color:'#4f8cff', type:1},
-  {id:'paskaitos', name:'Paskaitos', emoji:'🎓', color:'#8b6cff', type:1},
-  {id:'mokslai', name:'Mokslai / namų darbai', emoji:'📚', color:'#a78bfa', type:1},
-  {id:'sportas', name:'Sportas', emoji:'💪', color:'#22c55e', type:1},
-  {id:'projektai', name:'Asmeniniai projektai', emoji:'🚀', color:'#06b6d4', type:1},
-  {id:'gaminimas', name:'Gaminimas', emoji:'🍳', color:'#f97316', type:0},
-  {id:'buitis', name:'Buitis / pirkiniai', emoji:'🧺', color:'#94a3b8', type:0},
-  {id:'kelione', name:'Kelionė', emoji:'🚌', color:'#64748b', type:0},
-  {id:'draugai', name:'Draugai / šeima', emoji:'🫶', color:'#ec4899', type:0},
-  {id:'poilsis', name:'Poilsis', emoji:'🌿', color:'#10b981', type:0},
-  {id:'hobiai', name:'Hobiai / laisvalaikis', emoji:'🎨', color:'#facc15', type:0},
-  {id:'netflix', name:'Serialai / filmai', emoji:'📺', color:'#ef4444', type:-1},
-  {id:'telefonas', name:'Telefonas / soc. tinklai', emoji:'📱', color:'#f43f5e', type:-1},
-  {id:'zaidimai', name:'Žaidimai', emoji:'🎮', color:'#e11d48', type:-1},
+  {id:'darbas', name:'Darbas', emoji:'💼', color:'#ff8040', type:1},
+  {id:'paskaitos', name:'Paskaitos', emoji:'🎓', color:'#ffa766', type:1},
+  {id:'mokslai', name:'Mokslai / namų darbai', emoji:'📚', color:'#ffc699', type:1},
+  {id:'sportas', name:'Sportas', emoji:'💪', color:'#f2a06f', type:1},
+  {id:'projektai', name:'Asmeniniai projektai', emoji:'🚀', color:'#ffd6bb', type:1},
+  {id:'gaminimas', name:'Gaminimas', emoji:'🍳', color:'#7cc79a', type:0},
+  {id:'buitis', name:'Buitis / pirkiniai', emoji:'🧺', color:'#b9b1a8', type:0},
+  {id:'kelione', name:'Kelionė', emoji:'🚌', color:'#8c857e', type:0},
+  {id:'draugai', name:'Draugai / šeima', emoji:'🫶', color:'#5aa97c', type:0},
+  {id:'poilsis', name:'Poilsis', emoji:'🌿', color:'#a8dcb9', type:0},
+  {id:'hobiai', name:'Hobiai / laisvalaikis', emoji:'🎨', color:'#e0cda6', type:0},
+  {id:'netflix', name:'Serialai / filmai', emoji:'📺', color:'#ef6a5a', type:-1},
+  {id:'telefonas', name:'Telefonas / soc. tinklai', emoji:'📱', color:'#f49a8c', type:-1},
+  {id:'zaidimai', name:'Žaidimai', emoji:'🎮', color:'#c94f5a', type:-1},
 ];
 const defaultData = () => ({
   ver: 1,
@@ -76,7 +76,7 @@ const defaultData = () => ({
   foodPrefs: {done: false, mealSuggest: false, cookTimes: 2, cookMax: 60, budget: 40, cookDays: [7], mealsPerDay: 3, skill: 2, equip: ['puodas', 'keptuvė', 'orkaitė', 'mikrobangė'], dislikes: [], allergies: [], dislikeText: ''},
   ratings: {}, priceOverrides: {}, priceMeta: {}, deletedRecipes: [], spend: [], mealPlans: [], receiptFoods: [],
   settings: { theme:'dark', tz: '', onboarded: false, modes: {sport: false, food: false}, review: 'week', dismissed: {}, intro: {} },
-  reviews: [], wellbeing: [],
+  reviews: [], wellbeing: [], steps: [],
 });
 // Režimai: ką žmogus nori daryti su programėle
 const sportOn = () => !!S?.settings?.modes?.sport;
@@ -108,6 +108,13 @@ function storeLocal() {
   try { localStorage.setItem(lsKey(), JSON.stringify({S, REV, DIRTY})); } catch (e) {}
 }
 function migrate(d) {
+  // 1.7: ramios kategorijų spalvos – produktyvu oranžinės, kita žalios/smėlio/pilkos, ekranai rami rožinė (vieną kartą; vėliau naudotojo pasirinkimai lieka)
+  if (d && Array.isArray(d.categories) && !d.catColors17) {
+    const fam = {1: ['#e8692c', '#ffa766', '#ffc699', '#f2a06f', '#ffd6bb'], 0: ['#7cc79a', '#b9b1a8', '#8c857e', '#5aa97c', '#a8dcb9', '#e0cda6'], '-1': ['#ef6a5a', '#f49a8c', '#c94f5a']}, used = {};
+    for (const c of d.categories) { const def = DEFAULT_CATS.find(x => x.id === c.id); if (def) { c.color = def.color; continue; }
+      const f = fam[String(c.type ?? 0)] || fam[0], k = String(c.type ?? 0); used[k] = (used[k] || 0) + 1; c.color = f[(used[k] - 1) % f.length]; }
+    d.catColors17 = true;
+  }
   const def = defaultData();
   for (const k in def) if (d[k] === undefined) d[k] = def[k];
   d.profile = {...def.profile, ...d.profile};
@@ -327,7 +334,6 @@ function stalePrices() {
 }
 const food = id => allFoods().find(f => f.id === id);
 const recipe = id => S.recipes.find(r => r.id === id);
-const exercise = id => EXERCISES.find(e => e.id === id);
 
 // ===== Profilis ir kalorijos =====
 function currentWeight() {
@@ -368,6 +374,18 @@ function recipeStats(r) {
 
 // ===== Dienos duomenys =====
 const mealsOn = d => S.meals.filter(m => m.date === d);
+// ===== Žingsniai =====
+// Žingsnio ilgis ≈ ūgis × 0,415 (vyrai) / 0,413 (moterys); be ūgio – 0,75 m.
+// Sudeginta ėjimu (grynai, virš ramybės būsenos) ≈ 0,5 kcal × kūno svoris (kg) × nueita (km) – ACSM ėjimo formulės supaprastinimas.
+const stepsOn = d => +((S.steps || []).find(x => x.date === d)?.steps) || 0;
+const stepGoal = () => +S.profile.stepGoal || 8000;
+const strideM = () => { const h = +S.profile.height || 0; return h ? h * (S.profile.sex === 'f' ? 0.413 : 0.415) / 100 : 0.75; };
+const bodyKg = () => { const ws = [...(S.weights || [])].sort((a, b) => a.date < b.date ? -1 : 1); return +(ws.length ? ws[ws.length - 1].kg : S.profile.startWeight) || 70; };
+const stepsKm = n => round(n * strideM() / 1000, 1);
+const stepsKcal = n => Math.round(0.5 * bodyKg() * n * strideM() / 1000);
+const dayBurn = d => stepsKcal(stepsOn(d));
+// „Grynosios“ kalorijos: suvalgyta − sudeginta, bet ne mažiau nei 0
+const netKcal = d => Math.max(0, dayNutrition(d).kcal - dayBurn(d));
 const dayNutrition = d => { const ms = mealsOn(d), o = {n: ms.length}; for (const k of NUTR_KEYS) o[k] = k === 'kcal' ? Math.round(sum(ms.map(m => m[k]))) : round(sum(ms.map(m => m[k])), 1); return o; };
 // Maistinė vertė valgiui (iš recepto ar produkto)
 const nutrOf = (st, mult) => Object.fromEntries(NUTR_KEYS.map(k => [k, (+st[k] || 0) * mult]));
@@ -473,6 +491,34 @@ function freeSlots(d, fromM) {
   return slots.filter(([s, e]) => e - s >= 15);
 }
 
+// ===== Treniruotės: pratimų parinkimas, progresija, balansas =====
+// Pratimai iš EXDB (sport.js – 876 tikri pratimai). Seni namų pratimų id (iki 1.8) atvaizduojami į artimiausius tikrus pratimus.
+const OLD_EX = {atsp_siena: 'Incline_Push-Up', atsp_kel: 'Pushups', atsp: 'Pushups', atsp_kojos: 'Push-Ups_With_Feet_Elevated', atsp_deim: 'Push-Ups_-_Close_Triceps_Position', dipai: 'Bench_Dips', pike: 'Handstand_Push-Ups', pecu_buteliai: 'Side_Lateral_Raise', irkl_rankst: 'Inverted_Row_with_Straps', irkl_stalas: 'Inverted_Row', prisitr: 'Pullups', kupr_irkl: 'Bent_Over_Two-Dumbbell_Row', kupr_bic: 'Dumbbell_Bicep_Curl', bic_rankst: 'Dumbbell_Bicep_Curl', supermenas: 'Superman', y_kelimai: 'Dumbbell_Scaption', kaklas_lenk: 'Lying_Face_Up_Plate_Neck_Resistance', kaklas_ties: 'Lying_Face_Down_Plate_Neck_Resistance', kaklas_izo: 'Isometric_Neck_Exercise_-_Front_And_Back', smakro_itr: 'Chin_To_Chest_Stretch', riesu_lenk: 'Seated_Dumbbell_Palms-Up_Wrist_Curl', riesu_atv: 'Seated_Dumbbell_Palms-Down_Wrist_Curl', ukininkas: 'Farmers_Walk', kabejimas: 'One_Handed_Hang', pauksis_suo: 'Dead_Bug', hiperekst: 'Hyperextensions_With_No_Hyperextension_Bench', rus_sukimas: 'Russian_Twist', son_pasilenk: 'Dumbbell_Side_Bend', pritup: 'Bodyweight_Squat', pritup_sok: 'Freehand_Jump_Squat', itupstai: 'Bodyweight_Walking_Lunge', bulgar: 'Split_Squat_with_Dumbbells', sienos_sed: 'Bodyweight_Squat', tiltelis: 'Butt_Lift_Bridge', tiltelis_1: 'Single_Leg_Glute_Bridge', rdl_1: 'Kettlebell_One-Legged_Deadlift', slaun_lenk: 'Ball_Leg_Curl', pasistieb: 'Standing_Dumbbell_Calf_Raise', pasistieb_1: 'Standing_Dumbbell_Calf_Raise', lenta: 'Plank', lenta_son: 'Side_Bridge', dviratis: 'Air_Bike', koju_kel: 'Flat_Bench_Lying_Leg_Raise', laipiotojas: 'Mountain_Climbers', burpiai: 'Freehand_Jump_Squat', suoliukai: 'Star_Jump', auksti_keliai: 'Fast_Skipping'};
+// EXDB raumenys → programos raumenų grupės (MUSCLES)
+const MUS_G = {abdominals: 'pre', abductors: 'sed', adductors: 'pri', biceps: 'bic', calves: 'bla', chest: 'kru', forearms: 'dil', glutes: 'sed', hamstrings: 'uzp', lats: 'nug', 'lower back': 'apn', 'middle back': 'nug', neck: 'kak', quadriceps: 'ket', shoulders: 'pec', traps: 'tra', triceps: 'tri'};
+// dažniausiai naudojami pratimai – parenkami pirmiausia (kad treniruotėje nebūtų egzotikos)
+const EX_COMMON = new Set(['Barbell_Squat', 'Leg_Press', 'Lying_Leg_Curls', 'Seated_Leg_Curl', 'Leg_Extensions', 'Standing_Calf_Raises', 'Seated_Calf_Raise', 'Romanian_Deadlift', 'Barbell_Deadlift', 'Dumbbell_Lunges', 'Goblet_Squat', 'Bodyweight_Squat', 'Butt_Lift_Bridge', 'Barbell_Hip_Thrust', 'Single_Leg_Glute_Bridge', 'Split_Squat_with_Dumbbells', 'Dumbbell_Squat', 'Stiff-Legged_Dumbbell_Deadlift', 'Hack_Squat', 'Thigh_Adductor', 'Thigh_Abductor', 'Glute_Kickback', 'Standing_Dumbbell_Calf_Raise', 'Barbell_Bench_Press_-_Medium_Grip', 'Dumbbell_Bench_Press', 'Incline_Dumbbell_Press', 'Barbell_Incline_Bench_Press_-_Medium_Grip', 'Dumbbell_Flyes', 'Cable_Crossover', 'Pushups', 'Incline_Push-Up', 'Push-Ups_With_Feet_Elevated', 'Butterfly', 'Machine_Bench_Press', 'Dips_-_Chest_Version', 'Pullups', 'Chin-Up', 'Wide-Grip_Lat_Pulldown', 'Seated_Cable_Rows', 'Bent_Over_Barbell_Row', 'One-Arm_Dumbbell_Row', 'Bent_Over_Two-Dumbbell_Row', 'Inverted_Row', 'Hyperextensions_Back_Extensions', 'Superman', 'Face_Pull', 'Barbell_Shrug', 'Dumbbell_Shrug', 'Dumbbell_Shoulder_Press', 'Barbell_Shoulder_Press', 'Arnold_Dumbbell_Press', 'Side_Lateral_Raise', 'Front_Dumbbell_Raise', 'Reverse_Flyes', 'Machine_Shoulder_Military_Press', 'Dumbbell_Bicep_Curl', 'Barbell_Curl', 'Hammer_Curls', 'Preacher_Curl', 'Concentration_Curls', 'EZ-Bar_Curl', 'Triceps_Pushdown', 'Triceps_Pushdown_-_Rope_Attachment', 'Bench_Dips', 'Dips_-_Triceps_Version', 'EZ-Bar_Skullcrusher', 'Standing_Dumbbell_Triceps_Extension', 'Tricep_Dumbbell_Kickback', 'Push-Ups_-_Close_Triceps_Position', 'Plank', 'Crunches', 'Air_Bike', 'Russian_Twist', 'Hanging_Leg_Raise', 'Flat_Bench_Lying_Leg_Raise', 'Cable_Crunch', 'Mountain_Climbers', 'Side_Bridge', 'Dead_Bug', 'Reverse_Crunch', 'Ab_Roller', 'Seated_Dumbbell_Palms-Up_Wrist_Curl', 'Seated_Dumbbell_Palms-Down_Wrist_Curl', 'Farmers_Walk', 'Isometric_Neck_Exercise_-_Front_And_Back', 'Isometric_Neck_Exercise_-_Sides', 'Freehand_Jump_Squat', 'Star_Jump', 'Kettlebell_One-Legged_Deadlift', 'Calf_Raises_-_With_Bands', 'Squats_-_With_Bands', 'Band_Pull_Apart']);
+const HOME_EQ_DEF = ['dumbbell', 'bands'];
+let EX_IDX = null; const EX_CACHE = {};
+const exIndex = () => EX_IDX || (typeof EXDB === 'undefined' ? {} : (EX_IDX = Object.fromEntries(EXDB.map(r => [r[0], r]))));
+function exObj(r) {
+  if (EX_CACHE[r[0]]) return EX_CACHE[r[0]];
+  const pg = [...new Set(r[5].map(i => MUS_G[EX_MUS[i]]))], g = [...new Set([...pg, ...r[6].map(i => MUS_G[EX_MUS[i]])])], cat = EX_CAT[r[7]];
+  const sec = cat === 'stretching' || /Plank|Side Bridge|Hang\b|Handed Hang|Isometric|Stomach Vacuum|Wall/.test(r[2]);
+  return (EX_CACHE[r[0]] = {id: r[0], name: r[1], en: r[2], lvl: r[3] + 1, eq: EX_EQ[r[4]] || 'other', pg, g, cat, comp: !!r[8], sec, common: EX_COMMON.has(r[0])});
+}
+const exercise = id => { const i = exIndex(), r = i[id] || i[OLD_EX[id]]; return r ? exObj(r) : (typeof EXERCISES !== 'undefined' ? EXERCISES.find(e => e.id === id) : null); };
+const exId = id => exIndex()[id] ? id : (OLD_EX[id] || id);   // dabartinis (naujas) pratimo id
+const allExercises = () => typeof EXDB === 'undefined' ? [] : EXDB.map(exObj);
+const sportSet = () => ({place: 'gym', homeEq: HOME_EQ_DEF, level: 1, rest: 90, swaps: true, review: true, remind: true, aiMsgs: true, hc: {steps: true, workouts: true, hr: true, sleep: false}, ...(S.sportSet || {})});
+// ar pratimą galima daryti pasirinktoje vietoje
+function placeOk(e, place) {
+  if (place === 'gym') return e.eq !== 'other' || e.common;
+  const eq = place === 'out' ? ['body only', 'bands'] : ['body only', ...(sportSet().homeEq || [])];
+  return eq.includes(e.eq);
+}
+const BUILD_CATS = ['strength', 'plyometrics'];
+
 // Kada paskutinį kartą treniruota kiekviena grupė
 function muscleLastTrained() {
   const last = {};
@@ -482,53 +528,59 @@ function muscleLastTrained() {
   }
   return last;
 }
-
-// ===== Treniruotės: pratimų parinkimas, progresija, balansas =====
 const MAJOR = ['kru','nug','pec','ket','sed','uzp','pre','bic','tri'];
 const prefOf = g => { const p = (S.sportPrefs || {})[g]; return p && diffDays(p.date, today()) <= 28 ? p : null; };
 const injured = g => { const p = prefOf(g); return p && p.reason === 'skauda' && diffDays(p.date, today()) < 14; };
-function lastPerf(exId) {
-  const ws = [...S.workouts].sort((a, b) => a.date < b.date ? 1 : -1);
-  for (const w of ws) { const ex = (w.exercises || []).find(x => x.id === exId); if (ex && ex.sets && ex.sets.length) return {date: w.date, sets: ex.sets, max: Math.max(...ex.sets)}; }
+// paskutinis kartas: serijos (pakartojimai) ir svoriai
+function lastPerf(exIdIn) {
+  const id = exId(exIdIn), ws = [...S.workouts].sort((a, b) => a.date < b.date ? 1 : -1);
+  for (const w of ws) { const ex = (w.exercises || []).find(x => exId(x.id) === id); if (ex && ex.sets && ex.sets.length) return {date: w.date, sets: ex.sets, kg: ex.kg || [], max: Math.max(...ex.sets), maxKg: Math.max(0, ...(ex.kg || []).map(Number)), feel: ex.feel || w.feel}; }
   return null;
 }
-function pickExercise(g, chosen = []) {
-  const pr = prefOf(g) || {};
-  let opts = EXERCISES.filter(e => e.g.includes(g) && !chosen.some(c => c && c.id === e.id));
-  if (pr.reason === 'iranga') { const f = opts.filter(e => !e.eq); if (f.length) opts = f; }
+let DONE_IDS = null, DONE_KEY = '';
+const doneIds = () => { const k = S.workouts.length + '|' + (S.workouts[S.workouts.length - 1]?.id || ''); if (k !== DONE_KEY) { DONE_KEY = k; DONE_IDS = new Set(S.workouts.flatMap(w => (w.exercises || []).map(x => exId(x.id)))); } return DONE_IDS; };
+// pratimai, kuriuos naudotojas iškeitė į kitus (nesiūlom, kol negrąžino)
+const swappedOut = () => new Set((S.exSwaps || []).filter(s => !s.undone).map(s => s.from));
+function pickExercise(g, chosen = [], place = sportSet().place) {
+  const pr = prefOf(g) || {}, lvl = sportSet().level || 1, out = swappedOut(), stretch = g === 'tempimas';
+  let opts = allExercises().filter(e => (stretch ? e.cat === 'stretching' : BUILD_CATS.includes(e.cat) && e.g.includes(g)) && placeOk(e, place) && !chosen.some(c => c && c.id === e.id) && !out.has(e.id));
+  if (pr.reason === 'iranga') { const f = opts.filter(e => e.eq === 'body only'); if (f.length) opts = f; }
   if (pr.reason === 'nepatinka' && pr.used) { const f = opts.filter(e => !pr.used.includes(e.id)); if (f.length) opts = f; }
   if (!opts.length) return null;
-  opts.sort((a, b) => (a.g[0] === g ? 0 : 1) - (b.g[0] === g ? 0 : 1) || a.lvl - b.lvl);
-  if (pr.reason === 'sunku') return opts.find(e => e.lvl === 1) || opts[0];
-  let best = opts.find(e => e.g[0] === g && lastPerf(e.id)) || opts.find(e => e.lvl === 1) || opts[0];
-  const lp = lastPerf(best.id);
-  if (lp && best.next && lp.max >= (best.sec ? 60 : 15)) { const n = exercise(best.next); if (n && !chosen.some(c => c && c.id === n.id)) best = n; }
-  return best;
+  const maxLvl = pr.reason === 'sunku' ? 1 : lvl;
+  const had = doneIds(), score = e => (had.has(e.id) ? 40 : 0) + (e.common ? 30 : 0) + (e.pg[0] === g || stretch ? 20 : e.pg.includes(g) ? 10 : 0) + (e.comp ? 6 : 0) - (e.lvl > maxLvl ? 50 : 0) - e.lvl;
+  return opts.sort((a, b) => score(b) - score(a) || (a.id < b.id ? -1 : 1))[0];
 }
+// tikslinės serijos (pakartojimai) ir svoris su progresija pagal paskutinį kartą
 function targetSets(e, mini) {
   const lp = lastPerf(e.id), easy = prefOf(e.g[0])?.reason === 'sunku';
-  let reps = lp ? lp.max + (e.sec ? 5 : 1) : (e.sec ? 30 : e.lvl === 1 ? 10 : 8);
-  if (easy && !lp) reps = e.sec ? 20 : 6;
-  if (e.id === 'kaklas_izo') reps = 10;
+  let reps = lp ? lp.max : (e.sec ? 30 : e.lvl === 1 ? 12 : 10);
+  if (lp && !lp.maxKg && (lp.feel === 'easy' || lp.feel >= 5)) reps += e.sec ? 5 : 1;
+  if (easy && !lp) reps = e.sec ? 20 : 8;
   return Array(mini ? 2 : 3).fill(reps);
 }
-function buildWorkout(groups, minutes) {
+function targetKg(e) {
+  const lp = lastPerf(e.id); if (!lp || !lp.maxKg) return null;
+  const step = /barbell|machine|cable/.test(e.eq) ? 2.5 : 1;
+  return lp.feel === 'easy' ? round(lp.maxKg + step, 1) : lp.feel === 'hard' ? Math.max(0, round(lp.maxKg - step, 1)) : lp.maxKg;
+}
+function buildWorkout(groups, minutes, place) {
   groups = (groups || []).filter(g => !injured(g));
-  const count = clamp(Math.round((minutes || +S.profile.workoutMin || 40) / 7), 3, 8), chosen = [];
-  for (let i = 0; chosen.length < count && i < count * 3 && groups.length; i++) { const ex = pickExercise(groups[i % groups.length], chosen); if (ex) chosen.push(ex); }
+  const count = clamp(Math.round((minutes || +S.profile.workoutMin || 40) / 8), 3, 9), chosen = [];
+  for (let i = 0; chosen.length < count && i < count * 3 && groups.length; i++) { const ex = pickExercise(groups[i % groups.length], chosen, place); if (ex) chosen.push(ex); }
   // praleistos grupės, kurias žadėjai įtraukti ("pamiršau"/"nėra noro" – mini)
   const last = muscleLastTrained();
   for (const g of Object.keys(S.sportPrefs || {})) {
     const p = prefOf(g); if (!p || groups.includes(g) || injured(g)) continue;
-    if ((p.reason === 'pamirsau' || p.reason === 'noro') && (!last[g] || diffDays(last[g], today()) >= 7)) { const ex = pickExercise(g, chosen); if (ex) chosen.push({...ex, mini: p.reason === 'noro'}); }
+    if ((p.reason === 'pamirsau' || p.reason === 'noro') && (!last[g] || diffDays(last[g], today()) >= 7)) { const ex = pickExercise(g, chosen, place); if (ex) chosen.push({...ex, mini: p.reason === 'noro'}); }
   }
-  return chosen.map(e => ({id: e.id, sets: targetSets(e, e.mini), mini: !!e.mini}));
+  return chosen.map(e => ({id: e.id, sets: targetSets(e, e.mini), kg: targetKg(e), mini: !!e.mini}));
 }
-function suggestWorkout(minutes) {
+function suggestWorkout(minutes, place) {
   const last = muscleLastTrained(), t = today();
   const focus = Object.keys(MUSCLES).filter(g => MAJOR.includes(g) && !injured(g))
     .map(g => ({g, days: last[g] ? diffDays(last[g], t) : 99})).sort((a, b) => b.days - a.days).slice(0, 3).map(x => x.g);
-  const list = buildWorkout(focus, minutes).map(x => ({...x, target: `${x.sets.length} × ${x.sets[0]}`}));
+  const list = buildWorkout(focus, minutes, place).map(x => ({...x, target: `${x.sets.length} × ${x.sets[0]}`}));
   return {focus, list};
 }
 function targetFor(e) { const s = targetSets(e); return `${s.length} × ${s[0]}${e.sec ? ' s' : ''}`; }
@@ -657,7 +709,7 @@ const UNIT_RULES = [
   [/^(a\.?\s?s\.?)$/, 'v', 5], [/^(v\.?\s?s\.?)$/, 'v', 15], [/^(saukstel\w*|arb\w*|tsp|teaspoons?|tsk|tesked\w*|tl|teeloffel)$/, 'v', 5], [/^(sauks\w*|valg\w*|tbsp|tbs|tablespoons?|msk|matsked\w*|el|essloffel)$/, 'v', 15],
   [/^(krm|kryddmatt|ziupsn\w*|pinch\w*|dash\w*|prise)$/, 'fix', 1], [/^(skiltel\w*|cloves?|klyft\w*)$/, 'fix', 5], [/^(sticks?)$/, 'fix', 113],
   [/^(skardin\w*|cans?|tins?|burk\w*|dose)$/, 'fix', 400], [/^(pakel\w*|pak\.?|packs?|packages?|paket\w*)$/, 'fix', 200],
-  [/^(vnt\.?|vienet\w*|pcs|pieces?|whole|gabal\w*|st|styck\w*|stk)$/, 'pc', 1], [/^(rieke\w*|slices?|skiv\w*)$/, 'pc', 1],
+  [/^(vnt\.?|vienet\w*|pcs|pieces?|whole|gabal\w*|st|styck\w*|stk)$/, 'pc', 1], [/^(riek\w*|slices?|skiv\w*|griezin\w*|galv\w*|guz\w*)$/, 'pc', 1],
 ];
 // Tankis g/ml – kad „1 cup miltų“ ≠ „1 cup pieno“
 const DENSITY = {miltai:0.53, cukrus:0.85, ryziai:0.78, ryziai_rudi:0.78, avizos:0.38, grikiai:0.73, kuskusas:0.73, bulguras:0.7, kinva:0.72, lesiai:0.8, perlines:0.8,
@@ -666,7 +718,7 @@ const DENSITY = {miltai:0.53, cukrus:0.85, ryziai:0.78, ryziai_rudi:0.78, avizos
   jogurtas:1.03, graik_jog:1.05, skyr:1.05, varske_0:1.0, grietine20:1.0, grietine10:1.0, grietinele:1.0, kok_pienas:1.0, pom_konserv:1.0, pom_pasta:1.1, baltymai:0.4,
   pup_raud:0.75, pup_balt:0.75, avinz:0.7, prieskoniai:0.5, riesut_sv:1.1, kakava:0.45, humusas:1.0, pesto:1.0};
 // papildomų produktų tankiai (g/ml), kad „1 cup kale“ ≠ 240 g
-Object.assign(DENSITY, {kale: 0.28, rukola: 0.1, sparag_pup: 0.5, rud_cukrus: 0.9, granola: 0.45, kuk_dribsn: 0.12, razinos: 0.6, zem_riesut: 0.6, anakard: 0.55, lazdyno: 0.55, sezamas: 0.6, linai: 0.65, mol_sekl: 0.55, kok_drozl: 0.35, manai: 0.7, soros: 0.8, tahini: 1.0, garstycios: 1.05, klevu_sir: 1.32, uogiene: 1.3, alyvuoges: 0.55, kokos_al: 0.92, ghee: 0.91, feta: 0.6, parmezanas: 0.4, cedaras: 0.45, kremsuris: 1.0, cottage: 0.95, ricotta: 1.0, mascarpone: 1.0, rug_milt: 0.5, pg_milt: 0.55, krakmolas: 0.6, dz_abrikos: 0.6, datules: 0.6, zal_lesiai: 0.8, edamame: 0.6, raug_kop: 0.6, salsa: 1.0, bbq: 1.1, pom_padaz: 1.05});
+Object.assign(DENSITY, {morkos: 0.45, pomidorai: 0.62, svogunai: 0.6, salieras: 0.5, paprika: 0.6, agurkai: 0.55, brokoliai: 0.37, ziedinis: 0.45, kopustai: 0.37, grybai: 0.3, bulves: 0.65, obuoliai: 0.5, bananai: 0.6, cukinija: 0.52, kale: 0.28, rukola: 0.1, sparag_pup: 0.5, rud_cukrus: 0.9, granola: 0.45, kuk_dribsn: 0.12, razinos: 0.6, zem_riesut: 0.6, anakard: 0.55, lazdyno: 0.55, sezamas: 0.6, linai: 0.65, mol_sekl: 0.55, kok_drozl: 0.35, manai: 0.7, soros: 0.8, tahini: 1.0, garstycios: 1.05, klevu_sir: 1.32, uogiene: 1.3, alyvuoges: 0.55, kokos_al: 0.92, ghee: 0.91, feta: 0.6, parmezanas: 0.4, cedaras: 0.45, kremsuris: 1.0, cottage: 0.95, ricotta: 1.0, mascarpone: 1.0, rug_milt: 0.5, pg_milt: 0.55, krakmolas: 0.6, dz_abrikos: 0.6, datules: 0.6, zal_lesiai: 0.8, edamame: 0.6, raug_kop: 0.6, salsa: 1.0, bbq: 1.1, pom_padaz: 1.05});
 function unitOf(word) { const w = norm(word).replace(/\.$/, ''); for (const [re, kind, k] of UNIT_RULES) if (re.test(w) || re.test(norm(word))) return {kind, k}; return null; }
 const ltStem = w => { if (w.length < 5) return w; const s = w.replace(/(iams|iems|uose|ams|oms|ems|ose|iai|ios|ies|iu|as|is|ys|us|os|ai|es|ei|ui|a|e|i|o|u|y)$/, ''); return s.length >= 4 ? s : w; };
 function matchFood(text) {
@@ -720,7 +772,7 @@ function parseIngredient(line) {
   if (f && /skardin|\bcans?\b|\btins?\b|konserv|canned|burk|krossad|passata|chopped tomato/.test(norm(s)) && {pomidorai: 'pom_konserv'}[f.id]) f = food({pomidorai: 'pom_konserv'}[f.id]);
   let grams = 0;
   if (qty != null) {
-    if (!unit || unit.kind === 'pc') grams = f ? qty * (PIECE_G[f.id] || 100) : 0;
+    if (!unit || unit.kind === 'pc') grams = f ? qty * (PIECE_G[f.id] || f.pieceG || 100) : 0;
     else if (unit.kind === 'v') grams = qty * unit.k * (f ? (DENSITY[f.id] ?? 1) : 1);
     else grams = qty * unit.k; // svoris arba fiksuotas
   } else if (f && f.id === 'prieskoniai') grams = 3;
@@ -759,20 +811,20 @@ function dayScore(d) {
   // judėjimas vertinamas per paskutines 7 d., todėl poilsio diena nemažina balo, jei savaitė gera
   const w7 = S.workouts.filter(x => x.date <= d && x.date > addDays(d, -7)).length, wGoal = +p.workoutsPerWeek || 3, wToday = workoutsOn(d).length;
   if (t.logged || wToday || sl) parts.push({k:'Judėjimas', w:15, v: wToday ? 1 : clamp(w7 / wGoal, 0, 1), txt: wToday ? 'treniruotė ✓' : `${w7}/${wGoal} treniruotės per 7 d.`, why: 'Poilsio diena nebaudžiama, jei per savaitę treniruočių pakanka.'});
-  const n = dayNutrition(d), tg = targets();
+  const n = dayNutrition(d), tg = targets(), nk = netKcal(d), burn = dayBurn(d);
   if (foodOn() && n.n) {
-    const over = (n.kcal - tg.kcal) / tg.kcal;
+    const over = (nk - tg.kcal) / tg.kcal;
     let v;
     if (live) v = (over > 0.08 ? clamp(1 - (over - 0.08) * 3, 0, 1) : 1); // šiandien „per mažai“ nebaudžiama – diena dar nesibaigė
     else v = clamp(1 - Math.max(0, Math.abs(over) - 0.1) * 2.5, 0, 1) * 0.7 + clamp(n.p / tg.protein, 0, 1) * 0.3;
-    parts.push({k:'Mityba', w:15, v, txt: `${n.kcal} kcal, ${Math.round(n.p)} g B`, why: live ? 'Šiandien baudžiama tik už viršijimą – likusius valgius dar suvalgysi.' : '±10% nuo tikslo – pilnas balas, plius baltymai.'});
+    parts.push({k:'Mityba', w:15, v, txt: `${n.kcal} kcal${burn ? ` − ${burn} sudeginta = ${nk}` : ''}, ${Math.round(n.p)} g B`, why: live ? 'Šiandien baudžiama tik už viršijimą – likusius valgius dar suvalgysi.' : '±10% nuo tikslo – pilnas balas, plius baltymai.'});
   }
   if (t.logged) { const lim = +p.screenLimitMin || 90; parts.push({k:'Ekrano laikas', w:10, v: t.screen <= lim ? 1 : clamp(1 - (t.screen - lim) / lim, 0, 1), txt: fmtDur(t.screen), why: 'Tik tai, ką pats pažymėjai kaip ekraną (serialai, telefonas, žaidimai).'}); }
   if (!parts.length) return null;
   const score = Math.round(sum(parts.map(x => x.w * x.v)) / sum(parts.map(x => x.w)) * 100);
   return {score, parts, live};
 }
-const scoreColor = s => s == null ? 'var(--muted2)' : s >= 75 ? '#22c55e' : s >= 50 ? '#facc15' : s >= 30 ? '#f97316' : '#ef4444';
+const scoreColor = s => s == null ? 'var(--muted2)' : s >= 75 ? 'var(--br)' : s >= 50 ? 'var(--s2)' : 'var(--s3)';   // vienos spalvos atspalviai
 
 // Periodo suvestinė (savaitė/mėnuo)
 function periodStats(from, n) {
@@ -900,7 +952,7 @@ function svgLine(series, opts = {}) {
   let y0 = Math.min(...ys), y1 = Math.max(...ys); const pd = (y1 - y0) * 0.15 || 1; y0 -= pd; y1 += pd;
   const X = x => P.l + (x - x0) / (x1 - x0) * (W - P.l - P.r), Y = y => H - P.b - (y - y0) / (y1 - y0) * (H - P.t - P.b);
   let g = '';
-  for (let i = 0; i <= 4; i++) { const v = y0 + (y1 - y0) * i / 4; g += `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v)}" y2="${Y(v)}" class="grid"/><text x="${P.l - 5}" y="${Y(v) + 4}" class="ax" text-anchor="end">${round(v, 1)}</text>`; }
+  for (let i = 0; i <= 4; i++) { const v = y0 + (y1 - y0) * i / 4; g += `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v)}" y2="${Y(v)}" class="grid"/><text x="${P.l - 5}" y="${Y(v) + 4}" class="ax" text-anchor="end">${String(round(v, 1)).replace('.', ',')}</text>`; }
   if (opts.xLabels) for (const [x, l] of opts.xLabels) g += `<text x="${X(x)}" y="${H - 6}" class="ax" text-anchor="middle">${esc(l)}</text>`;
   for (const s of series) {
     if (!s.points.length) continue;
@@ -917,7 +969,7 @@ function svgBars(days, opts = {}) {
   const max = Math.max(1, ...days.map(d => sum(d.segs.map(s => s.v))), opts.goal || 0) * 1.1;
   const bw = (W - P.l - P.r) / days.length;
   let g = '';
-  for (let i = 0; i <= 4; i++) { const v = max * i / 4, y = H - P.b - v / max * (H - P.t - P.b); g += `<line x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}" class="grid"/><text x="${P.l - 4}" y="${y + 4}" class="ax" text-anchor="end">${opts.fmt ? opts.fmt(v) : round(v)}</text>`; }
+  for (let i = 0; i <= 4; i++) { const v = max * i / 4, y = H - P.b - v / max * (H - P.t - P.b); g += `<line x1="${P.l}" x2="${W - P.r}" y1="${y}" y2="${y}" class="grid"/><text x="${P.l - 4}" y="${y + 4}" class="ax" text-anchor="end">${String(opts.fmt ? opts.fmt(v) : round(v)).replace(/(\d)\.(\d)/g, '$1,$2')}</text>`; }
   days.forEach((d, i) => {
     let y = H - P.b; const x = P.l + i * bw + bw * 0.15, w = bw * 0.7;
     for (const s of d.segs) { if (!s.v) continue; const h = s.v / max * (H - P.t - P.b); y -= h; g += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${s.color}"><title>${esc(d.label)} · ${esc(s.name || '')}: ${opts.fmt ? opts.fmt(s.v) : s.v}</title></rect>`; }
