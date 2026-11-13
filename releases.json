@@ -1,6 +1,11 @@
 {
-  "stable": "1.8.3",
+  "stable": "1.8.4",
   "versions": [
+    {
+      "v": "1.8.5",
+      "date": "2026-11-14",
+      "notes": "Telefono žingsniai rodomi teisingai dienai, maistas nebeįsirašo kelis kartus"
+    },
     {
       "v": "1.8.4",
       "date": "2026-11-13",
@@ -35,11 +40,6 @@
       "v": "1.6.4",
       "date": "2026-11-12",
       "notes": "Maisto įrašai suprantami tiksliau"
-    },
-    {
-      "v": "1.6.3",
-      "date": "2026-11-12",
-      "notes": "Smulkūs patobulinimai ir greitesni atnaujinimai"
     }
   ]
 }

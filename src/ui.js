@@ -969,7 +969,7 @@ const fmtDateLong = d => { const x = parseD(d); return `${MONTHS_G[x.getMonth()]
 function mealRow(m) {
   return `<div class="mf-meal"><span class="mf-fi">${foodIcon(m.name)}</span><span class="grow"><b>${esc(m.name)}</b><small>${m.time || ''}${m.portions ? ` · ${fmtNum(m.portions)} porc.` : m.g ? ` · ${m.g} g` : ''} · ${Math.round(m.p || 0)} g baltymų</small></span><span class="k">${Math.round(m.kcal)}</span><button class="x" data-a="delMeal" data-id="${m.id}" title="Ištrinti">✕</button></div>`;
 }
-A.askFood = async (f) => { const q = f.q.value.trim(); if (!q) return toast('Parašyk, ką valgei'); f.q.disabled = true; await saveFoodText(q, UI.foodDate, UI.foodDate === today() ? nowHM() : '12:00'); };
+A.askFood = async (f) => { const q = f.q.value.trim(); if (!q) return toast('Parašyk, ką valgei'); if (FOOD_BUSY) return; f.q.disabled = true; await saveFoodText(q, UI.foodDate, UI.foodDate === today() ? nowHM() : '12:00'); if (f.q.isConnected) f.q.disabled = false; };
 A.foodNav = d => { UI.foodDate = addDays(UI.foodDate, +d.n); render(); };
 A.foodDay = d => { UI.view = 'food'; UI.food = 'log'; UI.foodDate = d.d; render(); };
 A.addMeal = d => { UI.mealDate = d.d || today(); UI.mealTime = null; mealModal(); };
@@ -2374,7 +2374,8 @@ async function hcSync(force) {
       const {samples = []} = await H.queryAggregated({dataType: 'steps', startDate: iso(from), endDate: iso(now), bucket: 'day', aggregation: 'sum'});
       S.steps = S.steps || [];
       try { const t0 = new Date(parseD(today())); const {samples: hs = []} = await H.queryAggregated({dataType: 'steps', startDate: iso(t0), endDate: iso(now), bucket: 'hour', aggregation: 'sum'}); const h = Array(24).fill(0); for (const x of hs) h[new Date(x.startDate).getHours()] += Math.round(+x.value || 0); HC.hours = {date: today(), h}; } catch (e) {}
-      for (const s of samples) { const d = s.startDate.slice(0, 10), n = Math.round(+s.value || 0); if (!n) continue; const ex = S.steps.find(x => x.date === d);
+      // dienos pradžia ateina UTC laiku (vietos vidurnaktis = 22:00Z vakar), todėl data imama pagal telefono laiką, ne iš teksto
+      for (const s of samples) { const d = ymd(new Date(new Date(s.startDate).getTime() + 3 * 3600000)), n = Math.round(+s.value || 0); if (!n) continue; const ex = S.steps.find(x => x.date === d);
         if (!ex) { S.steps.push({date: d, steps: n, src: 'hc'}); changed = true; } else if (ex.src === 'hc' || n > (+ex.steps || 0)) { if (ex.steps !== n) { ex.steps = n; ex.src = 'hc'; changed = true; } } }
     }
     if (set.workouts) {
@@ -3450,8 +3451,10 @@ function recentMeals() {
   for (const m of S.meals) if (m.date >= from && m.name) { const k = m.name.toLowerCase(); (by[k] = by[k] || {n: 0, m}).n++; if (m.date >= by[k].m.date) by[k].m = m; }
   return Object.values(by).filter(x => x.n >= 1).sort((a, b) => b.n - a.n).slice(0, 8).map(x => x.m);
 }
+// tas pats greitas veiksmas antrą kartą per trumpą laiką – netyčinis dvigubas bakstelėjimas, ne antras įrašas
+const tapOnce = (k, ms = 1200) => { const t = Date.now(); if (tapOnce[k] && t - tapOnce[k] < ms) return false; tapOnce[k] = t; return true; };
 A.mealRepeat = d => {
-  const src = recentMeals().find(m => m.name === d.n); if (!src) return;
+  const src = recentMeals().find(m => m.name === d.n); if (!src || !tapOnce('meal:' + d.n)) return;
   const f = $('#mform'), {id, recipeId, ...rest} = src;
   const dd = f?.date?.value || d.d || today();
   S.meals.push({...rest, id: uid(), date: dd, time: f?.time?.value || (dd === today() ? nowHM() : '12:00')});
@@ -3620,7 +3623,13 @@ function localFoodParse(text) {
   }
   return {items, miss};
 }
+// kol AI skaičiuoja, antras paspaudimas (ar Enter) nieko nedaro – kitaip tas pats valgis įsirašo du kartus
+let FOOD_BUSY = false;
 async function saveFoodText(text, date, time) {
+  if (FOOD_BUSY) return; FOOD_BUSY = true;
+  try { await saveFoodText1(text, date, time); } finally { FOOD_BUSY = false; }
+}
+async function saveFoodText1(text, date, time) {
   const sb = $('#mform button[type=submit]'); if (sb) { sb.disabled = true; sb.textContent = '⏳ Skaičiuoju…'; }
   let items = [], miss = [];
   const r = await DB.fn('food_parse', {text}).catch(() => null);
