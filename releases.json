@@ -2,6 +2,11 @@
   "stable": "1.7.0",
   "versions": [
     {
+      "v": "1.8.2",
+      "date": "2026-11-13",
+      "notes": "Telefono mygtukas Atgal grąžina programos viduje, patraukus žemyn – perkrovimas, viršutinė juosta nebelenda ant turinio"
+    },
+    {
       "v": "1.8.1",
       "date": "2026-11-13",
       "notes": "Sportas: žingsniai ir ėjimas pirmame plane, dideli mygtukai pradėti, telefono ir laikrodžio prijungimas; telefono mygtukas Atgal veikia programos viduje"
@@ -35,11 +40,6 @@
       "v": "1.6.1",
       "date": "2026-11-11",
       "notes": "Maistą įrašyti dar paprasčiau – parašyk ir spausk „Išsaugoti“"
-    },
-    {
-      "v": "1.6.0",
-      "date": "2026-11-11",
-      "notes": "✨ Parašyk, ką valgei – kalorijos apskaičiuojamos pačios; protingesni pasiūlymai ir kiekiai; pranešimai į telefoną; išsamesnis mėnesio kalendorius"
     }
   ]
 }

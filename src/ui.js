@@ -242,7 +242,7 @@ function navWatch() {
       const st = e.state;
       if (!st || !st.ls) return;
       const same = st.v === UI.view && (st.sp?.p || null) === (UI.view === 'sport' ? UI.sp?.p || null : null) && (st.sp?.id || null) === (UI.view === 'sport' ? UI.sp?.id || null : null);
-      if (same && st.dup) { NAV.restoring = false; history.back(); return; }
+      if (same && NAV.depth > 0) { NAV.restoring = false; history.back(); return; }
       UI.view = st.v; if (st.sp) UI.sp = {...st.sp};
       render(); window.scrollTo(0, 0);
     } finally { NAV.restoring = false; NAV.ov = {sheet: !!$('#sheet')?.firstElementChild, modal: !!$('#modal')?.classList.contains('open'), ask: !!document.querySelector('.askov:not(.out)')}; }
@@ -1580,7 +1580,8 @@ const fmtPace = (sec, m) => { if (!m) return '–'; const p = sec / (m / 1000); 
 const fmtClock = s => { s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return h ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}` : `${m}:${String(x).padStart(2, '0')}`; };
 const spGo = (p, extra = {}) => { const prev = UI.view === 'sport' ? UI.sp?.p + '|' + (UI.sp?.id || '') : ''; UI.sp = {p, from: UI.sp?.p || 'home', ...extra}; UI.view = 'sport'; A.closeSheet?.(); render(); window.scrollTo(0, 0); if (prev !== p + '|' + (extra.id || '')) navPush(); };
 A.spGo = d => spGo(d.p, {id: d.id, g: d.g});
-A.spBack = () => NAV.depth > 0 && history.state?.ls ? history.back() : spGo(UI.sp?.back || (['ex', 'wv', 'act', 'mus', 'review'].includes(UI.sp?.p) && UI.sp?.from && UI.sp.from !== UI.sp.p ? UI.sp.from : 'home'));
+const spBackTarget = () => UI.sp?.back || (['ex', 'wv', 'act', 'mus', 'review'].includes(UI.sp?.p) && UI.sp?.from && UI.sp.from !== UI.sp.p && !['live', 'run', 'done'].includes(UI.sp.from) ? UI.sp.from : 'home');
+A.spBack = () => NAV.depth > 0 && history.state?.ls ? history.back() : spGo(spBackTarget());
 const spBack = t => `<div class="sp-h"><button class="sp-back" data-a="spBack" aria-label="Atgal">${ic('back')}</button><h2>${t}</h2></div>`;
 const spSheet = (html, cls = '') => { $('#sheet').innerHTML = `<div class="dim" data-a="closeSheet"></div><div class="sh sp-sheet ${cls}"><div class="grab"></div>${html}</div>`; };
 
@@ -1706,7 +1707,7 @@ function stepsHero() {
     <div class="sp5-side">${conn ? `<div><b>${n ? fmtNum(stepsKm(n)) : '0'}</b>km</div><div><b>${n ? stepsKcal(n) : 0}</b>kcal</div><div><b>${activeMinToday()}</b>aktyvios min</div>` : '<p>Žingsniai ateis patys, kai prijungsi telefoną ar laikrodį.</p>'}</div></div>
     ${conn ? `<div class="sp5-week">${week.map((x, i) => `<span class="${x === d ? 't' : ''}"><i class="${vals[i] >= g ? 'g' : ''}" style="height:${Math.max(6, vals[i] / mx * 100)}%"></i>${DOW[dow(x) - 1].slice(0, 1)}</span>`).join('')}</div>` : ''}</button>`;
 }
-const startGrid = () => `<div class="sp5-go">${[['walk', 'swalk', 'Ėjimas', 'su žemėlapiu'], ['run', 'srun', 'Bėgimas', 'su žemėlapiu'], ['bike', 'sbike', 'Dviratis', 'su žemėlapiu'], ['strength', 'wdumb', 'Treniruotė', 'pratimai']].map(([id, i, l, s], k) => `<button class="${k ? '' : 'm'}" data-a="spSport" data-id="${id}"><i>${ic(i)}</i><b>${l}</b><small>${s}</small></button>`).join('')}</div>
+const startGrid = () => `<div class="sp5-go">${[['walk', 'swalk', 'Ėjimas'], ['run', 'srun', 'Bėgimas'], ['bike', 'sbike', 'Dviratis'], ['strength', 'wdumb', 'Treniruotė']].map(([id, i, l], k) => `<button class="${k ? '' : 'm'}" data-a="spSport" data-id="${id}"><i>${ic(i)}</i><b>${l}</b></button>`).join('')}</div>
   <button class="sp5-more" data-a="spGo" data-p="sports">Kitas sportas – ${SPORTS.flatMap(c => c[2]).length} ›</button>`;
 const connCard = () => `<button class="sp5-conn" data-a="spGo" data-p="conn"><span class="sp-fi">${ic('swatch')}</span><span><b>Prijunk telefoną ar laikrodį</b><small>Žingsniai, pulsas ir treniruotės ateis patys</small></span><span class="btn primary sm">Prijungti</span></button>`;
 const weekSmall = () => { const st = weekStats(); return `<button class="sp5-wk" data-a="spGo" data-p="hist"><span class="r">${spRing(st.n / st.goal, 46, 7)}<b>${st.n}/${st.goal}</b></span><span><b>Treniruotės šią savaitę</b><small>${st.min} min · ${streakWeeks()} sav. iš eilės</small></span><span class="chev">${ic('arrow', 'sm')}</span></button>`; };
@@ -1836,7 +1837,7 @@ A.spBuild = async () => {
 A.spStartSugg = () => { const sg = todaysSuggestion(); UI.draft = {type: sg.focus, place: sg.place, duration: sg.duration, exercises: sg.exercises.map(x => ({...x})), why: true}; spGo('draft'); };
 A.spKita = () => {
   const sg = todaysSuggestion(), last = muscleLastTrained(), t = today();
-  const opts = [[sg.focus, sg.title, `${PLACE_LT[sg.place]} · ${sg.duration} min · siūlau`, FOCUS.find(f => f[0] === sg.focus)?.[3]], ...FOCUS.filter(f => f[2] && f[0] !== sg.focus && f[0] !== 'tempimas').map(f => ({f, d: Math.min(...f[2].map(g => last[g] ? diffDays(last[g], t) : 99))})).sort((a, b) => b.d - a.d).slice(0, 2).map(({f}) => [f[0], FOCUS_TITLE[f[0]] || f[1], `${PLACE_LT[sportSet().place]} · 30 min`, f[3]]), ['run', 'Bėgimas', '30 min · su žemėlapiu', 'srun'], ['tempimas', 'Tempimas ir mankšta', 'Namie · 15 min · poilsio dienai', 'wsmall']];
+  const opts = [[sg.focus, sg.title, `${PLACE_LT[sg.place]} · ${sg.duration} min · siūlau`, FOCUS.find(f => f[0] === sg.focus)?.[3]], ...FOCUS.filter(f => f[2] && f[0] !== sg.focus && f[0] !== 'tempimas').map(f => ({f, d: Math.min(...f[2].map(g => last[g] ? diffDays(last[g], t) : 99))})).sort((a, b) => b.d - a.d).slice(0, 2).map(({f}) => [f[0], FOCUS_TITLE[f[0]] || f[1], `${PLACE_LT[sportSet().place]} · 30 min`, f[3]]), ['run', 'Bėgimas', '30 min', 'srun'], ['tempimas', 'Tempimas ir mankšta', 'Namie · 15 min · poilsio dienai', 'wsmall']];
   spSheet(`<h3>Ką dar galima šiandien?</h3>${opts.map(([id, l, s, i], k) => `<button class="sp-opt ${k ? '' : 'on'}" data-a="spKitaPick" data-v="${id}"><span class="sp-fi">${ic(i || 'gym')}</span><span><b>${esc(l)}</b><small>${s}</small></span></button>`).join('')}
     <button class="btn sp-go" data-a="spStartSheet">Susidaryti pačiam</button>`);
 };
@@ -2319,7 +2320,28 @@ A.spSetNum = async d => { const isRest = d.k === 'rest', cur = isRest ? sportSet
   if (v == null || v === '' || isNaN(+v)) return; if (isRest) S.sportSet = {...sportSet(), rest: clamp(+v, 10, 600)}; else S.profile[d.k] = +v; commit(); };
 // ----- Android programėlė (Capacitor apvalkalas): Health Connect ir GPS fone. Naršyklėje šios dalys neveikia ir nieko nedaro. -----
 const isNative = () => !!window.Capacitor?.isNativePlatform?.();
-const natPlugin = n => { const C = window.Capacitor; if (!C) return null; try { return C.Plugins?.[n] || (C.registerPlugin ? C.registerPlugin(n) : null); } catch (e) { return null; } };
+// puslapis atidaromas iš interneto, todėl įskiepius kviečiam tiesiai per Capacitor tiltą (Capacitor.Plugins čia gali būti tuščias)
+const natPlugin = n => { const C = window.Capacitor; if (!C || !C.nativePromise) return null;
+  return new Proxy({}, {get: (_, m) => m === 'then' ? undefined : m === 'addListener' ? (ev, cb) => Promise.resolve(C.addListener(n, ev, cb)) : m === 'addWatcher' ? (opts, cb) => Promise.resolve(C.nativeCallback(n, 'addWatcher', opts, cb)) : (opts = {}) => C.nativePromise(n, m, opts)}); };
+// telefono „Atgal“ (mygtukas ar gestas): langas → ankstesnis ekranas → pagrindinis ekranas → tik tada programa paslepiama
+function nativeBack() {
+  const ask = document.querySelector('.askov:not(.out)');
+  if (ask) return (ask.querySelector('[data-r="0"]') || ask.querySelector('[data-skip]') || ask).click();
+  if ($('#modal').classList.contains('open')) return A.closeModal();
+  if ($('#sheet').firstElementChild) return A.closeSheet();
+  if (UI.view === 'sport' && UI.sp?.p && UI.sp.p !== 'home') return spGo(['live', 'run', 'done'].includes(UI.sp.p) ? 'home' : spBackTarget());
+  if (UI.view === 'notes' && UI.noteOpen) { UI.noteOpen = false; return render(); }
+  if (UI.view !== 'today') return A.go({v: 'today'});
+  natPlugin('App')?.minimizeApp?.().catch(() => natPlugin('App')?.exitApp?.());
+}
+// patraukus žemyn puslapio viršuje – perkrauti (programėlėje nėra naršyklės „perkrauti“)
+function pullToRefresh() {
+  let y0 = null, dy = 0; const el = document.createElement('div'); el.id = 'ptr'; el.innerHTML = daigelis(4); document.body.appendChild(el);
+  const blocked = t => t.closest('#sheet, #modal, .askov, .sp-map, input, textarea, select, .sp-sports, .sp-chips.scroll');
+  document.addEventListener('touchstart', e => { y0 = window.scrollY <= 0 && !blocked(e.target) ? e.touches[0].clientY : null; dy = 0; }, {passive: true});
+  document.addEventListener('touchmove', e => { if (y0 == null) return; dy = e.touches[0].clientY - y0; if (dy > 0 && window.scrollY <= 0) { el.style.transform = `translateY(${Math.min(dy, 140) * 0.6}px) rotate(${dy * 1.5}deg)`; el.style.opacity = Math.min(1, dy / 90); el.classList.toggle('go', dy > 110); } }, {passive: true});
+  document.addEventListener('touchend', () => { if (y0 == null) return; if (dy > 110) { el.classList.add('spin'); setTimeout(() => location.reload(), 250); } else { el.style.transform = ''; el.style.opacity = 0; } y0 = null; }, {passive: true});
+}
 const HC = {ok: false, src: null, last: null};
 const HC_READ = ['steps', 'distance', 'calories', 'heartRate', 'workouts'];
 if (isNative()) window.LSNative = {openHealthConnect: () => natPlugin('Health')?.openHealthConnectSettings?.()};
@@ -2596,7 +2618,7 @@ function vNotes() {
       ${pinned.length ? `<div class="mf-grp">Prisegti</div>${pinned.map(cardN).join('')}<div class="mf-grp">Kiti</div>` : ''}${rest.map(cardN).join('')}</div>
     <div class="nt-ed">${cur ? `<div class="nt-bar"><button class="nt-back" data-a="closeNote">${ic('back', 'sm')} Užrašai</button><span class="sp"></span><button class="ib ${cur.pinned ? 'on' : ''}" data-a="pinNote" data-id="${cur.id}" title="${cur.pinned ? 'Atsegti' : 'Prisegti'}">${ic('pin', 'sm')}</button><button class="ib" data-a="delNote" data-id="${cur.id}" title="Ištrinti">${ic('trash', 'sm')}</button></div>
       <input class="ntitle" value="${esc(cur.title)}" data-note="title" placeholder="Pavadinimas">
-      <textarea class="nbody" data-note="body" placeholder="Rašyk čia…">${esc(cur.body)}</textarea><small class="hint">Atnaujinta ${agoTxt(cur.updated)} · išsaugoma automatiškai</small>` : ''}</div></div>`;
+      <textarea class="nbody" data-note="body" placeholder="Rašyk čia…">${esc(cur.body)}</textarea><small class="hint">Atnaujinta ${agoTxt(cur.updated)}</small>` : ''}</div></div>`;
 }
 A.closeNote = () => { UI.noteOpen = false; render(); };
 A.addNote = () => { const n = {id: uid(), title: '', body: '', updated: Date.now()}; S.notes.push(n); UI.noteId = n.id; UI.noteOpen = true; commit(); setTimeout(() => $('.ntitle')?.focus(), 50); };
@@ -3240,7 +3262,7 @@ const loadSportData = () => typeof EXDB !== 'undefined' ? Promise.resolve() : ne
   navWatch();
   setTimeout(refreshDgMsgs, 8000);
   if (S.run?.gps) gpsStart();
-  if (isNative()) { hcCheck().then(() => { if (HC.ok) hcSync(); }); document.addEventListener('visibilitychange', () => { if (!document.hidden && HC.ok) hcSync(); }); }
+  if (isNative()) { natPlugin('App')?.addListener('backButton', nativeBack); pullToRefresh(); hcCheck().then(() => { if (HC.ok) hcSync(); }); document.addEventListener('visibilitychange', () => { if (!document.hidden && HC.ok) hcSync(); }); }
   checkNewVersion(); setInterval(checkNewVersion, 300000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkNewVersion(); });
   if (S.settings.onboarded) showWhatsNew();

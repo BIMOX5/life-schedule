@@ -446,7 +446,7 @@ SNACK_IDS.push('ledai', 'vynas', 'sausainiai', 'kruasanas', 'nachos');
 // Raumenų grupės
 const MUSCLES = {
   kru:'Krūtinė', nug:'Nugara (plačiausieji)', pec:'Pečiai', tra:'Trapecija', kak:'Kaklas', bic:'Bicepsas', tri:'Tricepsas', dil:'Dilbiai / riešai',
-  pre:'Pilvo presas', son:'Šoniniai pilvo', apn:'Apatinė nugara', sed:'Sėdmenys', ket:'Šlaunys (priekis)', uzp:'Šlaunys (užpakalis)', bla:'Blauzdos', kar:'Kardio'
+  pre:'Pilvo presas', son:'Šoniniai pilvo', apn:'Apatinė nugara', sed:'Sėdmenys', ket:'Šlaunys (priekis)', uzp:'Šlaunys (užpakalis)', pri:'Šlaunies vidus', bla:'Blauzdos', kar:'Kardio'
 };
 // Treniruočių tipai planavimui
 const WTYPES = [
