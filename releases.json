@@ -1,6 +1,11 @@
 {
-  "stable": "1.6.4",
+  "stable": "1.7.0",
   "versions": [
+    {
+      "v": "1.8.0",
+      "date": "2026-11-13",
+      "notes": "Naujas Sportas: tikri pratimai su video, 95 sportai, žemėlapis bėgimui ir dviračiui, detalus raumenų žemėlapis"
+    },
     {
       "v": "1.7.0",
       "date": "2026-11-12",
@@ -35,11 +40,6 @@
       "v": "1.5.6",
       "date": "2026-11-11",
       "notes": "Nauja skiltis 💚 Savijauta – pažymėk, kaip jautiesi, ir pamatyk, kas tau padeda"
-    },
-    {
-      "v": "1.5.5",
-      "date": "2026-11-11",
-      "notes": "Komandos profilio pakeitimai pritaikomi tyliai ir greitai"
     }
   ]
 }

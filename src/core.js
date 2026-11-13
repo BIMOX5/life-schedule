@@ -334,7 +334,6 @@ function stalePrices() {
 }
 const food = id => allFoods().find(f => f.id === id);
 const recipe = id => S.recipes.find(r => r.id === id);
-const exercise = id => EXERCISES.find(e => e.id === id);
 
 // ===== Profilis ir kalorijos =====
 function currentWeight() {
@@ -492,6 +491,34 @@ function freeSlots(d, fromM) {
   return slots.filter(([s, e]) => e - s >= 15);
 }
 
+// ===== Treniruotės: pratimų parinkimas, progresija, balansas =====
+// Pratimai iš EXDB (sport.js – 876 tikri pratimai). Seni namų pratimų id (iki 1.8) atvaizduojami į artimiausius tikrus pratimus.
+const OLD_EX = {atsp_siena: 'Incline_Push-Up', atsp_kel: 'Pushups', atsp: 'Pushups', atsp_kojos: 'Push-Ups_With_Feet_Elevated', atsp_deim: 'Push-Ups_-_Close_Triceps_Position', dipai: 'Bench_Dips', pike: 'Handstand_Push-Ups', pecu_buteliai: 'Side_Lateral_Raise', irkl_rankst: 'Inverted_Row_with_Straps', irkl_stalas: 'Inverted_Row', prisitr: 'Pullups', kupr_irkl: 'Bent_Over_Two-Dumbbell_Row', kupr_bic: 'Dumbbell_Bicep_Curl', bic_rankst: 'Dumbbell_Bicep_Curl', supermenas: 'Superman', y_kelimai: 'Dumbbell_Scaption', kaklas_lenk: 'Lying_Face_Up_Plate_Neck_Resistance', kaklas_ties: 'Lying_Face_Down_Plate_Neck_Resistance', kaklas_izo: 'Isometric_Neck_Exercise_-_Front_And_Back', smakro_itr: 'Chin_To_Chest_Stretch', riesu_lenk: 'Seated_Dumbbell_Palms-Up_Wrist_Curl', riesu_atv: 'Seated_Dumbbell_Palms-Down_Wrist_Curl', ukininkas: 'Farmers_Walk', kabejimas: 'One_Handed_Hang', pauksis_suo: 'Dead_Bug', hiperekst: 'Hyperextensions_With_No_Hyperextension_Bench', rus_sukimas: 'Russian_Twist', son_pasilenk: 'Dumbbell_Side_Bend', pritup: 'Bodyweight_Squat', pritup_sok: 'Freehand_Jump_Squat', itupstai: 'Bodyweight_Walking_Lunge', bulgar: 'Split_Squat_with_Dumbbells', sienos_sed: 'Bodyweight_Squat', tiltelis: 'Butt_Lift_Bridge', tiltelis_1: 'Single_Leg_Glute_Bridge', rdl_1: 'Kettlebell_One-Legged_Deadlift', slaun_lenk: 'Ball_Leg_Curl', pasistieb: 'Standing_Dumbbell_Calf_Raise', pasistieb_1: 'Standing_Dumbbell_Calf_Raise', lenta: 'Plank', lenta_son: 'Side_Bridge', dviratis: 'Air_Bike', koju_kel: 'Flat_Bench_Lying_Leg_Raise', laipiotojas: 'Mountain_Climbers', burpiai: 'Freehand_Jump_Squat', suoliukai: 'Star_Jump', auksti_keliai: 'Fast_Skipping'};
+// EXDB raumenys → programos raumenų grupės (MUSCLES)
+const MUS_G = {abdominals: 'pre', abductors: 'sed', adductors: 'pri', biceps: 'bic', calves: 'bla', chest: 'kru', forearms: 'dil', glutes: 'sed', hamstrings: 'uzp', lats: 'nug', 'lower back': 'apn', 'middle back': 'nug', neck: 'kak', quadriceps: 'ket', shoulders: 'pec', traps: 'tra', triceps: 'tri'};
+// dažniausiai naudojami pratimai – parenkami pirmiausia (kad treniruotėje nebūtų egzotikos)
+const EX_COMMON = new Set(['Barbell_Squat', 'Leg_Press', 'Lying_Leg_Curls', 'Seated_Leg_Curl', 'Leg_Extensions', 'Standing_Calf_Raises', 'Seated_Calf_Raise', 'Romanian_Deadlift', 'Barbell_Deadlift', 'Dumbbell_Lunges', 'Goblet_Squat', 'Bodyweight_Squat', 'Butt_Lift_Bridge', 'Barbell_Hip_Thrust', 'Single_Leg_Glute_Bridge', 'Split_Squat_with_Dumbbells', 'Dumbbell_Squat', 'Stiff-Legged_Dumbbell_Deadlift', 'Hack_Squat', 'Thigh_Adductor', 'Thigh_Abductor', 'Glute_Kickback', 'Standing_Dumbbell_Calf_Raise', 'Barbell_Bench_Press_-_Medium_Grip', 'Dumbbell_Bench_Press', 'Incline_Dumbbell_Press', 'Barbell_Incline_Bench_Press_-_Medium_Grip', 'Dumbbell_Flyes', 'Cable_Crossover', 'Pushups', 'Incline_Push-Up', 'Push-Ups_With_Feet_Elevated', 'Butterfly', 'Machine_Bench_Press', 'Dips_-_Chest_Version', 'Pullups', 'Chin-Up', 'Wide-Grip_Lat_Pulldown', 'Seated_Cable_Rows', 'Bent_Over_Barbell_Row', 'One-Arm_Dumbbell_Row', 'Bent_Over_Two-Dumbbell_Row', 'Inverted_Row', 'Hyperextensions_Back_Extensions', 'Superman', 'Face_Pull', 'Barbell_Shrug', 'Dumbbell_Shrug', 'Dumbbell_Shoulder_Press', 'Barbell_Shoulder_Press', 'Arnold_Dumbbell_Press', 'Side_Lateral_Raise', 'Front_Dumbbell_Raise', 'Reverse_Flyes', 'Machine_Shoulder_Military_Press', 'Dumbbell_Bicep_Curl', 'Barbell_Curl', 'Hammer_Curls', 'Preacher_Curl', 'Concentration_Curls', 'EZ-Bar_Curl', 'Triceps_Pushdown', 'Triceps_Pushdown_-_Rope_Attachment', 'Bench_Dips', 'Dips_-_Triceps_Version', 'EZ-Bar_Skullcrusher', 'Standing_Dumbbell_Triceps_Extension', 'Tricep_Dumbbell_Kickback', 'Push-Ups_-_Close_Triceps_Position', 'Plank', 'Crunches', 'Air_Bike', 'Russian_Twist', 'Hanging_Leg_Raise', 'Flat_Bench_Lying_Leg_Raise', 'Cable_Crunch', 'Mountain_Climbers', 'Side_Bridge', 'Dead_Bug', 'Reverse_Crunch', 'Ab_Roller', 'Seated_Dumbbell_Palms-Up_Wrist_Curl', 'Seated_Dumbbell_Palms-Down_Wrist_Curl', 'Farmers_Walk', 'Isometric_Neck_Exercise_-_Front_And_Back', 'Isometric_Neck_Exercise_-_Sides', 'Freehand_Jump_Squat', 'Star_Jump', 'Kettlebell_One-Legged_Deadlift', 'Calf_Raises_-_With_Bands', 'Squats_-_With_Bands', 'Band_Pull_Apart']);
+const HOME_EQ_DEF = ['dumbbell', 'bands'];
+let EX_IDX = null; const EX_CACHE = {};
+const exIndex = () => EX_IDX || (typeof EXDB === 'undefined' ? {} : (EX_IDX = Object.fromEntries(EXDB.map(r => [r[0], r]))));
+function exObj(r) {
+  if (EX_CACHE[r[0]]) return EX_CACHE[r[0]];
+  const pg = [...new Set(r[5].map(i => MUS_G[EX_MUS[i]]))], g = [...new Set([...pg, ...r[6].map(i => MUS_G[EX_MUS[i]])])], cat = EX_CAT[r[7]];
+  const sec = cat === 'stretching' || /Plank|Side Bridge|Hang\b|Handed Hang|Isometric|Stomach Vacuum|Wall/.test(r[2]);
+  return (EX_CACHE[r[0]] = {id: r[0], name: r[1], en: r[2], lvl: r[3] + 1, eq: EX_EQ[r[4]] || 'other', pg, g, cat, comp: !!r[8], sec, common: EX_COMMON.has(r[0])});
+}
+const exercise = id => { const i = exIndex(), r = i[id] || i[OLD_EX[id]]; return r ? exObj(r) : (typeof EXERCISES !== 'undefined' ? EXERCISES.find(e => e.id === id) : null); };
+const exId = id => exIndex()[id] ? id : (OLD_EX[id] || id);   // dabartinis (naujas) pratimo id
+const allExercises = () => typeof EXDB === 'undefined' ? [] : EXDB.map(exObj);
+const sportSet = () => ({place: 'gym', homeEq: HOME_EQ_DEF, level: 1, rest: 90, swaps: true, review: true, remind: true, aiMsgs: true, hc: {steps: true, workouts: true, hr: true, sleep: false}, ...(S.sportSet || {})});
+// ar pratimą galima daryti pasirinktoje vietoje
+function placeOk(e, place) {
+  if (place === 'gym') return e.eq !== 'other' || e.common;
+  const eq = place === 'out' ? ['body only', 'bands'] : ['body only', ...(sportSet().homeEq || [])];
+  return eq.includes(e.eq);
+}
+const BUILD_CATS = ['strength', 'plyometrics'];
+
 // Kada paskutinį kartą treniruota kiekviena grupė
 function muscleLastTrained() {
   const last = {};
@@ -501,53 +528,59 @@ function muscleLastTrained() {
   }
   return last;
 }
-
-// ===== Treniruotės: pratimų parinkimas, progresija, balansas =====
 const MAJOR = ['kru','nug','pec','ket','sed','uzp','pre','bic','tri'];
 const prefOf = g => { const p = (S.sportPrefs || {})[g]; return p && diffDays(p.date, today()) <= 28 ? p : null; };
 const injured = g => { const p = prefOf(g); return p && p.reason === 'skauda' && diffDays(p.date, today()) < 14; };
-function lastPerf(exId) {
-  const ws = [...S.workouts].sort((a, b) => a.date < b.date ? 1 : -1);
-  for (const w of ws) { const ex = (w.exercises || []).find(x => x.id === exId); if (ex && ex.sets && ex.sets.length) return {date: w.date, sets: ex.sets, max: Math.max(...ex.sets)}; }
+// paskutinis kartas: serijos (pakartojimai) ir svoriai
+function lastPerf(exIdIn) {
+  const id = exId(exIdIn), ws = [...S.workouts].sort((a, b) => a.date < b.date ? 1 : -1);
+  for (const w of ws) { const ex = (w.exercises || []).find(x => exId(x.id) === id); if (ex && ex.sets && ex.sets.length) return {date: w.date, sets: ex.sets, kg: ex.kg || [], max: Math.max(...ex.sets), maxKg: Math.max(0, ...(ex.kg || []).map(Number)), feel: ex.feel || w.feel}; }
   return null;
 }
-function pickExercise(g, chosen = []) {
-  const pr = prefOf(g) || {};
-  let opts = EXERCISES.filter(e => e.g.includes(g) && !chosen.some(c => c && c.id === e.id));
-  if (pr.reason === 'iranga') { const f = opts.filter(e => !e.eq); if (f.length) opts = f; }
+let DONE_IDS = null, DONE_KEY = '';
+const doneIds = () => { const k = S.workouts.length + '|' + (S.workouts[S.workouts.length - 1]?.id || ''); if (k !== DONE_KEY) { DONE_KEY = k; DONE_IDS = new Set(S.workouts.flatMap(w => (w.exercises || []).map(x => exId(x.id)))); } return DONE_IDS; };
+// pratimai, kuriuos naudotojas iškeitė į kitus (nesiūlom, kol negrąžino)
+const swappedOut = () => new Set((S.exSwaps || []).filter(s => !s.undone).map(s => s.from));
+function pickExercise(g, chosen = [], place = sportSet().place) {
+  const pr = prefOf(g) || {}, lvl = sportSet().level || 1, out = swappedOut(), stretch = g === 'tempimas';
+  let opts = allExercises().filter(e => (stretch ? e.cat === 'stretching' : BUILD_CATS.includes(e.cat) && e.g.includes(g)) && placeOk(e, place) && !chosen.some(c => c && c.id === e.id) && !out.has(e.id));
+  if (pr.reason === 'iranga') { const f = opts.filter(e => e.eq === 'body only'); if (f.length) opts = f; }
   if (pr.reason === 'nepatinka' && pr.used) { const f = opts.filter(e => !pr.used.includes(e.id)); if (f.length) opts = f; }
   if (!opts.length) return null;
-  opts.sort((a, b) => (a.g[0] === g ? 0 : 1) - (b.g[0] === g ? 0 : 1) || a.lvl - b.lvl);
-  if (pr.reason === 'sunku') return opts.find(e => e.lvl === 1) || opts[0];
-  let best = opts.find(e => e.g[0] === g && lastPerf(e.id)) || opts.find(e => e.lvl === 1) || opts[0];
-  const lp = lastPerf(best.id);
-  if (lp && best.next && lp.max >= (best.sec ? 60 : 15)) { const n = exercise(best.next); if (n && !chosen.some(c => c && c.id === n.id)) best = n; }
-  return best;
+  const maxLvl = pr.reason === 'sunku' ? 1 : lvl;
+  const had = doneIds(), score = e => (had.has(e.id) ? 40 : 0) + (e.common ? 30 : 0) + (e.pg[0] === g || stretch ? 20 : e.pg.includes(g) ? 10 : 0) + (e.comp ? 6 : 0) - (e.lvl > maxLvl ? 50 : 0) - e.lvl;
+  return opts.sort((a, b) => score(b) - score(a) || (a.id < b.id ? -1 : 1))[0];
 }
+// tikslinės serijos (pakartojimai) ir svoris su progresija pagal paskutinį kartą
 function targetSets(e, mini) {
   const lp = lastPerf(e.id), easy = prefOf(e.g[0])?.reason === 'sunku';
-  let reps = lp ? lp.max + (e.sec ? 5 : 1) : (e.sec ? 30 : e.lvl === 1 ? 10 : 8);
-  if (easy && !lp) reps = e.sec ? 20 : 6;
-  if (e.id === 'kaklas_izo') reps = 10;
+  let reps = lp ? lp.max : (e.sec ? 30 : e.lvl === 1 ? 12 : 10);
+  if (lp && !lp.maxKg && (lp.feel === 'easy' || lp.feel >= 5)) reps += e.sec ? 5 : 1;
+  if (easy && !lp) reps = e.sec ? 20 : 8;
   return Array(mini ? 2 : 3).fill(reps);
 }
-function buildWorkout(groups, minutes) {
+function targetKg(e) {
+  const lp = lastPerf(e.id); if (!lp || !lp.maxKg) return null;
+  const step = /barbell|machine|cable/.test(e.eq) ? 2.5 : 1;
+  return lp.feel === 'easy' ? round(lp.maxKg + step, 1) : lp.feel === 'hard' ? Math.max(0, round(lp.maxKg - step, 1)) : lp.maxKg;
+}
+function buildWorkout(groups, minutes, place) {
   groups = (groups || []).filter(g => !injured(g));
-  const count = clamp(Math.round((minutes || +S.profile.workoutMin || 40) / 7), 3, 8), chosen = [];
-  for (let i = 0; chosen.length < count && i < count * 3 && groups.length; i++) { const ex = pickExercise(groups[i % groups.length], chosen); if (ex) chosen.push(ex); }
+  const count = clamp(Math.round((minutes || +S.profile.workoutMin || 40) / 8), 3, 9), chosen = [];
+  for (let i = 0; chosen.length < count && i < count * 3 && groups.length; i++) { const ex = pickExercise(groups[i % groups.length], chosen, place); if (ex) chosen.push(ex); }
   // praleistos grupės, kurias žadėjai įtraukti ("pamiršau"/"nėra noro" – mini)
   const last = muscleLastTrained();
   for (const g of Object.keys(S.sportPrefs || {})) {
     const p = prefOf(g); if (!p || groups.includes(g) || injured(g)) continue;
-    if ((p.reason === 'pamirsau' || p.reason === 'noro') && (!last[g] || diffDays(last[g], today()) >= 7)) { const ex = pickExercise(g, chosen); if (ex) chosen.push({...ex, mini: p.reason === 'noro'}); }
+    if ((p.reason === 'pamirsau' || p.reason === 'noro') && (!last[g] || diffDays(last[g], today()) >= 7)) { const ex = pickExercise(g, chosen, place); if (ex) chosen.push({...ex, mini: p.reason === 'noro'}); }
   }
-  return chosen.map(e => ({id: e.id, sets: targetSets(e, e.mini), mini: !!e.mini}));
+  return chosen.map(e => ({id: e.id, sets: targetSets(e, e.mini), kg: targetKg(e), mini: !!e.mini}));
 }
-function suggestWorkout(minutes) {
+function suggestWorkout(minutes, place) {
   const last = muscleLastTrained(), t = today();
   const focus = Object.keys(MUSCLES).filter(g => MAJOR.includes(g) && !injured(g))
     .map(g => ({g, days: last[g] ? diffDays(last[g], t) : 99})).sort((a, b) => b.days - a.days).slice(0, 3).map(x => x.g);
-  const list = buildWorkout(focus, minutes).map(x => ({...x, target: `${x.sets.length} × ${x.sets[0]}`}));
+  const list = buildWorkout(focus, minutes, place).map(x => ({...x, target: `${x.sets.length} × ${x.sets[0]}`}));
   return {focus, list};
 }
 function targetFor(e) { const s = targetSets(e); return `${s.length} × ${s[0]}${e.sec ? ' s' : ''}`; }
