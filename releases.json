@@ -1,6 +1,11 @@
 {
-  "stable": "1.8.4",
+  "stable": "1.8.5",
   "versions": [
+    {
+      "v": "1.8.6",
+      "date": "2026-11-18",
+      "notes": "Apatinėje juostoje skirtukai keičiasi savo vietose"
+    },
     {
       "v": "1.8.5",
       "date": "2026-11-14",
@@ -35,11 +40,6 @@
       "v": "1.7.0",
       "date": "2026-11-12",
       "notes": "Naujas dizainas: šviesesnė ir ramesnė išvaizda, Daigelis visur, apatinė juosta telefone, perdaryti Šiandien, Mityba, Sportas, Laikas, Savijauta, Progresas, Užrašai ir Profilis; skaičiai su kableliu"
-    },
-    {
-      "v": "1.6.4",
-      "date": "2026-11-12",
-      "notes": "Maisto įrašai suprantami tiksliau"
     }
   ]
 }

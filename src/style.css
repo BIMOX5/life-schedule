@@ -870,6 +870,11 @@ input.bignum { font-size:26px; font-weight:900; text-align:center; }
 .st-row.col { flex-direction:column; align-items:stretch; cursor:default; } .st-row.col > span small { display:block; text-align:left; }
 .st-row.sw .switch { margin:0; padding:0; background:none; box-shadow:none; }
 .st-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.st-slots { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:8px; }
+.st-slots span { display:flex; align-items:center; gap:6px; min-width:0; background:var(--card2); border-radius:14px; padding:8px 10px; font-weight:800; font-size:13px; }
+.st-slots span.on { box-shadow:inset 0 0 0 2px var(--br); } .st-slots em { font-style:normal; color:var(--mu); font-size:12.5px; line-height:1.2; min-width:0; } .st-slots em small { display:block; font-size:11.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.st-slots i, .st-chips button i { flex:none; width:18px; height:18px; border-radius:50%; display:inline-grid; place-items:center; font:900 11px Nunito; font-style:normal; background:var(--br); color:var(--on-br); }
+.st-chips button i { background:var(--on-br); color:var(--br); margin-right:6px; vertical-align:-3px; }
 .st-chips button { border:0; background:var(--card2); color:var(--text); border-radius:99px; padding:7px 12px; font-weight:800; font-size:13px; cursor:pointer; } .st-chips button.on { background:var(--br); color:var(--on-br); }
 .st-pal { display:flex; gap:10px; flex-wrap:wrap; } .st-pal button { width:36px; height:36px; border-radius:50%; border:3px solid transparent; cursor:pointer; } .st-pal button.on { border-color:var(--text); }
 .st-dev { margin-top:8px; } .modec { border:2px solid transparent; border-radius:20px; } .modec.on { border-color:var(--br); background:var(--tint); }

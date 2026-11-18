@@ -59,7 +59,12 @@ function daigelis(mood = 4, cls = '') {
     <circle cx="36" cy="86" r="5" fill="#ff7f8f" opacity="${m <= 2 ? .25 : .45}"/><circle cx="84" cy="86" r="5" fill="#ff7f8f" opacity="${m <= 2 ? .25 : .45}"/>${face}</svg>`;
 }
 // Apatinės juostos skirtukai (3 + ＋ + Daugiau); kuriuos 3 rodyti – pasirenkama Profilyje
-const barTabs = () => { const t = (S.settings.tabs || []).filter(v => VIEWS.some(x => x[0] === v && v !== 'settings')); return t.length === 3 ? t : ['today', 'calendar', 'food']; };
+// Apatinė juosta – 3 vietos. Išjungus skirtuką jo vieta lieka tuščia (null) ir kitas pasirinktas atsistoja būtent ten.
+// Tuščią ar paslėptą vietą rodant užpildo pirmas laisvas iš BAR_FILL – juostoje tarpo niekada nebūna.
+const BAR_FILL = ['today', 'calendar', 'food', 'wellbeing', 'tasks', 'sport', 'time', 'progress', 'notes'];
+const barOk = v => !!v && v !== 'settings' && VIEWS.some(x => x[0] === v);
+const barSlots = () => { const t = Array.isArray(S.settings.tabs) && S.settings.tabs.length === 3 ? S.settings.tabs : ['today', 'calendar', 'food']; return t.map(v => barOk(v) ? v : null); };
+const barTabs = () => { const s = barSlots(), gone = S.settings.tabGone, all = BAR_FILL.filter(v => barOk(v) && !s.includes(v)), fill = [...all.filter(v => v !== gone), gone].filter(v => all.includes(v)); return s.map(v => v || fill.shift()); };
 const A = {}; // veiksmai (data-a)
 
 // ---------- Formų pagalbininkai ----------
@@ -2671,7 +2676,7 @@ function vSettings() {
     + (m.sport || m.food ? grp('Tavo normos', tg.missing.length ? `<p class="hint" style="margin:0">Kalorijos ir baltymai apskaičiuojami <b>automatiškai</b>. Įrašyk: <b>${esc(tg.missing.join(', '))}</b>.</p>`
       : `<div class="kv"><span>Kalorijų tikslas</span><b>${tg.kcal} kcal</b><span>Sudegini per dieną</span><b>~${tg.tdee} kcal</b><span>Baltymai</span><b>${tg.protein} g / d.</b><span>Vanduo</span><b>~${fmtNum(tg.water)} l</b><span>KMI</span><b>${tg.bmi ? fmtNum(tg.bmi) : '–'}</b></div>`) : '');
   const app = grp('Programėlė', `<label class="st-row sw"><span>Tamsi tema</span><span class="switch"><input type="checkbox" data-c="themeSw" ${S.settings.theme !== 'light' ? 'checked' : ''}><span></span></span></label>
-      <div class="st-row col"><span>Apatinė juosta <small>3 skirtukai telefone</small></span><div class="st-chips">${VIEWS.filter(v => v[0] !== 'settings').map(([id, i, l]) => `<button class="${bt.includes(id) ? 'on' : ''}" data-a="barTab" data-v="${id}">${l}</button>`).join('')}</div></div>
+      <div class="st-row col"><span>Apatinė juosta <small>3 vietos telefone</small></span>${barSettings(bt)}</div>
       <div class="st-row col">${fld('Laiko juosta', sel('tz', [['', `Įrenginys (${deviceTZ() || '?'})`], ...TZ_OPTS], S.settings.tz, 'data-set="tz"'))}${S.settings.tz && deviceTZ() && S.settings.tz !== deviceTZ() ? `<p class="hint">Įrenginys šiuo metu rodo <b>${esc(deviceTZ())}</b> (gali būti dėl VPN) – programėlė naudoja tavo pasirinktą.</p>` : ''}</div>
       <div class="st-row col">${fld('Priminti apie apžvalgą', sel('review', [['week', 'Kas savaitę ir mėnesį'], ['month', 'Tik kas mėnesį'], ['off', 'Nepriminti']], S.settings.review, 'data-set="review"'))}</div>`)
     + grp('Veiklų kategorijos', S.categories.map((c, i) => `<button class="st-row" data-a="editCat" data-i="${i}"><span>${catDot(c)}${esc(c.name)}</span><small>${{1: 'produktyvu', 0: 'neutralu', '-1': 'ekranai'}[String(c.type)] || ''}</small>${ic('arrow', 'sm mu')}</button>`).join('') + `<div class="choice row" style="margin-top:8px">${btn('+ Nauja kategorija', 'addCat', {}, 'sm')}</div>`)
@@ -2685,9 +2690,15 @@ function vSettings() {
   return `<div class="mf-cols st"><div>${left}</div><div>${app}</div></div>${dev ? `<div class="st-dev">${dev}</div>` : ''}`;
 }
 A.profileEdit = () => openProfileModal(false);
-A.barTab = d => { let t = barTabs(); if (t.includes(d.v)) { t = t.filter(x => x !== d.v); if (t.length < 1) return; } else { if (t.length >= 3) t = t.slice(1); t.push(d.v); }
-  if (t.length < 3) { const fill = ['today', 'calendar', 'food', 'tasks', 'sport'].filter(x => !t.includes(x)); while (t.length < 3) t.push(fill.shift()); }
-  S.settings.tabs = t; commit(); toast('Apatinė juosta pakeista'); };
+// trys vietos eilės tvarka (laisva vieta rodo, kas ten bus kol kas) + skirtukai su vietos numeriu
+function barSettings(bt) {
+  const s = barSlots(), name = v => VIEWS.find(x => x[0] === v)?.[2] || '';
+  return `<div class="st-slots">${s.map((v, i) => `<span class="${v ? 'on' : ''}"><i>${i + 1}</i>${v ? name(v) : `<em><small>laisva</small>${name(bt[i])}</em>`}</span>`).join('')}</div>
+    <div class="st-chips">${VIEWS.filter(v => v[0] !== 'settings').map(([id, , l]) => { const i = s.indexOf(id); return `<button class="${i >= 0 ? 'on' : ''}" data-a="barTab" data-v="${id}">${i >= 0 ? `<i>${i + 1}</i>` : ''}${l}</button>`; }).join('')}</div>`;
+}
+A.barTab = d => { const s = barSlots(), i = s.indexOf(d.v);
+  if (i >= 0) { s[i] = null; S.settings.tabGone = d.v; } else { const e = s.indexOf(null); if (e < 0) return toast('Pirma išjunk skirtuką, kurio vietą nori užimti'); s[e] = d.v; }
+  S.settings.tabs = s; commit(); };
 A.editCat = d => { const c = S.categories[+d.i]; if (!c) return; UI.catType = String(c.type ?? 0); UI.catCol = c.color;
   const body = () => `${fld('Pavadinimas', inp('name', c.name, 'text', 'required maxlength="40"'))}<h4>Tipas</h4><div class="seg">${[['1', 'Produktyvu'], ['0', 'Neutralu'], ['-1', 'Ekranai']].map(([v, l]) => `<button type="button" class="${UI.catType === v ? 'on' : ''}" data-a="catType" data-v="${v}">${l}</button>`).join('')}</div>
     <h4>Spalva</h4><div class="st-pal">${CAT_PAL[UI.catType].map(col => `<button type="button" class="${UI.catCol === col ? 'on' : ''}" style="background:${col}" data-a="catCol" data-v="${col}"></button>`).join('')}</div>`;
