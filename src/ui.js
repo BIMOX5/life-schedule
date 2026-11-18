@@ -3,10 +3,11 @@ const UI = { view: 'today', cal: {mode: 'week', date: today()}, food: 'log', foo
   sport: 'overview', taskFilter: 'open', noteId: null, recipeQ: '', foodQ: '', mealTab: 'ai' };
 const VIEWS = [
   ['today','home','Šiandien'], ['calendar','cal','Kalendorius'], ['tasks','check','Užduotys'], ['food','food','Mityba'],
-  ['sport','gym','Sportas'], ['time','clock','Laikas'], ['progress','chart','Progresas'], ['wellbeing','heart','Savijauta'], ['notes','note','Užrašai'], ['settings','user','Profilis'],
+  ['sport','gym','Sportas'], ['time','clock','Laikas'], ['progress','chart','Progresas'], ['wellbeing','heart','Savijauta'], ['free','leaf','Laisvė'], ['notes','note','Užrašai'], ['settings','user','Profilis'],
 ];
 // ---------- Savos linijinės ikonos (vietoj emoji) ----------
 const ICONS = {
+  leaf: '<path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z"/><path d="M5 19l8-8"/>',
   srch: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>', x: '<path d="M6 6l12 12M18 6L6 18"/>', vid: '<rect x="3" y="6" width="13" height="12" rx="3"/><path d="M16 10l5-3v10l-5-3"/>',
   pause: '<path d="M8 5v14M16 5v14"/>', stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>', srun: '<circle cx="14" cy="4.5" r="2"/><path d="M8 21l3-6 3 2v5M6 12l3-4 4 1 2 4 3 1M11 15l-2-3"/>',
   sbike: '<circle cx="6" cy="16" r="4"/><circle cx="18" cy="16" r="4"/><path d="M6 16l4-7h5l3 7M10 9l2 7M14 5h3"/>', sswim: '<path d="M3 18c2 0 2-1.5 4.5-1.5S9.5 18 12 18s2-1.5 4.5-1.5S19 18 21 18"/><circle cx="16" cy="7" r="2"/><path d="M6 14l4-5 4 3"/>',
@@ -62,7 +63,8 @@ function daigelis(mood = 4, cls = '') {
 // Apatinė juosta – 3 vietos. Išjungus skirtuką jo vieta lieka tuščia (null) ir kitas pasirinktas atsistoja būtent ten.
 // Tuščią ar paslėptą vietą rodant užpildo pirmas laisvas iš BAR_FILL – juostoje tarpo niekada nebūna.
 const BAR_FILL = ['today', 'calendar', 'food', 'wellbeing', 'tasks', 'sport', 'time', 'progress', 'notes'];
-const barOk = v => !!v && v !== 'settings' && VIEWS.some(x => x[0] === v);
+const viewOn = v => v !== 'free' || (typeof freeOn === 'function' && freeOn());
+const barOk = v => !!v && v !== 'settings' && viewOn(v) && VIEWS.some(x => x[0] === v);
 const barSlots = () => { const t = Array.isArray(S.settings.tabs) && S.settings.tabs.length === 3 ? S.settings.tabs : ['today', 'calendar', 'food']; return t.map(v => barOk(v) ? v : null); };
 const barTabs = () => { const s = barSlots(), gone = S.settings.tabGone, all = BAR_FILL.filter(v => barOk(v) && !s.includes(v)), fill = [...all.filter(v => v !== gone), gone].filter(v => all.includes(v)); return s.map(v => v || fill.shift()); };
 const A = {}; // veiksmai (data-a)
@@ -159,7 +161,7 @@ function render() {
   if (!S) return;
   const g = gamification();
   $('#logo').innerHTML = `${daigelis(dayMood(today()) || 4)}<b>Life Schedule</b>`;
-  $('#nav').innerHTML = VIEWS.map(([id, icn, l]) => `<button class="nav ${UI.view === id ? 'on' : ''}" data-a="go" data-v="${id}">${ic(icn)}<em>${l}</em></button>`).join('')
+  $('#nav').innerHTML = VIEWS.filter(v => viewOn(v[0])).map(([id, icn, l]) => `<button class="nav ${UI.view === id ? 'on' : ''}" data-a="go" data-v="${id}">${ic(icn)}<em>${l}</em></button>`).join('')
     + `<button class="nav" data-a="feedback">${ic('chat')}<em>Atsiliepimai</em></button>`;
   $('#sidenew').innerHTML = btn(`${ic('plus', 'sm')} Įrašyti`, 'quickSheet', {}, 'primary');
   const bt = barTabs();
@@ -170,11 +172,12 @@ function render() {
     <div class="tr">${timerWidget()}<button class="lvchip" data-a="levelInfo" title="${g.xp} XP">${g.level} lygis · ${g.xp} XP${g.streak > 1 ? ` · ${g.streak} d. serija` : ''}</button><span id="sync" class="sync"></span></div>`;
   document.body.classList.toggle('devmode', DEV);
   devBubble();
-  const fn = {today: vToday, calendar: vCalendar, tasks: vTasks, food: vFood, sport: vSport, time: vTime, progress: vProgress, wellbeing: vWellbeing, notes: vNotes, settings: vSettings}[UI.view];
+  const fn = {today: vToday, calendar: vCalendar, tasks: vTasks, food: vFood, sport: vSport, time: vTime, progress: vProgress, wellbeing: vWellbeing, free: () => typeof vFree === 'function' ? vFree() : '', notes: vNotes, settings: vSettings}[UI.view];
   $('#main').innerHTML = updateBanner() + deletionBanner() + activityBar() + fn();
   const spP = UI.view === 'sport' && UI.sp?.p && UI.sp.p !== 'home' ? UI.sp.p : '';
   document.body.classList.toggle('spsub', !!spP); document.body.classList.toggle('spfull', ['live', 'run', 'done', 'draft', 'act', 'wv', 'ex'].includes(spP));
   mountMaps();
+  if (UI.view === 'free' && typeof freeMount === 'function') freeMount();
   scrollTimelines();
   updateSyncBadge();
 }
@@ -195,7 +198,7 @@ A.quickSheet = () => {
 };
 // Daugiau – visi kiti skirtukai + Atsiliepimai
 A.moreSheet = () => {
-  const bt = barTabs(), rest = VIEWS.filter(v => !bt.includes(v[0]));
+  const bt = barTabs(), rest = VIEWS.filter(v => !bt.includes(v[0]) && viewOn(v[0]));
   $('#sheet').innerHTML = `<div class="dim" data-a="closeSheet"></div><div class="sh more2"><h3>Daugiau</h3><div class="mgrid">
     ${rest.map(([id, i, l]) => `<button class="${UI.view === id ? 'on' : ''}" data-a="go" data-v="${id}" data-sheet="1"><i>${ic(i)}</i>${l}</button>`).join('')}
     <button data-a="feedback" data-sheet="1"><i>${ic('chat')}</i>Atsiliepimai</button></div>
@@ -2694,7 +2697,7 @@ A.profileEdit = () => openProfileModal(false);
 function barSettings(bt) {
   const s = barSlots(), name = v => VIEWS.find(x => x[0] === v)?.[2] || '';
   return `<div class="st-slots">${s.map((v, i) => `<span class="${v ? 'on' : ''}"><i>${i + 1}</i>${v ? name(v) : `<em><small>laisva</small>${name(bt[i])}</em>`}</span>`).join('')}</div>
-    <div class="st-chips">${VIEWS.filter(v => v[0] !== 'settings').map(([id, , l]) => { const i = s.indexOf(id); return `<button class="${i >= 0 ? 'on' : ''}" data-a="barTab" data-v="${id}">${i >= 0 ? `<i>${i + 1}</i>` : ''}${l}</button>`; }).join('')}</div>`;
+    <div class="st-chips">${VIEWS.filter(v => v[0] !== 'settings' && viewOn(v[0])).map(([id, , l]) => { const i = s.indexOf(id); return `<button class="${i >= 0 ? 'on' : ''}" data-a="barTab" data-v="${id}">${i >= 0 ? `<i>${i + 1}</i>` : ''}${l}</button>`; }).join('')}</div>`;
 }
 A.barTab = d => { const s = barSlots(), i = s.indexOf(d.v);
   if (i >= 0) { s[i] = null; S.settings.tabGone = d.v; } else { const e = s.indexOf(null); if (e < 0) return toast('Pirma išjunk skirtuką, kurio vietą nori užimti'); s[e] = d.v; }
@@ -3270,9 +3273,17 @@ async function refreshDgMsgs() {
   if (r && r.ok && r.msgs) { S.dgMsgs = r.msgs; S.dgMsgsAt = t; commit({noRender: true}); }
 }
 // Sporto duomenys (pratimai, sportai, kūno žemėlapis) – atskirame faile toje pačioje versijos aplanke
+const loadFreeCode = () => typeof vFree === 'function' ? Promise.resolve() : new Promise(ok => { const v = window.APP_VERSION, s = document.createElement('script'); s.src = (!v || v === 'src' ? 'src/' : `v/${v}/`) + 'laisve.js'; s.onload = ok; s.onerror = ok; document.body.appendChild(s); });
+// Laisvė paslėpta: atidaroma ilgai paspaudus Savijautą (skirtuką ar meniu)
+(() => { let t = null; const stop = () => clearTimeout(t);
+  document.addEventListener('pointerdown', e => { const b = e.target.closest('[data-v="wellbeing"]'); if (!b || typeof freeData !== 'function') return; t = setTimeout(async () => { LP_AT = Date.now(); if (freeOn()) return A.go({v: 'free'});
+    if (await ask('Atidaryti Laisvę?', 'Mesti, mažinti ar stebėti – cigaretes, alkoholį ir kt. Paslėpti galėsi bet kada.', {yes: 'Atidaryti'})) { freeData().on = true; commit(); A.go({v: 'free'}); } }, 650); });
+  ['pointerup', 'pointercancel', 'pointerleave', 'scroll'].forEach(ev => document.addEventListener(ev, stop, true));
+  document.addEventListener('click', e => { if (Date.now() - LP_AT < 1500 && e.target.closest('[data-v="wellbeing"]')) { e.stopImmediatePropagation(); e.preventDefault(); } }, true); })();
+let LP_AT = 0;
 const loadSportData = () => typeof EXDB !== 'undefined' ? Promise.resolve() : new Promise(ok => { const v = window.APP_VERSION, s = document.createElement('script'); s.src = (!v || v === 'src' ? 'src/' : `v/${v}/`) + 'sport.js'; s.onload = ok; s.onerror = ok; document.body.appendChild(s); });
 (async () => {
-  await loadSportData();
+  await Promise.all([loadSportData(), loadFreeCode()]);
   if (!(await loadData())) { loginScreen(); return; }
   await loadRole();
   // pasirinkta versija galioja tik kūrėjui
