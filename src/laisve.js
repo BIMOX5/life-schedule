@@ -19,8 +19,9 @@ const FREE_LINES = ['Tu stipresnis už norą.', 'Kiekviena diena skaičiuojasi.'
 // tako dalis ekrane: apačia paslėpta po lapu, viršus – prie horizonto
 const FREE_T0 = .24, FREE_TS = .66;
 const lvIc = id => `<svg class="i"><use href="#${id}"/></svg>`;
-const freeOn = () => !!S?.free?.on;
-const freeData = () => (S.free = S.free || {on: false, subs: [], xp: 0, why: '', seen: []});
+// Laisvė matoma visiems pagal nutylėjimą; paslėpti – pasirinktinai (⋯ → Paslėpti), vėl rodyti – Nustatymuose arba ilgai paspaudus Savijautą
+const freeOn = () => { const f = S?.free; if (!f) return true; if (f.hidden != null) return !f.hidden; return !(f.on === false && f.subs?.length); };
+const freeData = () => UI.lvDemo || (S.free = S.free || {on: false, subs: [], xp: 0, why: '', seen: []});
 // dienų skaičius: iki metų „N d.“, toliau „1 m. 12 d.“
 function fmtFree(n) { n = Math.max(0, Math.floor(n)); if (n < 365) return `${n} d.`; const y = Math.floor(n / 365), d = n % 365; return `${y} m.${d ? ` ${d} d.` : ''}`; }
 
@@ -71,10 +72,12 @@ function freeWorldCfg(W) {
 let LV_LOADING = null;
 const loadLaisve = () => window.LVW ? Promise.resolve() : (LV_LOADING = LV_LOADING || new Promise(ok => { const v = window.APP_VERSION, s = document.createElement('script'); s.src = (!v || v === 'src' ? 'src/' : `v/${v}/`) + 'laisve-world.js'; s.onload = ok; s.onerror = ok; document.body.appendChild(s); }));
 function vFree() {
+  if (UI.lvDemo && UI.lvTour == null) UI.lvDemo = null;   // pavyzdys – tik ture
   const F = freeData();
-  if (!F.subs.length || UI.lvOb) return freeStart();
   if (!window.LVW) { loadLaisve().then(() => UI.view === 'free' && render()); return `<div class="lvw lv-wait">${daigelis(4)}</div>`; }
-  if (!FREE_GIFT.em && cloudOn()) freeGiftInit().then(() => UI.view === 'free' && render());
+  if (!FREE_GIFT.em && cloudOn()) Promise.all([freeOwnerReset(), freeGiftInit()]).then(() => UI.view === 'free' && render());
+  if (!F.subs.length && !UI.lvOb) return freeIntro();
+  if (UI.lvOb) return freeStart();
   if (freeTick()) storeLocal();
   if (UI.lvMp) return UI.lvMp.tab === 'badges' ? freeBadges() : UI.lvMp.tab === 'page' ? freePage(UI.lvMp.page) : freeMp();
   const M = $('#main'), cs = M && getComputedStyle(M), avail = M ? M.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) : 343, wide = avail >= 860, W = Math.min(wide ? 1200 : 620, avail);   // kompiuteryje – pasaulis per visą plotį, po juo du stulpeliai
@@ -98,11 +101,11 @@ function freeMount() {
   if (!LV_LOOP) { LV_LOOP = 1; requestAnimationFrame(LVW.artLoop); }  if (UI.lvDrag) requestAnimationFrame(() => requestAnimationFrame(() => freeDragMount(box)));
   freeAfter(); freeWidgetTick();
 }
-function freeWidgetTick() { if (!LSW()) return; if (!UI.lvPulled) { UI.lvPulled = 1; freeWidgetPull(); } setTimeout(() => freeWidgetSync(), 1200); }
+function freeWidgetTick() { if (!LSW() || UI.lvDemo) return; if (!UI.lvPulled) { UI.lvPulled = 1; freeWidgetPull(); } setTimeout(() => freeWidgetSync(), 1200); }
 let LV_PETN = [];
 // po pasaulio: dovana (pirmą kartą), Laiko sustabdymas, naujas takas / kraštas / draugas
 function freeAfter() {
-  if (UI.lvMp || UI.lvOld || UI.lvDrag || UI.lvFull || document.querySelector('.lv-gift') || $('#sheet')?.innerHTML.trim()) return;
+  if (UI.lvDemo || !freeData().subs.length || UI.lvMp || UI.lvOld || UI.lvDrag || UI.lvFull || document.querySelector('.lv-gift') || $('#sheet')?.innerHTML.trim()) return;
   if (cloudOn() && !FREE_GIFT.done) return;   // dar tikrinama dovana – po to perpiešiama
   if (UI.lvWhat) return freeWhat();
   const w = freeW();
@@ -125,15 +128,19 @@ function freeUnstack(box) {
     pins.forEach((p, k) => { if (busy.some(q => hit(p, q)) || pins.slice(0, k).some(q => hit(p, q))) { p.dataset.wt = Math.min(.97, +p.dataset.wt + .02); moved = true; } });
     if (!moved) break; LVW.placeWorld(box);
   }
-  // burbulas neužlipa ant viršutinio užrašo (dienos, lygis): kita pusė, o jei vis tiek – po Daigeliu
-  const say = box.querySelector('.say2'), hud = [...box.querySelectorAll('.lv-big, .lv-lvl, .lv-t, .lv-ib')], w = box.querySelector('.walker');
-  if (say) say.classList.remove('dn');
-  if (!say || !hud.some(h => hit(say, h))) return;
-  const was = say.classList.contains('l'); say.classList.toggle('l', !was); say.classList.toggle('r', was); LVW.placeWorld(box);
-  if (!hud.some(h => hit(say, h)) || !w) return;
-  const b = box.getBoundingClientRect(), r = w.getBoundingClientRect(), wd = say.offsetParent || box, o = wd.getBoundingClientRect();
-  say.classList.add('dn'); say.style.top = (r.bottom - o.top + 4) + 'px';
-  say.style.left = Math.max(8, Math.min(b.width - say.offsetWidth - 8, r.left - o.left + r.width / 2 - say.offsetWidth / 2)) + 'px';
+  // burbulas: pirmiausia virš Daigelio (dešinėje, kairėje, centre), po juo – tik jei telpa; niekada už pasaulio krašto, ant užrašų ar ženkliukų
+  const say = box.querySelector('.say2'), w = box.querySelector('.walker'); if (!say || !w) return;
+  const wd = say.offsetParent || box, o = wd.getBoundingClientRect(), r = w.getBoundingClientRect(), bw = say.offsetWidth, bh = say.offsetHeight, W = o.width, H = o.height;
+  const block = [...box.querySelectorAll('.lv-big, .lv-lvl, .lv-t, .lv-ib, .pin')].map(e => e.getBoundingClientRect()).filter(q => q.width).map(q => ({l: q.left - o.left, t: q.top - o.top, r: q.right - o.left, b: q.bottom - o.top}));
+  const cx = r.left - o.left + r.width / 2, top = r.top - o.top + r.height * .08, bot = r.bottom - o.top;
+  const cands = []; for (let dy = 0; dy <= 160; dy += 8) for (const dx of [0, 40, -40, 80, -80]) cands.push([cx + r.width * .1 + dx, top - bh - 4 - dy, 'r'], [cx - r.width * .1 - bw + dx, top - bh - 4 - dy, 'l'], [cx - bw / 2 + dx, top - bh - 4 - dy, 'c']);
+  cands.push([cx - bw / 2, bot + 6, 'dn']);
+  const fits = ([x, y]) => x >= 6 && x + bw <= W - 6 && y >= 6 && y + bh <= H - 8 && block.every(q => x + bw < q.l + 3 || x > q.r - 3 || y + bh < q.t + 3 || y > q.b - 3);
+  let c = cands.find(fits) || cands.map(([x, y, k]) => [Math.max(6, Math.min(W - bw - 6, x)), Math.max(6, Math.min(H - bh - 8, y)), k]).find(fits) || [Math.max(6, Math.min(W - bw - 6, cx - bw / 2)), Math.max(6, top - bh - 4), 'c'];
+  if (c[2] !== 'dn') c[2] = cx < c[0] + 30 ? 'r' : cx > c[0] + bw - 30 ? 'l' : 'c';
+  say.classList.remove('l', 'r', 'dn', 'c'); say.classList.add(c[2]);
+  say.style.left = Math.round(c[0]) + 'px'; say.style.top = Math.round(c[1]) + 'px';
+  say.style.setProperty('--ax', Math.round(Math.max(12, Math.min(bw - 24, cx - c[0] - 6))) + 'px');
 }
 
 // dienos žymėjimas: šiandien ir (jei nepažymėta) vakar
@@ -180,7 +187,7 @@ A.freeMenu = () => {
   $('#sheet').innerHTML = `<div class="dim" data-a="closeSheet"></div><div class="sh more2"><h3>Laisvė</h3><div class="mgrid">
     <button data-a="freeMpOpen" data-sheet="1"><i>${ic('leaf')}</i>Mano pasaulis</button><button data-a="freeMap" data-sheet="1"><i>${ic('cal')}</i>Mano kraštai</button><button data-a="freeBadgesOpen" data-sheet="1"><i>${ic('spark')}</i>Ženkliukai</button><button data-a="freeWidget" data-sheet="1"><i>${ic('plus')}</i>Valdiklis ekrane</button><button data-a="freeTourAgain" data-sheet="1"><i>${ic('bulb')}</i>Kaip veikia</button><button data-a="freeEdit" data-sheet="1"><i>${ic('pen')}</i>Ką keičiu</button><button data-a="freeHide" data-sheet="1"><i>${ic('eyeoff')}</i>Paslėpti Laisvę</button></div></div>`;
 };
-A.freeHide = async () => { if (!await ask('Paslėpti Laisvę?', 'Niekur nebesimatys. Atidaryti vėl – ilgai paspausk Savijautą.', {yes: 'Paslėpti'})) return; freeData().on = false; freeWidgetSync(false); if (UI.view === 'free') UI.view = 'wellbeing'; commit(); };
+A.freeHide = async () => { if (!await ask('Paslėpti Laisvę?', 'Skirtukuose nebesimatys, duomenys liks. Vėl rodyti – Nustatymai → apatinė juosta arba ilgai paspausk Savijautą.', {yes: 'Paslėpti'})) return; freeData().hidden = true; freeWidgetSync(false); if (UI.view === 'free') UI.view = 'wellbeing'; commit(); };
 A.freeEdit = () => { UI.lvOb = {step: 1, sel: freeData().subs.map(s => s.k), edit: true}; render(); };
 
 // ---- pradžia: ką keisti → ko sieki → kiek → kodėl ----
@@ -201,7 +208,7 @@ A.freeObDone = () => {
   const F = freeData(), O = UI.lvOb, keep = Object.fromEntries(F.subs.map(s => [s.k, s]));
   F.subs = O.sel.map(k => { const old = keep[k], mode = (O.mode || {})[k] || old?.mode || 'quit';
     return {...(old || {id: 'f' + uid(), k, start: today(), days: {}, counts: {}}), mode, limit: +((O.lim || {})[k] ?? old?.limit ?? 0) || 0, perDay: +((O.amt || {})[k] ?? old?.perDay ?? 0) || 0, price: +((O.price || {})[k] ?? old?.price ?? 0) || 0}; });
-  if (O.why != null) F.why = O.why; F.on = true; UI.lvOb = null; commit(); window.scrollTo(0, 0);
+  if (O.why != null) F.why = O.why; F.on = true; F.hidden = false; freeW().tour = 1; UI.lvOb = null; commit(); window.scrollTo(0, 0);
 };
 // įvedimai be perpiešimo (kad klaviatūra neužsidarytų)
 document.addEventListener('input', e => { const c = e.target.dataset?.c, O = UI.lvOb; if (!c || !c.startsWith('freeOb') || !O) return; const k = e.target.dataset.k, v = e.target.value;
@@ -520,7 +527,7 @@ function freeWidgetSync(img) {
   const P = LSW(); if (!P) return; clearTimeout(LSW_T);
   LSW_T = setTimeout(async () => {
     const F = freeData(), sub = freeMain();
-    if (!F.on || !sub) return P.update({on: false, days: 'Laisvė', sub: 'Atidaryk programėlę'}).catch(() => {});
+    if (!F.on || F.hidden || !sub) return P.update({on: false, days: 'Laisvė', sub: 'Atidaryk programėlę'}).catch(() => {});
     if (F.widgetOff) return P.update({on: false, days: 'Valdiklis išjungtas', sub: 'Įjungti: Laisvė → ⋯ → Valdiklis'}).catch(() => {});
     const Pg = freeProg(sub), d = today(), btns = F.subs.slice(0, 2).map(s => { const c = (s.counts || {})[d] || 0, u = freeSub(s.k);
       return {id: s.id, label: s.mode === 'quit' ? FREE_SHORT[s.k] || u[0] : `${FREE_SHORT[s.k] || u[0]} · ${c}${s.mode === 'reduce' ? ' iš ' + (+s.limit || 0) : ''}`, step: freeTap(s)}; });
@@ -721,7 +728,7 @@ const LV_TOUR = [
   ['.lv-sheet .lv-box', 'grin', 'Dienos dėžė.', 'Kartą per parą, kai pažymi dieną: XP, daiktai ir gyvūnai tavo pasauliui.'],
   ['.lv-rows', 'smile', '+1 – kai paslydai ar skaičiuoji.', 'Metant +1 reiškia naują pradžią, mažinant – skaičiuoja, kiek šiandien.'],
   ['.lv-sos', 'soft', 'Kai labai norisi – „Sunku?“', 'Pakvėpuosim, pasikalbėsim, prisiminsi, kodėl pradėjai.'],
-  ['.lv-world .lv-ib', 'proud', 'Daugiau – čia.', 'Mano pasaulis, ženkliukai, kraštai ir valdiklis telefono ekrane. Čia gali ir paslėpti Laisvę – vėl atidarysi ilgai paspaudęs Savijautą apačioje.'],
+  ['.lv-world .lv-ib', 'proud', 'Daugiau – čia.', 'Mano pasaulis, ženkliukai, kraštai ir valdiklis telefono ekrane. Čia gali ir paslėpti Laisvę – vėl parodysi Nustatymuose arba ilgai paspaudęs Savijautą.'],
   ['.lv-world .lv-ib', 'wink', 'Valdiklis telefono ekrane.', 'Takas ir +1 pagrindiniame ekrane – užsirašai neatidaręs programėlės. Įjungti ar išjungti: ⋯ → Valdiklis ekrane. Nuimti iš ekrano – ilgai paspausk valdiklį.', 'w'],
   [null, 'joy', 'Na, ką – pradedam?', 'Visada galėsi sustoti ar paslėpti Laisvę.']];
 function freeTourShow() {
@@ -735,11 +742,11 @@ function freeTourShow() {
     const below = r ? r.top + r.height / 2 < H / 2 : false, last = i === LV_TOUR.length - 1;
     el.innerHTML = `${r ? `<div class="spot" style="left:${r.left - 8}px;top:${r.top - 8}px;width:${r.width + 16}px;height:${r.height + 16}px"></div>` : '<div class="tgrad"></div>'}
       <div class="tbox ${r ? (below ? 'down' : 'up') : 'mid'}" style="${r ? (below ? `top:${Math.min(H - 260, r.bottom + 18)}px` : `bottom:${Math.min(H - 260, H - r.top + 18)}px`) : ''}"><div class="dgw">${daigelis(5)}</div><div class="talk"><b>${st[2]}</b><small>${st[3]}</small></div>
-      <div class="tnav"><div class="dots">${LV_TOUR.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>${last ? '' : '<button class="skp" data-a="freeTourEnd">Praleisti</button>'}<button class="nx" data-a="freeTourNext">${last ? 'Pradėti' : 'Toliau'}</button></div></div>`;
+      <div class="tnav"><div class="dots">${LV_TOUR.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>${last ? (UI.lvDemo ? '<button class="skp" data-a="freeDemoEnd" data-v="0">Ne dabar</button>' : '') : `<button class="skp" data-a="${UI.lvDemo ? 'freeDemoEnd' : 'freeTourEnd'}" data-v="1">Praleisti</button>`}<button class="nx" data-a="${last && UI.lvDemo ? 'freeDemoEnd' : 'freeTourNext'}" data-v="1">${last ? 'Pradėti' : 'Toliau'}</button></div></div>`;
   });
 }
 A.freeTourNext = () => { UI.lvTour = (UI.lvTour ?? 0) + 1; if (UI.lvTour >= LV_TOUR.length) return freeTourEnd(); freeTourShow(); };
-function freeTourEnd() { document.querySelector('.lv-tour')?.remove(); UI.lvTour = null; freeW().tour = 1; window.scrollTo(0, 0); commit(); }
+function freeTourEnd() { if (UI.lvDemo) return A.freeDemoEnd({v: 1}); document.querySelector('.lv-tour')?.remove(); UI.lvTour = null; freeW().tour = 1; window.scrollTo(0, 0); commit(); }
 A.freeTourEnd = () => freeTourEnd();
 A.freeTourAgain = () => { A.closeSheet(); UI.lvTour = 0; window.scrollTo(0, 0); setTimeout(freeTourShow, 300); };
 window.addEventListener('resize', () => { if (document.querySelector('.lv-tour')) freeTourShow(); });
@@ -967,3 +974,33 @@ function freeInsights(sub) {
   return out;
 }
 A.freeWidgetToggle = () => { const F = freeData(); F.widgetOff = !F.widgetOff; commit({noRender: true}); freeWidgetSync(false); A.freeWidget(); toast(F.widgetOff ? 'Valdiklis išjungtas' : 'Valdiklis įjungtas'); };
+A.freeUnhide = () => { freeData().hidden = false; commit(); A.go({v: 'free'}); };
+
+// ===================== PAŽINTIS: kas tai → Kam tai? → turas ant pavyzdinio pasaulio → klausimai =====================
+function freeIntro() {
+  const M = $('#main'), cs = M && getComputedStyle(M), W = Math.min(620, M ? M.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) : 343), h = new Date().getHours();
+  const o = {W, h: Math.min(420, Math.max(260, innerHeight - 540)), cut: false, bio: 0, look: 0, season: freeSeason(), tod: h >= 18 || h < 5 ? 'evening' : 'day', t: .14, ex: 'grin', say: 'Labas! Einam kartu?', sayDir: 'l', pins: [[.42, 'dot', '', '', 2], [.72, 'dot', '', '', 4]], things: [], pets: [], noRefill: 1};
+  return `<div class="lvw lv-page lv-intro"><div class="lv-world" data-key="intro-${W}">${LVW.world(o)}</div>
+    <div class="lv-introb"><h2>Laisvė</h2><p>Vieta, kur pamažu atsikratai to, kas tave valdo – cigarečių, elektroninės, alkoholio ar ko kito. Kiekviena gera diena – žingsnis tavo take.</p>
+    <button class="btn primary big" data-a="freeIntroWhy">Pradėti</button><button class="btn big t" data-a="freeIntroWhy">Kokia nauda?</button></div></div>`;
+}
+A.freeIntroWhy = () => lvSheet(`<h3 style="margin-top:2px">Kam tai?</h3><p class="lead">Kad mesti ar mažinti būtų lengviau – ir nebūtum vienas.</p>
+  <div class="st-chips" style="justify-content:center;margin:6px 0 10px">${Object.values(FREE_SUBS).filter(x => x[0] !== 'Kita').map(x => `<span class="lv-pill">${x[0]}</span>`).join('')}</div>
+  <div class="lv-hard">${[['Prižiūri', 'kiek, kada ir kodėl – vienu paspaudimu'], ['Rodo, ką atgauni', 'pinigus, sveikatą, laiką'], ['Padeda, kai sunku', 'Daigelis tas minutes praleidžia su tavim']].map(([a, b]) => `<div class="lv-lim"><span class="tx"><b>${a}</b><small>${b}</small></span></div>`).join('')}</div>
+  <button class="btn primary big" data-a="freeDemo">Parodyk, kaip veikia</button><button class="btn big t" data-a="freeDemoEnd" data-v="1">Praleisti – iškart pradėti</button>`);
+A.freeDemo = () => {
+  A.closeSheet(); const t = today(), days = {}; for (let i = 12; i >= 1; i--) days[addDays(t, -i)] = 'ok';
+  UI.lvDemo = {on: true, demo: 1, subs: [{id: 'demo', k: 'cig', start: addDays(t, -12), days, counts: {}, mode: 'quit'}], xp: 140, why: '', seen: [],
+    w: {items: {bench: {at: 'demo.0.0', x: .2, y: .62}, lamp: {at: 'demo.0.0', x: .86, y: .56}, ruda: {at: 'demo.0.0', x: .7, y: .86}}, lands: {}, seen: {}, tour: 1, day: 0, pity: 0, ts: 0, food: 0, drink: 0, ms: {demo: 3}, sb: {}, best: {}}};
+  UI.lvTour = 0; render(); window.scrollTo(0, 0); setTimeout(freeTourShow, 500);
+};
+A.freeDemoEnd = d => { document.querySelector('.lv-tour')?.remove(); UI.lvTour = null; UI.lvDemo = null; A.closeSheet(); if (+d.v) UI.lvOb = {step: 1, sel: []}; render(); window.scrollTo(0, 0); };
+
+// vienkartinis savininko Laisvės nunulinimas (bandymų duomenys), 2026-11-20 – kode tik el. pašto maiša
+async function freeOwnerReset() {
+  try { if (S.freeReset1 || UI.lvDemo) return; const em = (DB.email() || '').trim().toLowerCase(); if (!em) return;
+    const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(em)))].map(b => b.toString(16).padStart(2, '0')).join('');
+    if (h !== '5aadc00233f2297a306caf4f3bf059818ef6d5d5bc840722280c9ff5871e444c') return;
+    delete S.free; S.freeReset1 = 1; LV_KEEP = null; commit({noRender: true}); toast('Laisvė nunulinta – pradedam iš naujo');
+  } catch (e) {}
+}
