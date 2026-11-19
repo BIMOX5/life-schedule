@@ -512,10 +512,14 @@ const exId = id => exIndex()[id] ? id : (OLD_EX[id] || id);   // dabartinis (nau
 const allExercises = () => typeof EXDB === 'undefined' ? [] : EXDB.map(exObj);
 const sportSet = () => ({place: 'gym', homeEq: HOME_EQ_DEF, level: 1, rest: 90, swaps: true, review: true, remind: true, aiMsgs: true, hc: {steps: true, workouts: true, hr: true, sleep: false}, ...(S.sportSet || {})});
 // ar pratimą galima daryti pasirinktoje vietoje
+// pratimai, kuriems reikia skersinio / lygiagrečių ar suolo, nors duomenyse pažymėti „be įrangos“
+const EX_NEED_BAR = /pull-?up|chin|hanging|muscle.?up|v-bar|parallel bar|dips - |rings|suspend|straps/i;
+const EX_NEED_BENCH = /bench(?!.*no hyperextension bench)|decline|incline (?!push)|box jump|preacher/i;
+function exNeeds(e) { return EX_NEED_BAR.test(e.en) && !/bench dips/i.test(e.en) ? 'bar' : EX_NEED_BENCH.test(e.en) && !/bench dips/i.test(e.en) ? 'bench' : null; }
 function placeOk(e, place) {
   if (place === 'gym') return e.eq !== 'other' || e.common;
-  const eq = place === 'out' ? ['body only', 'bands'] : ['body only', ...(sportSet().homeEq || [])];
-  return eq.includes(e.eq);
+  const have = place === 'out' ? ['body only', 'bands', 'bar'] : ['body only', ...(sportSet().homeEq || [])], need = exNeeds(e);
+  return have.includes(e.eq) && (!need || have.includes(need));
 }
 const BUILD_CATS = ['strength', 'plyometrics'];
 
@@ -829,12 +833,12 @@ const scoreColor = s => s == null ? 'var(--muted2)' : s >= 75 ? 'var(--br)' : s 
 // Periodo suvestinė (savaitė/mėnuo)
 function periodStats(from, n) {
   const days = range(from, n).filter(d => d <= today());
-  const st = {days: days.length, prod: 0, screen: 0, sleep: [], kcal: [], protein: [], workouts: 0, workoutMin: 0, tasksDone: 0, scores: []};
+  const st = {days: days.length, prod: 0, screen: 0, sleep: [], kcal: [], protein: [], workouts: 0, sport: 0, workoutMin: 0, tasksDone: 0, scores: []};
   for (const d of days) {
     const t = dayTime(d); st.prod += t.prod; st.screen += t.screen;
     const sl = sleepOn(d); if (sl) st.sleep.push(sleepMinutes(sl));
     const nu = dayNutrition(d); if (nu.n) { st.kcal.push(nu.kcal); st.protein.push(nu.p); }
-    const ws = workoutsOn(d); st.workouts += ws.length; st.workoutMin += sum(ws.map(w => w.duration));
+    const ws = workoutsOn(d); st.workouts += ws.length; st.sport += ws.filter(w => !WALK_IDS.includes(w.type)).length; st.workoutMin += sum(ws.map(w => w.duration));
     st.tasksDone += S.tasks.filter(x => x.done && x.doneAt === d).length;
     const sc = dayScore(d); if (sc) st.scores.push(sc.score);
   }
@@ -866,6 +870,8 @@ function weightTrend() {
 }
 
 // ===== Motyvacija =====
+// ėjimai (ir žingsniai) – ne sportas motyvacinėms žinutėms
+const WALK_IDS = ['walk', 'walkf', 'hike', 'nordic', 'dog', 'trail', 'orient'];
 function motivation() {
   const seed = parseD(today()).getDate();
   const out = [];
@@ -885,7 +891,11 @@ function motivation() {
     if (dProd >= 1) out.push({t: fill(pick(MOTIVATION.prodUp, seed), round(dProd, 1)), good: true});
     else if (dProd <= -2) out.push({t: pick(MOTIVATION.prodDown, seed)});
   }
-  if (thisW.workouts >= 2) out.push({t: fill(pick(MOTIVATION.workoutStreak, seed), thisW.workouts), good: true});
+  if (thisW.sport >= 2) out.push({t: fill(pick(MOTIVATION.workoutStreak, seed), thisW.sport), good: true});
+  // šiandienos savijauta pirmiau už skaičius: kai sunku, ne „nuostabu“, o palaikymas
+  const m = typeof dayMood === 'function' ? dayMood(today()) : 0;
+  if (m && m <= 3 && typeof moodLine === 'function') return [{t: moodLine(today(), m)}, ...out.filter(o => !o.good && m > 2).slice(0, 1)];
+  if (m >= 4 && typeof moodLine === 'function') out.unshift({t: moodLine(today(), m), good: true});
   if (!out.length) out.push({t: S.meals.length + S.timelog.length + S.weights.length ? pick(MOTIVATION.general, seed) : pick(MOTIVATION.noData, seed)});
   return out;
 }

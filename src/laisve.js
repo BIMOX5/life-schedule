@@ -70,11 +70,11 @@ let LV_LOADING = null;
 const loadLaisve = () => window.LVW ? Promise.resolve() : (LV_LOADING = LV_LOADING || new Promise(ok => { const v = window.APP_VERSION, s = document.createElement('script'); s.src = (!v || v === 'src' ? 'src/' : `v/${v}/`) + 'laisve-world.js'; s.onload = ok; s.onerror = ok; document.body.appendChild(s); }));
 function vFree() {
   const F = freeData();
-  if (!F.subs.length) return freeStart();
+  if (!F.subs.length || UI.lvOb) return freeStart();
   if (!window.LVW) { loadLaisve().then(() => UI.view === 'free' && render()); return `<div class="lvw lv-wait">${daigelis(4)}</div>`; }
   if (!FREE_GIFT.em && cloudOn()) freeGiftInit().then(() => UI.view === 'free' && render());
   if (freeTick()) storeLocal();
-  if (UI.lvMp) return freeMp();
+  if (UI.lvMp) return UI.lvMp.tab === 'badges' ? freeBadges() : freeMp();
   const M = $('#main'), cs = M && getComputedStyle(M), W = Math.min(620, M ? M.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) : 343);
   if (UI.lvOld) { const v = freeOldView(W); if (v) return v; }
   const {sub, P, o} = freeWorldCfg(W), L = freeLevel(), land = LVW.LANDS[Math.min(6, P.land)]?.n || '', here = freeHere(freeLandId().id), bw = freeW().items.bowl;
@@ -102,10 +102,13 @@ function freeAfter() {
   if (UI.lvMp || UI.lvOld || UI.lvDrag || UI.lvFull || document.querySelector('.lv-gift') || $('#sheet')?.innerHTML.trim()) return;
   if (cloudOn() && !FREE_GIFT.done) return;   // dar tikrinama dovana – po to perpiešiama
   const w = freeW();
+  if (!w.tour && UI.lvTour == null && !document.querySelector('.lv-tour')) { UI.lvTour = 0; return setTimeout(freeTourShow, 400); }
+  if (document.querySelector('.lv-tour')) return;
   if (FREE_GIFT.on && !w.giftSeen) { UI.lvGift = 0; return freeGiftShow(); }
   const tsKey = freeMissed().map(m => m.s.id + m.miss[0]).join();
   if (tsKey && UI.lvTsAsked !== tsKey && freeTsAsk()) { UI.lvTsAsked = tsKey; return; }
-  if (freeNotice()) storeLocal(); else storeLocal();
+  if (freeReveal()) return storeLocal();
+  freeNotice(); storeLocal();
 }
 let LV_LOOP = 0;
 // ženkliukai ir Daigelis neužlipa vienas ant kito: persidengiantį ženkliuką stumiam taku toliau, kol atsilaisvina vieta ekrane
@@ -168,7 +171,7 @@ A.freePlus = async d => {
 A.freeUndo = () => { const u = UI.lvUndo, s = u && freeData().subs.find(x => x.id === u.id); if (s && s.counts?.[u.d] > 0) s.counts[u.d]--; UI.lvUndo = null; commit(); };
 A.freeMenu = () => {
   $('#sheet').innerHTML = `<div class="dim" data-a="closeSheet"></div><div class="sh more2"><h3>Laisvė</h3><div class="mgrid">
-    <button data-a="freeMpOpen" data-sheet="1"><i>${ic('leaf')}</i>Mano pasaulis</button><button data-a="freeMap" data-sheet="1"><i>${ic('cal')}</i>Mano kraštai</button><button data-a="freeWidget" data-sheet="1"><i>${ic('plus')}</i>Valdiklis ekrane</button><button data-a="freeEdit" data-sheet="1"><i>${ic('pen')}</i>Ką keičiu</button><button data-a="freeHide" data-sheet="1"><i>${ic('eyeoff')}</i>Paslėpti Laisvę</button></div></div>`;
+    <button data-a="freeMpOpen" data-sheet="1"><i>${ic('leaf')}</i>Mano pasaulis</button><button data-a="freeMap" data-sheet="1"><i>${ic('cal')}</i>Mano kraštai</button><button data-a="freeBadgesOpen" data-sheet="1"><i>${ic('spark')}</i>Ženkliukai</button><button data-a="freeWidget" data-sheet="1"><i>${ic('plus')}</i>Valdiklis ekrane</button><button data-a="freeTourAgain" data-sheet="1"><i>${ic('bulb')}</i>Kaip veikia</button><button data-a="freeEdit" data-sheet="1"><i>${ic('pen')}</i>Ką keičiu</button><button data-a="freeHide" data-sheet="1"><i>${ic('eyeoff')}</i>Paslėpti Laisvę</button></div></div>`;
 };
 A.freeHide = async () => { if (!await ask('Paslėpti Laisvę?', 'Niekur nebesimatys. Atidaryti vėl – ilgai paspausk Savijautą.', {yes: 'Paslėpti'})) return; freeData().on = false; if (UI.view === 'free') UI.view = 'wellbeing'; commit(); };
 A.freeEdit = () => { UI.lvOb = {step: 1, sel: freeData().subs.map(s => s.k), edit: true}; render(); };
@@ -182,7 +185,7 @@ function freeStart() {
   if (O.step === 2) return `<div class="lvw lv-ob">${head('Ko sieki?', 2)}${O.sel.map(k => { const m = (O.mode || {})[k] || 'quit'; return `<div class="lv-ob-s"><b>${FREE_SUBS[k][0]}</b><div class="seg">${Object.entries(FREE_MODES).map(([v, l]) => `<button class="${m === v ? 'on' : ''}" data-a="freeObMode" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>
     ${m === 'reduce' ? `<label class="lv-in">Ne daugiau kaip <input type="number" min="0" inputmode="numeric" data-c="freeObLim" data-k="${k}" value="${(O.lim || {})[k] ?? ''}"> ${FREE_SUBS[k][3]} per dieną</label>` : `<small>${m === 'quit' ? 'Kiekviena pažymėta diena – žingsnis. Nepavykus – nauja pradžia.' : 'Užsirašai, kiek – takas eina lėtai, be bausmių.'}</small>`}</div>`; }).join('')}<button class="btn primary big" data-a="freeOb" data-s="3">Toliau</button></div>`;
   if (O.step === 3) return `<div class="lvw lv-ob">${head('Kiek ir už kiek?', 3)}<p class="lv-lead">Nebūtina – pagal tai skaičiuosim sutaupytus pinigus</p>${O.sel.map(k => `<div class="lv-ob-s"><b>${FREE_SUBS[k][0]}</b><div class="lv-two"><label>Per dieną<input type="number" min="0" step="any" inputmode="decimal" data-c="freeObAmt" data-k="${k}" value="${(O.amt || {})[k] ?? ''}"></label><label>Kaina (€)<input type="number" min="0" step="0.01" inputmode="decimal" data-c="freeObPrice" data-k="${k}" value="${(O.price || {})[k] ?? ''}"></label></div></div>`).join('')}<button class="btn primary big" data-a="freeOb" data-s="4">Toliau</button></div>`;
-  return `<div class="lvw lv-ob">${head('Kodėl?', 4)}<p class="lv-lead">Parašyk sau – parodysim, kai bus sunku</p><textarea rows="4" data-c="freeObWhy" placeholder="Pvz. noriu laisviau kvėpuoti ir daugiau laiko su vaikais">${esc(O.why ?? F.why ?? '')}</textarea><button class="btn primary big" data-a="freeObDone">Kelias prasideda</button></div>`;
+  return `<div class="lvw lv-ob">${head('Kodėl?', 4)}<p class="lv-lead">Parašyk sau – parodysim, kai bus sunku</p><textarea rows="4" data-c="freeObWhy" placeholder="Pvz. noriu laisviau kvėpuoti ir daugiau laiko su vaikais">${esc(O.why ?? F.why ?? '')}</textarea><div class="why5 lv-obm"><div class="media lv-media"></div></div>${(setTimeout(freeWhyMedia, 0), '')}<button class="btn primary big" data-a="freeObDone">Kelias prasideda</button></div>`;
 }
 A.freeOb = d => { UI.lvOb.step = +d.s; render(); window.scrollTo(0, 0); };
 A.freeObSel = d => { const O = UI.lvOb; O.sel = O.sel.includes(d.k) ? O.sel.filter(x => x !== d.k) : [...O.sel, d.k]; render(); };
@@ -306,7 +309,7 @@ A.freeBoxOpen = d => {
   if (!tapOnce('box:' + kind, 1500)) return;
   if (kind === 'day' && freeBoxState() !== 'ready') return A.freeBox({});
   if (kind === 'week' && !freeWeekReady()) return A.closeSheet();
-  const R = freeRoll(kind); if (kind === 'day') w.day = Date.now(); else w.wk = weekStart(today());
+  const R = freeRoll(kind); if (kind === 'day') w.day = Date.now(); else w.wk = weekStart(today()); w.opened = (w.opened || 0) + 1;
   F.xp = (F.xp || 0) + R.xp; commit({noRender: true}); render();
   const head = (img, solo) => `<div class="chestw open r-${R.rar}"><i class="rays"></i>${solo ? '' : LVW.chestImg(R.rar, 1, 96)}<span class="won ${solo ? 'solo' : ''}">${img}</span></div>`;
   if (R.ts) return lvSheet(`${head(hourglass(104), 1)}<h3>Laiko sustabdymas</h3>${rarTag('e')}<p class="lead" style="margin-top:6px">Jei kelias dienas nepažymėsi – galėsi jas pažymėti vėliau. Turi ${w.ts} iš 2.</p><button class="btn primary big" data-a="closeSheet">Gerai</button>`);
@@ -392,6 +395,7 @@ function freeNotice() {
   const [ps, pr] = prev.split('.');
   if (ps === sub.id && +pr !== (sub.mode === 'quit' ? L.P.resets : 0)) {
     const best = Math.max(...Object.values(w.lands).filter(x => x.sub === sub.id).map(x => x.n || 0));
+    freeData().xp = (freeData().xp || 0) + 20;
     lvSheet(`<h3>Naujas takas</h3><p class="lead">Metant skaičiuojama kasdien, todėl takas prasideda nuo 0. Rekordas – ${fmtFree(best)} – lieka, o tavo daiktai laukia senajame krašte (žemėlapyje).</p><button class="btn primary big" data-a="closeSheet">Pradėti naują taką</button>`); return true; }
   lvSheet(`<div class="chestw open r-l"><i class="rays"></i><span class="won solo">${daigelis(5)}</span></div><h3>${sub.mode === 'track' ? 'Naujas mėnuo – ' : ''}${LVW.LANDS[L.li].n}!</h3><p class="lead">${sub.mode === 'track' ? 'Stebint kraštas keičiasi kas mėnesį. Nepažymėta diena nieko neatima.' : 'Naujas kraštas atrakintas. Seni daiktai liko ankstesniame – juos rasi žemėlapyje.'}</p><button class="btn primary big" data-a="closeSheet">Puiku</button>`);
   return true;
@@ -610,9 +614,10 @@ A.freeWhy = () => {
   const el = lvFull('why'), F = freeData(), sub = freeMain(), P = sub ? freeProg(sub) : {n: 0}, start = F.subs.map(s => s.start).sort()[0];
   const best = F.subs.map(s => [s, freeProg(s)]).filter(([s]) => s.mode !== 'track');
   el.innerHTML = `<div class="why5"><div class="lv-ob-h" style="margin-bottom:6px"><button class="lv-ib" style="position:static;background:var(--card);color:var(--text)" data-a="freeFullClose" aria-label="Atgal">${ic('back')}</button><b>Kodėl pradėjau</b></div>
-    ${F.why ? `<p class="q">${esc(F.why)}</p><div class="when">Parašei ${start ? fmtDate(start) : ''}, pirmą dieną</div>` : `<p class="lead">Dar neparašei, kodėl. Parašyk sau – parodysim, kai bus sunku.</p><button class="btn" data-a="freeEdit">Parašyti</button>`}
+    ${F.why ? `<p class="q">${esc(F.why)}</p><div class="when">Parašei ${start ? fmtDate(start) : ''}, pirmą dieną</div>` : `<p class="lead">Dar neparašei, kodėl. Parašyk sau – parodysim, kai bus sunku.</p><button class="btn" data-a="freeEdit">Parašyti</button>`}<div class="media lv-media"></div>
     <div class="sec">Ką jau atgavai</div><div class="gained">${best.map(([s, p]) => `<div><b>${fmtFree(p.n)}</b><small>${s.mode === 'quit' ? 'be ' + freeSub(s.k)[1] : freeSub(s.k)[0] + ' pagal planą'}</small></div>`).join('')}<div><b>${F.held || 0}</b><small>atlaikyti norai</small></div><div><b>${freeLevel().lv} lygis</b><small>${F.xp || 0} XP</small></div></div></div>
     <div class="dockw"><button class="btn" data-a="freeBreath">Pakvėpuokim</button><button class="btn primary" data-a="freeHeld">Atlaikiau</button></div>`;
+  freeWhyMedia();
 };
 
 // ---- pokalbis: mygtukai → rašai → Daigelis atsako (Claude); „Ar jau geriau?“, 40 žinučių riba, ~150 per dieną ----
@@ -661,3 +666,105 @@ function freeDragMount(box) {
   box.addEventListener('pointerdown', e => { const r = el.getBoundingClientRect(); if (e.clientX < r.left - 24 || e.clientX > r.right + 24 || e.clientY < r.top - 24 || e.clientY > r.bottom + 24) return; on = true; box.setPointerCapture?.(e.pointerId); move(e); });
   box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
 }
+
+// ===================== ŽENKLIUKAI (docs/laisve-technika.md, maketas „8. Ženkliukai“) =====================
+const MS_XP = [5, 10, 20, 50, 100, 200, 300, 500, 800, 1000, 2000, 3000, 5000];
+const MS_BG = ['#3d6b42', '#3d6b42', '#4f8a4a', '#3d6b42', '#2c5a7a', '#5a4a8a', '#5a4a8a', '#8a4a2a', '#2c3f8a', '#3a2a6a', '#2c3f8a', '#2c3f8a', '#2c3f8a'];
+const SPEC_B = [['held10', '10 atlaikytų', ['#ff8fa3', '#ff4f7a'], 'heart2', F => (F.held || 0) >= 10], ['held25', '25 atlaikyti', ['#ff6f91', '#c2255c'], 'heart2', F => (F.held || 0) >= 25],
+  ['week', 'Savaitės iššūkis', ['#ffb347', '#e8692c'], 'star', F => !!F.w?.wk], ['box30', '30 dėžių', ['#ffd166', '#d99a1c'], 'star', F => (F.w?.opened || 0) >= 30]];
+// geriausias kada nors pasiektas dienų skaičius (rekordas) kiekvienai priklausomybei
+function freeBest(s) { const w = freeW(); w.best = w.best || {}; const n = freeProg(s).n; if (n > (w.best[s.id] || 0)) w.best[s.id] = n; return w.best[s.id] || 0; }
+function freeBadges() {
+  const F = freeData(), L = freeLevel(), resets = Math.max(0, ...F.subs.map(s => freeProg(s).resets));
+  const grid = s => { const b = freeBest(s); return `<div class="bgrid">${LVW.MS.map(([n], i) => `<div class="${b >= FREE_MS[i] ? 'on' : ''}">${LVW.badge(i, 54, {locked: b < FREE_MS[i]})}<span>${n}</span></div>`).join('')}</div>`; };
+  return `<div class="lv-mp lv-bd">${spBackLike('Ženkliukai')}<div class="bdtop"><b>${F.xp || 0} XP</b><small>${L.lv} lygis · XP niekada neatimamas</small></div>
+    <div class="sec">Kaip auga</div><div class="tierrow">${[[0, 'Sėkla'], [2, 'Pieva'], [4, 'Ežeras'], [7, 'Metai'], [10, '10 metų']].map(([i, n], k) => `<div>${LVW.badge(i, 40 + k * 5)}<span>${n}</span></div>`).join('')}</div>
+    ${F.subs.filter(s => s.mode !== 'track').map(s => `<div class="sec">${s.mode === 'quit' ? 'Be ' + freeSub(s.k)[1] : freeSub(s.k)[0] + ' pagal planą'}<small>rekordas ${fmtFree(freeBest(s))}</small></div>${grid(s)}`).join('')}
+    <div class="sec">Ypatingi</div><div class="bgrid">${resets ? `<div class="on">${LVW.badge(0, 54, {again: 1})}<span>Nauja sėkla${resets > 1 ? ' ×' + resets : ''}</span></div>` : ''}${SPEC_B.map(([, n, c, sym, ok]) => `<div class="${ok(F) ? 'on' : ''}">${LVW.badge(0, 54, {special: c, sym, locked: !ok(F)})}<span>${n}</span></div>`).join('')}</div>
+    <p class="anote">Paslydus takas prasideda iš naujo, bet gauti ženkliukai lieka.</p>
+    <div class="sec">Už ką XP</div><div class="xprow">${[['Pažymėta diena', '+10'], ['Atlaikytas noras', '+5'], ['Dienos dėžė', '+15…60'], ['Naujas ženkliukas', '+5…5 000'], ['Pradėti iš naujo', '+20']].map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join('')}</div></div>`;
+}
+A.freeBadgesOpen = () => { A.closeSheet(); UI.lvMp = {tab: 'badges'}; render(); window.scrollTo(0, 0); };
+// naujas ženkliukas – šventimas (vieną kartą kiekvienam)
+function freeReveal() {
+  const F = freeData(), w = freeW(); w.ms = w.ms || {};
+  for (const s of F.subs.filter(s => s.mode !== 'track')) {
+    const b = freeBest(s), got = FREE_MS.filter(d => b >= d).length - 1, had = w.ms[s.id] ?? -1;
+    if (got > had) { w.ms[s.id] = got; if (had < 0 && got > 0) w.ms[s.id] = got;   // pirmą kartą – tik paskutinis
+      const i = got, xp = MS_XP[i] || 0; F.xp = (F.xp || 0) + xp;
+      lvRevealShow(i, LVW.MS[i][0] === '1 d.' ? 'Pirma diena!' : LVW.MS[i][0], `${s.mode === 'quit' ? 'Be ' + freeSub(s.k)[1] : freeSub(s.k)[0] + ' pagal planą'} · +${xp} XP`, MS_BG[i] || '#3d6b42', {kind: i >= 10 ? 'Legendinis ženkliukas' : 'Naujas ženkliukas'}); return true; }
+  }
+  for (const [k, n, c, sym, ok] of SPEC_B) { w.sb = w.sb || {}; if (ok(F) && !w.sb[k]) { w.sb[k] = 1; F.xp = (F.xp || 0) + 25; lvRevealShow(0, n, 'Ypatingas ženkliukas · +25 XP', '#8a3a12', {special: c, sym, kind: 'Ypatingas ženkliukas'}); return true; } }
+  return false;
+}
+function lvRevealShow(i, title, sub, bg, o = {}) {
+  const el = lvFull('reveal'); const conf = ['#ff8040', '#ffc14a', '#7fd17a', '#6fb7ff', '#ff8fa3'];
+  el.innerHTML = `<div class="lv-rev" style="background:radial-gradient(circle at 50% 38%, ${bg}, #0d0a07 72%)"><svg class="burst" viewBox="0 0 100 100">${Array.from({length: 18}, (_, k) => { const a = k / 18 * Math.PI * 2; return `<path d="M50 50 L${(50 + 70 * Math.cos(a - .07)).toFixed(1)} ${(50 + 70 * Math.sin(a - .07)).toFixed(1)} L${(50 + 70 * Math.cos(a + .07)).toFixed(1)} ${(50 + 70 * Math.sin(a + .07)).toFixed(1)}Z" fill="#ffc14a" opacity=".3"/>`; }).join('')}</svg>
+    <div class="bigbd">${LVW.badge(i, 190, o)}</div>${Array.from({length: 16}, (_, k) => `<span class="conf" style="left:${k * 6.2 + 2}%;background:${conf[k % 5]};animation-delay:-${(k * .4).toFixed(1)}s"></span>`).join('')}
+    <div class="bot"><small>${o.kind || 'Naujas ženkliukas'}</small><h2>${esc(title)}</h2><p>${esc(sub)}</p><button class="btn primary big" data-a="freeRevealOk">Ačiū!</button></div></div>`;
+}
+A.freeRevealOk = () => { lvFull(null); commit(); };
+
+// ===================== TURAS (pirmą kartą po pradžios klausimų) =====================
+const LV_TOUR = [
+  ['.lv-world', 'joy', 'Čia tavo kelias.', 'Kiekviena gera diena – žingsnis taku. Kraštai keičiasi, o ženkliukai laukia pakeliui.'],
+  ['.lv-sheet .lv-chk', 'wink', 'Kasdien – vienas paspaudimas.', 'Pažymi, kaip sekėsi. Vakar dar gali pažymėti, jei pamiršai.'],
+  ['.lv-sheet .lv-box', 'grin', 'Dienos dėžė.', 'Kartą per parą, kai pažymi dieną: XP, daiktai ir gyvūnai tavo pasauliui.'],
+  ['.lv-rows', 'smile', '+1 – kai paslydai ar skaičiuoji.', 'Metant +1 reiškia naują pradžią, mažinant – skaičiuoja, kiek šiandien.'],
+  ['.lv-sos', 'soft', 'Kai labai norisi – „Sunku?“', 'Pakvėpuosim, pasikalbėsim, prisiminsi, kodėl pradėjai.'],
+  ['.lv-world .lv-ib', 'proud', 'Daugiau – čia.', 'Mano pasaulis, ženkliukai, kraštai ir valdiklis telefono ekrane. Čia gali ir paslėpti Laisvę – vėl atidarysi ilgai paspaudęs Savijautą apačioje.'],
+  [null, 'joy', 'Na, ką – pradedam?', 'Visada galėsi sustoti ar paslėpti Laisvę.']];
+function freeTourShow() {
+  const i = UI.lvTour ?? 0, st = LV_TOUR[i]; if (!st) return freeTourEnd();
+  let el = document.querySelector('.lv-tour'); if (!el) { el = document.createElement('div'); el.className = 'lv-tour'; document.body.appendChild(el); }
+  const t = st[0] && document.querySelector(st[0]);
+  if (t) t.scrollIntoView({block: t.getBoundingClientRect().height > innerHeight * .5 ? 'start' : 'center'});
+  requestAnimationFrame(() => {
+    const r0 = t?.getBoundingClientRect(), H = innerHeight, r = r0 && {left: r0.left, width: r0.width, top: Math.max(8, r0.top), height: Math.min(r0.height, H * .5)}; if (r) r.bottom = r.top + r.height;
+    const below = r ? r.top + r.height / 2 < H / 2 : false, last = i === LV_TOUR.length - 1;
+    el.innerHTML = `${r ? `<div class="spot" style="left:${r.left - 8}px;top:${r.top - 8}px;width:${r.width + 16}px;height:${r.height + 16}px"></div>` : '<div class="tgrad"></div>'}
+      <div class="tbox ${r ? (below ? 'down' : 'up') : 'mid'}" style="${r ? (below ? `top:${Math.min(H - 260, r.bottom + 18)}px` : `bottom:${Math.min(H - 260, H - r.top + 18)}px`) : ''}"><div class="dgw">${daigelis(5)}</div><div class="talk"><b>${st[2]}</b><small>${st[3]}</small></div>
+      <div class="tnav"><div class="dots">${LV_TOUR.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>${last ? '' : '<button class="skp" data-a="freeTourEnd">Praleisti</button>'}<button class="nx" data-a="freeTourNext">${last ? 'Pradėti' : 'Toliau'}</button></div></div>`;
+  });
+}
+A.freeTourNext = () => { UI.lvTour = (UI.lvTour ?? 0) + 1; if (UI.lvTour >= LV_TOUR.length) return freeTourEnd(); freeTourShow(); };
+function freeTourEnd() { document.querySelector('.lv-tour')?.remove(); UI.lvTour = null; freeW().tour = 1; window.scrollTo(0, 0); commit(); }
+A.freeTourEnd = () => freeTourEnd();
+A.freeTourAgain = () => { A.closeSheet(); UI.lvTour = 0; window.scrollTo(0, 0); setTimeout(freeTourShow, 300); };
+window.addEventListener('resize', () => { if (document.querySelector('.lv-tour')) freeTourShow(); });
+
+// ===================== BALSO ŽINUTĖ IR NUOTRAUKA SAU (tik šiame įrenginyje, IndexedDB) =====================
+const lvDB = () => new Promise((ok, no) => { try { const r = indexedDB.open('ls-laisve', 1); r.onupgradeneeded = () => r.result.createObjectStore('media'); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); } catch (e) { no(e); } });
+const lvGet = async k => { try { const db = await lvDB(); return await new Promise(ok => { const q = db.transaction('media').objectStore('media').get(k); q.onsuccess = () => ok(q.result || null); q.onerror = () => ok(null); }); } catch (e) { return null; } };
+const lvPut = async (k, v) => { const db = await lvDB(); await new Promise((ok, no) => { const tx = db.transaction('media', 'readwrite'); v == null ? tx.objectStore('media').delete(k) : tx.objectStore('media').put(v, k); tx.oncomplete = ok; tx.onerror = () => no(tx.error); }); };
+let LV_REC = null, LV_AUD = null;
+async function freeWhyMedia() {
+  const box = document.querySelector('.lv-media'); if (!box) return;
+  const [ph, vo] = await Promise.all([lvGet('photo'), lvGet('voice')]); if (!document.querySelector('.lv-media')) return;
+  if (UI.lvPhotoUrl) URL.revokeObjectURL(UI.lvPhotoUrl); UI.lvPhotoUrl = ph ? URL.createObjectURL(ph.blob) : null;
+  const rec = !!LV_REC, sec = vo ? Math.round(vo.sec || 0) : 0;
+  box.innerHTML = `${ph ? `<div class="photo"><img src="${UI.lvPhotoUrl}" alt="Tavo nuotrauka"><button class="x2" data-a="freePhotoDel" aria-label="Ištrinti nuotrauką">${ic('trash', 'sm')}</button></div>` : `<label class="addm">${ic('plus', 'sm')}<span><b>Nuotrauka</b><small>žmogus, vieta ar daiktas – nebūtina</small></span><input type="file" accept="image/*" data-c="freePhoto" hidden></label>`}
+    ${rec ? `<button class="voice rec" data-a="freeRecStop"><span class="pl2">${ic('stop')}</span><span class="wv2">${Array.from({length: 26}, (_, i) => `<i style="height:${30 + 60 * Math.abs(Math.sin(i * 1.7))}%;animation-delay:-${(i * .09).toFixed(2)}s"></i>`).join('')}</span><b class="rt">Įrašau…</b></button>`
+      : vo ? `<div class="voice"><button class="pl2" data-a="freeVoicePlay" aria-label="Klausyti">${ic('play')}</button><span class="wv2">${Array.from({length: 26}, (_, i) => `<i style="height:${30 + 60 * Math.abs(Math.sin(i * 1.7))}%"></i>`).join('')}</span><b>Tu, ${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}</b><button class="x2" data-a="freeVoiceDel" aria-label="Ištrinti įrašą">${ic('trash', 'sm')}</button></div>`
+      : `<button class="addm" data-a="freeRecStart">${ic('mic')}<span><b>Žinutė sau</b><small>įrašyk balsu – išgirsi, kai bus sunku</small></span></button>`}`;
+}
+A.freeRecStart = async () => {
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast('Šiame įrenginyje įrašyti nepavyksta');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio: true}), mime = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported?.(t)) || '';
+    const r = new MediaRecorder(stream, mime ? {mimeType: mime} : undefined), chunks = [], t0 = Date.now();
+    r.ondataavailable = e => e.data.size && chunks.push(e.data);
+    r.onstop = async () => { stream.getTracks().forEach(t => t.stop()); clearTimeout(LV_REC?.lim); LV_REC = null; const blob = new Blob(chunks, {type: r.mimeType || mime || 'audio/webm'});
+      if (blob.size > 1000) { await lvPut('voice', {blob, sec: (Date.now() - t0) / 1000, at: Date.now()}).catch(() => toast('Nepavyko išsaugoti')); toast('Žinutė sau išsaugota', 'good'); } freeWhyMedia(); };
+    r.start(); LV_REC = {r, lim: setTimeout(() => { if (r.state === 'recording') r.stop(); }, 60000)}; freeWhyMedia();
+  } catch (e) { toast('Leisk naudoti mikrofoną, kad galėtum įrašyti'); }
+};
+A.freeRecStop = () => { if (LV_REC?.r?.state === 'recording') LV_REC.r.stop(); };
+A.freeVoicePlay = async () => { const v = await lvGet('voice'); if (!v) return; try { LV_AUD?.pause(); LV_AUD = new Audio(URL.createObjectURL(v.blob)); await LV_AUD.play(); } catch (e) { toast('Nepavyko paleisti'); } };
+A.freeVoiceDel = async () => { if (!await ask('Ištrinti žinutę sau?', '', {danger: true, yes: 'Ištrinti'})) return; LV_AUD?.pause(); await lvPut('voice', null); freeWhyMedia(); };
+A.freePhotoDel = async () => { if (!await ask('Ištrinti nuotrauką?', '', {danger: true, yes: 'Ištrinti'})) return; await lvPut('photo', null); freeWhyMedia(); };
+document.addEventListener('change', async e => { if (e.target.dataset?.c !== 'freePhoto') return; const f = e.target.files?.[0]; if (!f) return;
+  try { const img = await createImageBitmap(f), k = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise(ok => c.toBlob(ok, 'image/jpeg', .85)); await lvPut('photo', {blob, at: Date.now()}); freeWhyMedia(); } catch (err) { toast('Nepavyko įkelti nuotraukos'); } });
+if (typeof ICONS !== 'undefined' && !ICONS.mic) ICONS.mic = '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>';
+if (typeof ICONS !== 'undefined' && !ICONS.trash) ICONS.trash = '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>';

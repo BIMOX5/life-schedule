@@ -1223,3 +1223,35 @@ body::before { content:''; position:fixed; top:0; left:0; right:0; height:max(en
 .lv-page .lv-world.dragging .wd { touch-action:none; }
 .lv-chat .chat > * { flex-shrink:0; }
 .lv-ob-h .lv-ib { flex:none; width:40px; height:40px; } .lv-ob-h .lv-ib svg { width:20px; height:20px; }
+/* Laisvė: ženkliukai, šventimas, turas, balsas ir nuotrauka */
+.lv-bd .bdtop { display:flex; align-items:baseline; gap:10px; margin:4px 2px 0; } .lv-bd .bdtop b { font:900 30px Nunito; color:var(--br); } .lv-bd .bdtop small { color:var(--mu); font-weight:800; }
+.lv-bd .tierrow { display:flex; justify-content:space-between; align-items:flex-end; gap:4px; background:var(--card); border-radius:20px; padding:12px 10px 8px; margin-top:8px; }
+.lv-bd .tierrow > div, .lv-bd .bgrid > div { display:flex; flex-direction:column; align-items:center; text-align:center; font:900 11px/1.2 Nunito; color:var(--mu); gap:4px; min-width:0; }
+.lv-bd .bgrid { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px 6px; margin-top:8px; } .lv-bd .bgrid > div.on { color:var(--text); } .lv-bd .bgrid > div span { overflow-wrap:anywhere; }
+.lv-bd .xprow { background:var(--card); border-radius:20px; padding:4px 14px; margin-top:8px; } .lv-bd .xprow div { display:flex; justify-content:space-between; gap:10px; padding:10px 0; font:800 14px Nunito; } .lv-bd .xprow div + div { border-top:1px solid var(--line); } .lv-bd .xprow b { color:var(--br); white-space:nowrap; }
+.lv-rev { position:absolute; inset:0; color:#fff; overflow:hidden; display:flex; flex-direction:column; align-items:center; }
+.lv-rev .burst { position:absolute; left:50%; top:38%; width:720px; height:720px; margin:-360px 0 0 -360px; animation:lvSpin 30s linear infinite; }
+.lv-rev .bigbd { position:relative; margin-top:22vh; animation:lvWonUp 1s cubic-bezier(.2,1.4,.4,1) both; } .lv-rev .bigbd svg { display:block; filter:drop-shadow(0 12px 24px rgba(0,0,0,.4)); }
+.lv-rev .conf { position:absolute; top:-20px; width:8px; height:12px; border-radius:2px; animation:lvConf 5s linear infinite; }
+@keyframes lvConf { to { transform:translateY(110vh) rotate(720deg); } }
+.lv-rev .bot { position:absolute; left:0; right:0; bottom:0; padding:0 22px calc(24px + env(safe-area-inset-bottom)); text-align:center; max-width:520px; margin:0 auto; }
+.lv-rev .bot small { font:900 12.5px Nunito; letter-spacing:.1em; text-transform:uppercase; opacity:.75; } .lv-rev .bot h2 { font:900 32px Nunito; margin:4px 0 6px; } .lv-rev .bot p { margin:0; font:800 15px/1.45 Nunito; opacity:.92; }
+.lv-tour { position:fixed; inset:0; z-index:85; }
+.lv-tour .spot { position:fixed; border-radius:26px; box-shadow:0 0 0 9999px rgba(10,6,3,.9); outline:3px solid rgba(255,196,140,.9); transition:all .3s; pointer-events:none; }
+.lv-tour .tgrad { position:fixed; inset:0; background:rgba(10,6,3,.9); }
+.lv-tour .tbox { position:fixed; left:16px; right:16px; max-width:520px; margin:0 auto; display:flex; flex-direction:column; gap:8px; color:#fff; }
+.lv-tour .tbox.mid { top:30%; } .lv-tour .dgw svg { width:64px; height:64px; display:block; }
+.lv-tour .talk b { display:block; font:900 21px/1.25 Nunito; } .lv-tour .talk small { display:block; font:800 14.5px/1.45 Nunito; opacity:.85; margin-top:4px; }
+.lv-tour .tnav { display:flex; align-items:center; gap:10px; margin-top:6px; } .lv-tour .dots { flex:1; display:flex; gap:5px; } .lv-tour .dots i { width:7px; height:7px; border-radius:7px; background:rgba(255,255,255,.35); } .lv-tour .dots i.on { width:18px; background:#ff8040; }
+.lv-tour .skp, .lv-tour .nx { border:0; border-radius:99px; padding:11px 18px; font:900 14px Nunito; cursor:pointer; min-height:44px; } .lv-tour .skp { background:none; color:#fff; opacity:.8; } .lv-tour .nx { background:#ff8040; color:#1f0c00; }
+.why5 .media { display:flex; flex-direction:column; gap:10px; margin-top:16px; }
+.why5 .addm { display:flex; align-items:center; gap:12px; background:var(--card); border:0; border-radius:18px; padding:12px 14px; color:var(--text); text-align:left; font:inherit; cursor:pointer; width:100%; }
+.why5 .addm svg { width:22px; height:22px; color:var(--br); flex:none; } .why5 .addm b { display:block; font:900 15px Nunito; } .why5 .addm small { color:var(--mu); font-weight:700; font-size:12.5px; }
+.why5 .photo { position:relative; border-radius:20px; overflow:hidden; } .why5 .photo img { display:block; width:100%; max-height:320px; object-fit:cover; }
+.why5 .x2 { border:0; background:rgba(0,0,0,.45); color:#fff; width:38px; height:38px; border-radius:50%; display:grid; place-items:center; cursor:pointer; flex:none; } .why5 .photo .x2 { position:absolute; right:8px; top:8px; }
+.why5 .voice { display:flex; align-items:center; gap:10px; background:var(--card); border:0; border-radius:99px; padding:6px 8px 6px 6px; color:var(--text); width:100%; font:inherit; }
+.why5 .voice .pl2 { width:44px; height:44px; border-radius:50%; border:0; background:var(--br); color:var(--on-br); display:grid; place-items:center; flex:none; cursor:pointer; } .why5 .voice .x2 { background:var(--card2); color:var(--text); }
+.why5 .voice .wv2 { flex:1; display:flex; align-items:center; gap:2px; height:30px; } .why5 .voice .wv2 i { flex:1; background:var(--br); opacity:.55; border-radius:2px; }
+.why5 .voice.rec .wv2 i { animation:lvWave 1s ease-in-out infinite; opacity:.9; } .why5 .voice b { font:900 13px Nunito; white-space:nowrap; } .why5 .voice.rec { cursor:pointer; outline:2px solid var(--br); }
+@keyframes lvWave { 0%,100% { transform:scaleY(.4) } 50% { transform:scaleY(1) } }
+.why5.lv-obm { padding:0; height:auto; overflow:visible; max-width:none; } .why5.lv-obm .media { margin-top:0; }
