@@ -2,6 +2,11 @@
   "stable": "1.8.5",
   "versions": [
     {
+      "v": "1.14.2",
+      "date": "2026-11-20",
+      "notes": "Valdiklio jungiklis vėl tvarkingos formos."
+    },
+    {
       "v": "1.14.1",
       "date": "2026-11-20",
       "notes": "Laisvė: valdiklį galima įjungti ir išjungti (⋯ → Valdiklis ekrane), turas paaiškina valdiklį, paslėpus Laisvę valdiklis rodo tik užrašą."
@@ -35,11 +40,6 @@
       "v": "1.10.1",
       "date": "2026-11-19",
       "notes": "Laikmačio mygtukas viršuje vėl smulkus, vienos eilutės; ilgas pavadinimas sutrumpinamas."
-    },
-    {
-      "v": "1.10.0",
-      "date": "2026-11-19",
-      "notes": "Laisvė: dienos ir savaitės dėžės, daiktai ir gyvūnai pasaulyje, Mano pasaulis, seni kraštai, Laiko sustabdymas, dubenėliai ir medžiai, valdiklis telefono ekrane (su nauja programėle). Gyvūnai nebesikrato ir neužstringa, bėgant juda kojos. Viršutinė juosta su laikmačiu telpa telefone, didesnis lango uždarymo kryžiukas."
     },
     {
       "v": "1.8.5",
