@@ -2,6 +2,11 @@
   "stable": "1.8.5",
   "versions": [
     {
+      "v": "1.14.0",
+      "date": "2026-11-20",
+      "notes": "Laisvė: kompiuteryje pasaulis per visą plotį ir du stulpeliai; Kas nutiko? po paslydimo; Pastebėjimai progrese; laisvas režimas po metų."
+    },
+    {
       "v": "1.13.0",
       "date": "2026-11-20",
       "notes": "Laisvė: Progresas (grafikai, kūnas atsistato), Pinigai su tikslu, Žinios su patikrintomis istorijomis, Vakarėlio planas, Skanėstų diena. Kalendorius: datos pasirinkimas vėl tvarkingas."
@@ -35,11 +40,6 @@
       "v": "1.9.2",
       "date": "2026-11-19",
       "notes": "Sportas: namie nebesiūlo pratimų su skersiniu, suolu ar lynais; galima pažymėti, kad namie turi skersinį ar suoliuką. Pagrindinis ekranas: žinutė pirmiau atsižvelgia į savijautą, ėjimai nebeskaičiuojami kaip treniruotės. Laisvė: Daigelio burbulas neužlipa ant dienų skaičiaus."
-    },
-    {
-      "v": "1.9.1",
-      "date": "2026-11-18",
-      "notes": "Smulkūs pataisymai"
     },
     {
       "v": "1.8.5",

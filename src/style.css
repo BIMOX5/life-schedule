@@ -1291,3 +1291,4 @@ body::before { content:''; position:fixed; top:0; left:0; right:0; height:max(en
 .lv-pg .pgtop b { line-height:1.3; } .lv-pg .pgtop small { margin-top:2px; }
 
 .lv-story.f > div { flex-direction:column; gap:4px; } .lv-story.f > div b { max-width:none; font-size:24px; }
+.lv-sheet.two { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; margin-top:12px; } .lv-sheet.two .col { display:flex; flex-direction:column; gap:10px; min-width:0; } .lv-page.wide .lv-world { border-radius:32px; }
