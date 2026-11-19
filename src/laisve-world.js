@@ -195,7 +195,7 @@ function makeWorld(el, cfg) {
     const st = opt.st ?? (c.stages ? (sea === 'winter' && key !== 'pine' ? 'bare' : 4) : null), s = thSpr(key, {st, lit: eve});
     const hh = c.stages && st !== 'bare' && st != null ? TREE_H[st] * (key === 'pine' ? 1.1 : 1) : c.h, rr = (c.r || 0) * (c.stages && st < 3 ? .5 : 1);
     const air = c.zone === 'air';
-    const [x, y] = air ? [x0, Math.max(Math.min(y0, hzY + 14), (x0 < W * .8 ? hudB : 70) + hh * .8 * (o.zoom || 1))] : rr || c.stages ? nudge(x0, y0, rr * depth(y0) + 2, hh, c.stages ? 8 : s.w * hh * depth(y0) / s.h / 2) : [x0, y0];
+    const [x, y] = air ? [x0, Math.max(Math.min(y0, hzY + 14), (x0 < W * .8 ? hudB : 70) + hh * .8 * (o.zoom || 1))] : rr || c.stages || o.nudgeAll ? nudge(x0, y0, rr * depth(y0) + 2, hh, c.stages ? 8 : s.w * hh * depth(y0) / s.h / 2) : [x0, y0];
     const d = mk('ath' + (c.sway ? ' sway3' : '') + (c.float ? ' floaty' : '') + (eve && c.lit ? ' litg' : ''), s.src); const th = {k, key, x, y, t: {...c, r: rr, h: hh}, s, d, busy: []};
     th.px = () => hh * (air ? .8 * (o.zoom || 1) : depth(th.y)) / s.h; th.draw = () => { const f = th.px(); d.style.cssText = `left:${th.x.toFixed(1)}px;top:${th.y.toFixed(1)}px;width:${(s.w * f).toFixed(1)}px;z-index:${Math.round(th.y)}`; }; th.draw();
     if (eve && c.glow) { const [gy, gs, fl] = c.glow, f = th.px(), g = document.createElement('div'); g.className = 'lglow' + (fl ? ' fl' : ''); const sz = gs * depth(y) / (o.zoom || 1) * (o.zoom || 1);
@@ -244,7 +244,7 @@ function makeWorld(el, cfg) {
         if (toy.x < 24 || toy.x > W - 24) { toyV[0] = -toyV[0] * .5; toy.x = Math.max(24, Math.min(W - 24, toy.x)); } if (toy.y < hzY + 40 || toy.y > botY - 6) { toyV[1] = -toyV[1] * .5; toy.y = Math.max(hzY + 40, Math.min(botY - 6, toy.y)); }
         obst.forEach(q => { if (q.dg) return; const dx = toy.x - q.x, dy = (toy.y - q.y) * 1.8, dd = Math.hypot(dx, dy), R = q.t.r * depth(q.y); if (dd < R) { toyV = [0, 0]; toy.x = q.x + dx / (dd || 1) * (R + 1); toy.y = q.y + dy / (dd || 1) * (R + 1) / 1.8; } });
         toy.draw(); toy.d.firstChild.style.transform = `rotate(${toy.rot}rad)`; } }
-    if (things.bowl && things.bowl.level <= .04) { refill += dt; if (refill > 14) { refill = 0; things.bowl.setLv(1); things.bowl.d.classList.add('pop'); setTimeout(() => things.bowl.d.classList.remove('pop'), 700); } }
+    if (!o.noRefill && things.bowl && things.bowl.level <= .04) { refill += dt; if (refill > 14) { refill = 0; things.bowl.setLv(1); things.bowl.d.classList.add('pop'); setTimeout(() => things.bowl.d.classList.remove('pop'), 700); } }
     pets.forEach(p => {
       if (p.act === 'walk' || p.act === 'run' || p.act === 'carry') {
         const dx = p.tx - p.x, dy = p.ty - p.y, dd = Math.hypot(dx, dy * 1.6), vel = (p.act === 'walk' ? 10 : 22) * depth(p.y) * (.75 + .3 * p.a.s);
@@ -258,10 +258,10 @@ function makeWorld(el, cfg) {
         if (wasOk && !okAt(p.x + ux * vel * dt, p.y + uy * vel * dt)) { let found = false;
           for (const a of [.6, -.6, 1.2, -1.2, 1.8, -1.8]) { const c = Math.cos(a), sn = Math.sin(a), vx = ux * c - uy * sn, vy = ux * sn + uy * c; if (okAt(p.x + vx * vel * dt * 3, p.y + vy * vel * dt * 3)) { ux = vx; uy = vy; found = true; break; } }
           if (!found) { const [fx, fy] = free(); p.tx = fx; p.ty = fy; draw(p); return; } }
-        p.x += ux * vel * dt; p.y += uy * vel * dt;
-        const side = Math.abs(ux) > Math.abs(uy) * .75, pose = p.act === 'carry' ? POSE.carry : side ? (p.act === 'run' ? POSE.run : POSE.side) : uy > 0 ? POSE.front : POSE.back;
-        if (p.a.walk && p.act === 'walk') { p.wc = (p.wc || 0) + dt * 3.6; if (!setWalk(p, side ? 0 : uy > 0 ? 1 : 2, Math.floor(p.wc) % 4, side ? ux < 0 : p.flip)) setPose(p, pose, side ? ux < 0 : p.flip, true); }
-        else { p.d.classList.remove('frames'); setPose(p, pose, side ? ux < 0 : p.flip, true); }
+        p.stk = (p.stk || 0) + dt; if (p.stk > 1.5) { const dd2 = Math.hypot(p.tx - p.x, p.ty - p.y); if (p.std != null && p.std - dd2 < 6) { release(p); const [fx, fy] = free(); p.tx = fx; p.ty = fy; p.then = 'sit'; p.stuck = (p.stuck || 0) + 1; } p.std = dd2; p.stk = 0; } p.x += ux * vel * dt; p.y += uy * vel * dt;
+        p.dirT = (p.dirT || 0) - dt; if (p.side == null) { p.side = Math.abs(ux) > Math.abs(uy) * .75; p.fl2 = ux < 0; p.dn = uy > 0; } if (p.dirT <= 0) { const want = p.side ? Math.abs(ux) > Math.abs(uy) * .5 : Math.abs(ux) > Math.abs(uy) * 1.1; if (want !== p.side) { p.side = want; p.dirT = .5; } if (Math.abs(ux) > .35 && (ux < 0) !== p.fl2) { p.fl2 = ux < 0; p.dirT = .5; } if (Math.abs(uy) > .35 && (uy > 0) !== p.dn) { p.dn = uy > 0; p.dirT = .5; } } const side = p.side, pose = p.act === 'carry' ? POSE.carry : side ? (p.act === 'run' ? POSE.run : POSE.side) : p.dn ? POSE.front : POSE.back;
+        if (p.a.walk && (p.act === 'walk' || p.act === 'run')) { p.wc = (p.wc || 0) + dt * (p.act === 'run' ? 7.5 : 3.6); if (!setWalk(p, side ? 0 : p.dn ? 1 : 2, Math.floor(p.wc) % 4, side ? p.fl2 : p.flip)) setPose(p, pose, side ? p.fl2 : p.flip, true); }
+        else { p.d.classList.remove('frames'); setPose(p, pose, side ? p.fl2 : p.flip, true); }
         if (p.act === 'carry' && toy) { toy.d.style.display = 'none'; toy.x = p.x; toy.y = p.y; }
       } else if (p.act === 'jump') { p.jt += dt / .7; const k = Math.min(1, p.jt); p.x = p.j0[0] + (p.j1[0] - p.j0[0]) * k; p.y = p.j0[1] + (p.j1[1] - p.j0[1]) * k; p.lift = p.l0 + (p.l1 - p.l0) * k + Math.sin(k * Math.PI) * 22 * depth(p.y); if (k >= 1) { p.act = p.after; p.wait = 9 + Math.random() * 9; p.on = p.l1 > 0 ? p.slot && p.slot[0] : null; setPose(p, p.afterPose, p.flip); } }
       else { p.wait -= dt;

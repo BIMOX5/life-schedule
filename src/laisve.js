@@ -59,6 +59,7 @@ function freeWorldCfg(W) {
     const kk = Math.min(1, (d - P.from) / span), label = LVW.MS[i][0]; return [FREE_T0 + FREE_TS * kk, P.n >= d ? 'ok' : 'nxt', P.n >= d ? label : `<em>${label}</em>`, '', i]; });
   // ženkliukas neužlipa ant Daigelio: per arti – pastumiam toliau taku
   pins.forEach(p => { if (Math.abs(p[0] - t) < .08) p[0] = Math.min(.95, t + .08); });
+  pins.sort((a, b) => a[0] - b[0]).forEach((p, i, A) => { if (i && p[0] - A[i - 1][0] < .07) p[0] = Math.min(.97, A[i - 1][0] + .07); });   // užrašai neužlipa vienas ant kito
   const nx = pins.findIndex(p => p[1] === 'nxt'); pins.forEach((p, i) => { if (p[1] === 'nxt' && i !== nx) { p[1] = 'dot'; p[2] = ''; } });
   const h = new Date().getHours();
   return {sub, P, o: {W, h: 440, cut: false, bio: Math.min(6, P.land), look, season: LVW.LANDS[Math.min(6, P.land)]?.snowy ? '' : freeSeason(), tod: h >= 18 || h < 5 ? 'evening' : 'day', t, ex: P.today === 'ok' ? 'proud' : 'smile', say: esc(freeLine()), sayDir: 'l', pins}};
@@ -71,21 +72,39 @@ function vFree() {
   const F = freeData();
   if (!F.subs.length) return freeStart();
   if (!window.LVW) { loadLaisve().then(() => UI.view === 'free' && render()); return `<div class="lvw lv-wait">${daigelis(4)}</div>`; }
-  const M = $('#main'), cs = M && getComputedStyle(M), W = Math.min(620, M ? M.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) : 343), {sub, P, o} = freeWorldCfg(W), L = freeLevel(), land = LVW.LANDS[Math.min(6, P.land)]?.n || '';
-  const key = JSON.stringify([o.bio, o.look, o.season, o.tod, o.t.toFixed(3), o.ex, o.say, o.pins, W]);
+  if (!FREE_GIFT.em && cloudOn()) freeGiftInit().then(() => UI.view === 'free' && render());
+  if (freeTick()) storeLocal();
+  if (UI.lvMp) return freeMp();
+  const M = $('#main'), cs = M && getComputedStyle(M), W = Math.min(620, M ? M.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) : 343);
+  if (UI.lvOld) { const v = freeOldView(W); if (v) return v; }
+  const {sub, P, o} = freeWorldCfg(W), L = freeLevel(), land = LVW.LANDS[Math.min(6, P.land)]?.n || '', here = freeHere(freeLandId().id), bw = freeW().items.bowl;
+  Object.assign(o, {things: here.things, pets: here.pets, nudgeAll: 1, noRefill: 1, bowlLv: bw ? Math.max(0, bowlLv(bw, 'bowl')) : null}); LV_PETN = here.names;
+  const key = JSON.stringify([o.bio, o.look, o.season, o.tod, o.t.toFixed(3), o.ex, o.say, o.pins, W, here.things, here.pets, o.bowlLv, UI.lvRedraw || 0]); UI.lvRedraw = 0;
   const hud = `<div class="lv-hud"><b class="lv-t">Laisvė</b><button class="lv-ib" data-a="freeMenu" aria-label="Daugiau">${ic('more')}</button>
     <div class="lv-big"><span class="n">${fmtFree(P.n).replace(' d.', '')}</span><span class="u">${P.n < 365 ? 'dienų laisvės' : 'laisvės'}<small>${land}</small></span></div>
     <div class="lv-lvl"><b>${L.lv} lygis</b><span><i style="width:${L.p}%"></i></span><small>${L.p} / 100 XP</small></div></div>`;
-  return `<div class="lvw lv-page"><div class="lv-world" data-key="${esc(key)}">${LVW.world({...o, hud})}</div><div class="lv-sheet">${freeChecks()}${freeRows()}</div></div>`;
+  return `<div class="lvw lv-page"><div class="lv-world" data-key="${esc(key)}">${LVW.world({...o, hud})}</div><div class="lv-sheet">${freeChecks()}${freeBoxes()}${freeRows()}${LSW() && !freeW().seen.widget ? `<div class="lv-chk"><span class="tx"><b>Valdiklis telefono ekrane</b><small>Takas, dienos ir +1 – neatidarius programėlės</small></span><button class="btn sm ghost" data-a="freeWidgetNo">Vėliau</button><button class="btn sm primary" data-a="freeWidget">Kaip?</button></div>` : ''}</div></div>`;
 }
 // po render: gyvas pasaulis (jei niekas nepasikeitė – paliekam seną, kad gyvūnai neprasidėtų iš naujo)
 let LV_KEEP = null;
 function freeMount() {
   const box = document.querySelector('.lv-world'); if (!box || !window.LVW) return;
-  if (LV_KEEP && LV_KEEP.dataset.key === box.dataset.key) { box.replaceWith(LV_KEEP); return; }
+  if (LV_KEEP && LV_KEEP.dataset.key === box.dataset.key) { box.replaceWith(LV_KEEP); freeAfter(); freeWidgetTick(); return; }
   LVW.WORLDS.splice(0, LVW.WORLDS.length, ...LVW.WORLDS.filter(w => w.el.isConnected));
   LVW.artInit(box); requestAnimationFrame(() => { LVW.placeWorld(box); freeUnstack(box); }); LV_KEEP = box;
-  if (!LV_LOOP) { LV_LOOP = 1; requestAnimationFrame(LVW.artLoop); }
+  if (!LV_LOOP) { LV_LOOP = 1; requestAnimationFrame(LVW.artLoop); }  freeAfter(); freeWidgetTick();
+}
+function freeWidgetTick() { if (!LSW()) return; if (!UI.lvPulled) { UI.lvPulled = 1; freeWidgetPull(); } setTimeout(() => freeWidgetSync(), 1200); }
+let LV_PETN = [];
+// po pasaulio: dovana (pirmą kartą), Laiko sustabdymas, naujas takas / kraštas / draugas
+function freeAfter() {
+  if (UI.lvMp || UI.lvOld || document.querySelector('.lv-gift') || $('#sheet')?.innerHTML.trim()) return;
+  if (cloudOn() && !FREE_GIFT.done) return;   // dar tikrinama dovana – po to perpiešiama
+  const w = freeW();
+  if (FREE_GIFT.on && !w.giftSeen) { UI.lvGift = 0; return freeGiftShow(); }
+  const tsKey = freeMissed().map(m => m.s.id + m.miss[0]).join();
+  if (tsKey && UI.lvTsAsked !== tsKey && freeTsAsk()) { UI.lvTsAsked = tsKey; return; }
+  if (freeNotice()) storeLocal(); else storeLocal();
 }
 let LV_LOOP = 0;
 // ženkliukai ir Daigelis neužlipa vienas ant kito: persidengiantį ženkliuką stumiam taku toliau, kol atsilaisvina vieta ekrane
@@ -148,7 +167,7 @@ A.freePlus = async d => {
 A.freeUndo = () => { const u = UI.lvUndo, s = u && freeData().subs.find(x => x.id === u.id); if (s && s.counts?.[u.d] > 0) s.counts[u.d]--; UI.lvUndo = null; commit(); };
 A.freeMenu = () => {
   $('#sheet').innerHTML = `<div class="dim" data-a="closeSheet"></div><div class="sh more2"><h3>Laisvė</h3><div class="mgrid">
-    <button data-a="freeEdit" data-sheet="1"><i>${ic('pen')}</i>Ką keičiu</button><button data-a="freeHide" data-sheet="1"><i>${ic('eyeoff')}</i>Paslėpti Laisvę</button></div></div>`;
+    <button data-a="freeMpOpen" data-sheet="1"><i>${ic('leaf')}</i>Mano pasaulis</button><button data-a="freeMap" data-sheet="1"><i>${ic('cal')}</i>Mano kraštai</button><button data-a="freeWidget" data-sheet="1"><i>${ic('plus')}</i>Valdiklis ekrane</button><button data-a="freeEdit" data-sheet="1"><i>${ic('pen')}</i>Ką keičiu</button><button data-a="freeHide" data-sheet="1"><i>${ic('eyeoff')}</i>Paslėpti Laisvę</button></div></div>`;
 };
 A.freeHide = async () => { if (!await ask('Paslėpti Laisvę?', 'Niekur nebesimatys. Atidaryti vėl – ilgai paspausk Savijautą.', {yes: 'Paslėpti'})) return; freeData().on = false; if (UI.view === 'free') UI.view = 'wellbeing'; commit(); };
 A.freeEdit = () => { UI.lvOb = {step: 1, sel: freeData().subs.map(s => s.k), edit: true}; render(); };
@@ -178,3 +197,340 @@ document.addEventListener('input', e => { const c = e.target.dataset?.c, O = UI.
   if (c === 'freeObWhy') O.why = v; else { const f = {freeObLim: 'lim', freeObAmt: 'amt', freeObPrice: 'price'}[c]; O[f] = {...O[f], [k]: v}; } });
 // Daigelį paspaudus – kitas sakinys
 document.addEventListener('click', e => { const w = e.target.closest('.lv-world .walker'); if (!w) return; const s = document.querySelector('.lv-world .say2'); if (s) { s.textContent = freeLine(true); s.classList.remove('l', 'r', 'dn'); s.classList.add('l'); const bx = w.closest('.lv-world'); LVW.placeWorld(bx); freeUnstack(bx); storeLocal(); } });
+
+// ===================== DAIKTAI, DĖŽĖS, MANO PASAULIS (docs/laisve-technika.md 3–6) =====================
+// S.free.w = {items: {raktas: {at: krašto id | null, x, y, t}}, lands: {id: {li, look, sub, from, n}}, cur, day, pity, wk, ts, food, drink, tsNo, seen: {}}
+// Kiekvienas daiktas ar gyvūnas – vienas egzempliorius: arba Mano pasaulyje (at: null), arba kurio nors krašto vietoje.
+const FREE_RAR = (() => { const m = {}, add = (r, s) => s.split(' ').forEach(k => m[k] = r);
+  add('c', 'bench lamp fence stones flowerbox carrots mailbox gnome ball bone mouse yarn bowl water flowershelf picnic birdhouse hay flowerbed stump shrooms berries cairn snowman sled tulips basket umbrella pool leaves pumpkins');
+  add('r', 'lamp2 well arch bike bed cushion rope frisbee scratch birch pine apple swing sunflowers beehive tent pier campfire kite sledgift mushhouse beachumb icecream scarecrow xtree smokingas');
+  add('e', 'fountain kennel oak cherry tower windmill bridge telescope hammock igloo boat biglis');
+  add('l', 'sofa balloon cabin flag'); return m; })();
+const RAR_N = {c: 'Paprastas', r: 'Retas', e: 'Ypatingas', l: 'Legendinis'}, RAR_BOX = {c: 'Paprasta dėžė', r: 'Reta dėžė', e: 'Ypatinga dėžė', l: 'Legendinė dėžė'};
+// gyvūnai ateina patys po tiek gerų dienų (iš viso, paslydimas jų neatima); biglis ir juodai balta katė – tik iš dėžių
+const FREE_PETS = {ruda: 3, haskis: 7, pilka: 14, cihuahua: 20, spicas: 30, trispalve: 45, retriveris: 60, korgis: 90, labradoras: 120};
+const FREE_LIMIT = 30, DAY_MS = 864e5;
+const freeW = () => { const F = freeData(); F.w = F.w || {}; const w = F.w; w.items = w.items || {}; w.lands = w.lands || {}; w.seen = w.seen || {}; ['day', 'pity', 'ts', 'food', 'drink'].forEach(k => w[k] = +w[k] || 0); return w; };
+const rarTag = r => `<span class="rar r-${r}">${RAR_N[r]}</span>`;
+const isPet = k => !!window.LVW?.ANIMALS?.[k];
+const itemName = k => FREE_GIFT.names[k] || (isPet(k) ? LVW.ANIMALS[k].n : LVW.CAT[k]?.n || k);
+const itemImg = (k, h = 44) => isPet(k) ? LVW.petImg(k, 1, h) : LVW.thImg(k, h);
+// dabartinis kraštas: takas (pagrindinė priklausomybė, kelintas takas) + kraštas
+function freeLandId() { const sub = freeMain(); if (!sub) return null; const P = freeProg(sub); return {id: `${sub.id}.${sub.mode === 'quit' ? P.resets : 0}.${P.land}`, li: Math.min(6, P.land), P, sub}; }
+const freeGood = (s, d) => s.days[d] === 'ok' || (s.mode === 'track' && (s.counts || {})[d] != null);
+const freeGoodTotal = () => Math.max(0, ...freeData().subs.map(s => Object.keys(s.days).filter(d => s.days[d] === 'ok').length + (s.mode === 'track' ? Object.keys(s.counts || {}).filter(d => s.days[d] !== 'ok').length : 0)));
+const freeMarkedToday = () => freeData().subs.some(s => freeGood(s, today()));
+
+// ---- dubenėliai ir medžiai laike ----
+function bowlLv(it, k) { if (it.gift) return 1; const days = Math.floor((Date.now() - (it.t || 0)) / DAY_MS); return k === 'water' ? (days >= 7 ? -1 : 1) : days >= 4 ? -1 : Math.max(0, 1 - days / 3); }
+function treeSt(it) {
+  const sub = freeMain(); if (!sub) return 4; const d = today(), y = addDays(d, -1);
+  const wilt = sub.days[d] === 'slip' || sub.days[d] === 'over' || (!freeGood(sub, d) && !freeGood(sub, y) && sub.start < y);
+  let st = 0; for (let k = 1; k <= 4; k++) { const tk = (it.t || 0) + k * DAY_MS; if (tk > Date.now()) break; const day = ymd(new Date(tk)); if (freeGood(sub, day) || (day === d && !sub.days[d])) st++; }
+  return wilt ? 'bare' : Math.min(4, st);
+}
+// laikas paima savo: tuščias dubenėlis po paros, vanduo po savaitės grįžta į Mano pasaulį
+function freeTick() {
+  const w = freeW(); let ch = false;
+  for (const k of ['bowl', 'water']) { const it = w.items[k]; if (it?.at && bowlLv(it, k) < 0) { it.at = null; it.empty = 1; ch = true; } }
+  return ch;
+}
+
+// ---- kas pasaulyje: daiktai ir gyvūnai šiame krašte (+ dovanoti šunys visur) ----
+function freeHere(id) {
+  const w = freeW(), things = [], pets = [], names = [];
+  for (const [k, it] of Object.entries(w.items)) { if (it.at !== id) continue;
+    if (isPet(k)) { pets.push([k, it.x, it.y]); names.push(itemName(k)); }
+    else things.push([k, it.x, it.y, LVW.CAT[k]?.stages ? treeSt(it) : undefined]); }
+  if (FREE_GIFT.on) for (const k of ['haskis', 'cihuahua']) if (!w.items[k]?.at || w.items[k].at !== id) { pets.push([k]); names.push(FREE_GIFT.names[k]); }
+  return {things, pets, names};
+}
+const freeCount = id => Object.entries(freeW().items).filter(([k, it]) => it.at === id && !(FREE_GIFT.on && (k === 'haskis' || k === 'cihuahua'))).length;
+function freePlace(k, id = freeLandId()?.id) {
+  const w = freeW(), it = w.items[k], L = freeLandId(); if (!it || !id) return false;
+  if (it.at === id) return true;
+  if (freeCount(id) >= FREE_LIMIT) return 'full';
+  const c = LVW.CAT[k]; if (c?.zone === 'water' && L.li !== 2) return 'water';
+  if ((k === 'bowl' || k === 'water') && it.empty) { const f = k === 'bowl' ? 'food' : 'drink'; if (!w[f]) return 'nofood'; w[f]--; it.empty = 0; it.t = Date.now(); }
+  const air = c?.zone === 'air';
+  Object.assign(it, {at: id, x: c?.zone === 'water' ? .9 : .08 + Math.random() * .84, y: c?.zone === 'water' ? .27 : air ? .2 : .52 + Math.random() * .4});
+  if (c?.stages && !it.t) it.t = Date.now();
+  return true;
+}
+const PLACE_ERR = {full: `Šiame krašte vietų nebėra (${FREE_LIMIT}). Išimk kurį nors daiktą.`, water: 'Valtis plaukia tik ežere.', nofood: 'Dubenėlis tuščias – maisto ir vandens būna dėžėse.'};
+
+// ---- dėžės ----
+const lvSheet = (html, cls = '') => { $('#sheet').innerHTML = `<div class="dim" data-a="closeSheet"></div><div class="sh sp-sheet lvs ${cls}"><div class="grab"></div>${html}</div>`; };
+function freeBoxState() {
+  const w = freeW(); if (!freeMarkedToday()) return 'locked';
+  return Date.now() - w.day < DAY_MS ? 'wait' : 'ready';
+}
+function freeWeekReady() {
+  const w = freeW(), sub = freeMain(); if (!sub || w.wk === weekStart(today())) return false;
+  let run = 0; for (let d = freeGood(sub, today()) ? today() : addDays(today(), -1); freeGood(sub, d); d = addDays(d, -1)) run++;
+  return run >= 7;
+}
+function freePool(rar) {
+  const w = freeW(), L = freeLandId(), sea = freeSeason() || 'summer';
+  return Object.keys(FREE_RAR).filter(k => FREE_RAR[k] === rar && !w.items[k] && (isPet(k) || LVW.CAT[k]) && (() => {
+    if (isPet(k)) return !(FREE_GIFT.on && (k === 'haskis' || k === 'cihuahua'));
+    const g = LVW.CAT[k].grp; return g.startsWith('land') ? +g.slice(4) === L.li : ['winter', 'spring', 'summer', 'autumn'].includes(g) ? g === sea : true; })());
+}
+function freeHungry() { const w = freeW(), b = w.items.bowl, wa = w.items.water; return (b && !b.gift && (b.empty || (b.at && bowlLv(b, 'bowl') <= .5))) || (wa && !wa.gift && (wa.empty || (wa.at && Date.now() - wa.t > 4 * DAY_MS))); }
+function freeRoll(kind) {
+  const w = freeW();
+  let rar = kind === 'week' ? (Math.random() < .5 ? 'e' : 'l') : w.pity >= 8 ? 'r' : (r => r < .01 ? 'l' : r < .05 ? 'e' : r < .2 ? 'r' : 'c')(Math.random());
+  if (kind === 'day') w.pity = rar === 'c' ? w.pity + 1 : 0;
+  const xp = {c: 15, r: 25, e: 40, l: 60}[rar];
+  if (kind === 'day' && freeHungry() && w.food + w.drink < 3 && Math.random() < .45) { const f = w.items.bowl && (w.items.bowl.empty || bowlLv(w.items.bowl, 'bowl') <= .5) ? 'food' : 'drink'; w[f]++; return {rar: 'c', food: f, xp}; }
+  if (rar !== 'c' && w.ts < 2 && Math.random() < (kind === 'week' ? .15 : .25)) { w.ts++; return {rar: 'e', ts: 1, xp}; }
+  let pool = freePool(rar); if (!pool.length && kind === 'week') pool = freePool(rar === 'l' ? 'e' : 'l');
+  if (!pool.length && kind === 'day') pool = freePool('c');
+  if (!pool.length) return {rar, xp: xp + 20, dup: 1};
+  const k = pool[Math.floor(Math.random() * pool.length)]; w.items[k] = {at: null, t: 0}; if (k === 'bowl' || k === 'water') w.items[k].t = Date.now();
+  return {rar: FREE_RAR[k], item: k, xp};
+}
+A.freeBox = d => {
+  const st = d.k === 'week' ? 'week' : freeBoxState(), w = freeW();
+  if (st === 'locked') return lvSheet(`<div class="chestw wait">${LVW.chestImg('c', 0, 96)}</div><h3>Pažymėk šiandien</h3><p class="lead">Dienos dėžė atsidaro, kai pažymi dieną</p><button class="btn primary big" data-a="closeSheet">Gerai</button>`);
+  if (st === 'wait') { const left = DAY_MS - (Date.now() - w.day), h = Math.floor(left / 36e5), m = Math.floor(left % 36e5 / 6e4);
+    return lvSheet(`<div class="chestw wait">${LVW.chestImg('c', 0, 96)}</div><h3>Kita dėžė po ${h} val. ${m} min.</h3><div class="wbar3"><i style="width:${Math.round((1 - left / DAY_MS) * 100)}%"></i></div><p class="lead">Šiandienę jau atidarei</p><button class="btn big t" data-a="closeSheet">Gerai</button>`); }
+  if (st === 'week') return lvSheet(`<div class="chestw shake">${LVW.chestImg('e', 0, 120)}</div><h3>Savaitės iššūkis įvykdytas</h3><p class="lead">7 dienos iš eilės</p><div class="either">${rarTag('e')}<span>arba</span>${rarTag('l')}</div><button class="btn primary big" data-a="freeBoxOpen" data-k="week">Atidaryti</button>`);
+  lvSheet(`<div class="chestw shake">${LVW.chestImg('c', 0, 110)}</div><h3>Dienos dėžė</h3><p class="lead">Kartą per parą, kai pažymi dieną</p><button class="btn primary big" data-a="freeBoxOpen" data-k="day">Atidaryti</button>`);
+};
+A.freeBoxOpen = d => {
+  const w = freeW(), F = freeData(), kind = d.k === 'week' ? 'week' : 'day';
+  if (!tapOnce('box:' + kind, 1500)) return;
+  if (kind === 'day' && freeBoxState() !== 'ready') return A.freeBox({});
+  if (kind === 'week' && !freeWeekReady()) return A.closeSheet();
+  const R = freeRoll(kind); if (kind === 'day') w.day = Date.now(); else w.wk = weekStart(today());
+  F.xp = (F.xp || 0) + R.xp; commit({noRender: true}); render();
+  const head = (img, solo) => `<div class="chestw open r-${R.rar}"><i class="rays"></i>${solo ? '' : LVW.chestImg(R.rar, 1, 96)}<span class="won ${solo ? 'solo' : ''}">${img}</span></div>`;
+  if (R.ts) return lvSheet(`${head(hourglass(104), 1)}<h3>Laiko sustabdymas</h3>${rarTag('e')}<p class="lead" style="margin-top:6px">Jei kelias dienas nepažymėsi – galėsi jas pažymėti vėliau. Turi ${w.ts} iš 2.</p><button class="btn primary big" data-a="closeSheet">Gerai</button>`);
+  if (R.food) return lvSheet(`${head(LVW.aImg(LVW.spr(LVW.SH.pet, R.food === 'food' ? 1 : 5), 70), 1)}<h3>${R.food === 'food' ? 'Maistas' : 'Vanduo'}</h3>${rarTag('c')}<p class="lead" style="margin-top:6px">+${R.xp} XP · ${R.food === 'food' ? 'dubenėlis vėl bus pilnas' : 'vandens dubenėlis vėl pilnas'}</p><button class="btn primary big" data-a="freeRefill" data-k="${R.food === 'food' ? 'bowl' : 'water'}">Papildyti</button><button class="btn big t" data-a="closeSheet">Vėliau</button>`);
+  if (R.dup || !R.item) return lvSheet(`${head(`<b style="font:900 34px Nunito;color:var(--br)">+${R.xp}</b>`, 1)}<h3>+${R.xp} XP</h3><p class="lead">${RAR_BOX[R.rar]} – šios rūšies daiktus jau turi, todėl XP</p><button class="btn primary big" data-a="closeSheet">Gerai</button>`);
+  lvSheet(`${head(itemImg(R.item, isPet(R.item) ? 90 : 82))}<h3>${esc(itemName(R.item))}</h3>${rarTag(R.rar)}<p class="lead" style="margin-top:6px">+${R.xp} XP</p><button class="btn primary big" data-a="freePut" data-k="${R.item}">${isPet(R.item) ? 'Įleisti į pasaulį' : 'Pastatyti pasaulyje'}</button><button class="btn big t" data-a="closeSheet">Į Mano pasaulį</button>`);
+};
+A.freePut = d => {
+  const r = freePlace(d.k);
+  if (r === 'full') return freeFull(d.k);
+  if (r !== true) return toast(PLACE_ERR[r] || 'Nepavyko');
+  A.closeSheet(); commit();
+};
+function freeFull(k) {
+  const L = freeLandId(), here = Object.entries(freeW().items).filter(([q, it]) => it.at === L.id && !(FREE_GIFT.on && (q === 'haskis' || q === 'cihuahua'))).map(([q]) => q);
+  lvSheet(`<h3 style="margin-top:2px">${LVW.LANDS[L.li].n}: vietų nebėra</h3><p class="lead">${FREE_LIMIT} iš ${FREE_LIMIT}. Išimk kurį nors – jis liks Mano pasaulyje. Arba palik ${esc(itemName(k).toLowerCase())} dėžėje.</p>
+    <div class="arow">${here.map(q => `<button data-a="freeSwap" data-k="${q}" data-n="${k}" aria-label="Išimti ${esc(itemName(q))}">${itemImg(q, 40)}</button>`).join('')}</div><button class="btn big t" data-a="closeSheet">Palikti dėžėje</button>`);
+}
+A.freeSwap = d => { const it = freeW().items[d.k]; if (it) it.at = null; A.freePut({k: d.n}); };
+A.freeRefill = d => {
+  const w = freeW(), it = w.items[d.k], f = d.k === 'bowl' ? 'food' : 'drink'; if (!w[f]) return toast('Maisto ir vandens būna dėžėse');
+  if (!it) { w.items[d.k] = {at: null, t: Date.now()}; w[f]--; const r = freePlace(d.k); if (r !== true) { A.closeSheet(); commit(); return toast(PLACE_ERR[r]); } }
+  else if (!it.at) { it.empty = 1; const r = freePlace(d.k); if (r !== true) return toast(PLACE_ERR[r]); }
+  else { w[f]--; it.t = Date.now(); it.empty = 0; }
+  lvSheet(`<div class="chestw open r-c"><i class="rays"></i><span class="won solo">${LVW.aImg(LVW.spr(LVW.SH.pet, d.k === 'bowl' ? 1 : 5), 70)}</span></div><h3>Vėl pilnas</h3><p class="lead">Tas pats dubenėlis</p><button class="btn primary big" data-a="closeSheet">Gerai</button>`);
+  UI.lvRedraw = 1; commit({noRender: true}); render();
+};
+function freeBoxes() {
+  const st = freeBoxState(), w = freeW(), wk = freeWeekReady();
+  const left = DAY_MS - (Date.now() - w.day), sub = st === 'ready' ? 'Atidaryk – XP ir daiktai' : st === 'wait' ? `Kita po ${Math.floor(left / 36e5)} val. ${Math.floor(left % 36e5 / 6e4)} min.` : 'Atsidaro, kai pažymi dieną';
+  return (wk ? `<button class="lv-box on" data-a="freeBox" data-k="week"><span class="ci">${LVW.chestImg('e', 0, 44)}</span><span class="tx"><b>Savaitės iššūkis įvykdytas</b><small>Ypatinga arba legendinė dėžė</small></span><span class="go1">Atidaryti</span></button>` : '')
+    + `<button class="lv-box ${st === 'ready' ? 'on' : 'w'}" data-a="freeBox"><span class="ci">${LVW.chestImg('c', 0, 40)}</span><span class="tx"><b>Dienos dėžė</b><small>${sub}</small></span><span class="go1">${st === 'ready' ? 'Atidaryti' : st === 'wait' ? 'Laukti' : 'Pažymėti'}</span></button>`;
+}
+const hourglass = (s = 80) => `<svg viewBox="0 0 60 80" width="${s * .75}" height="${s}" style="display:block;margin:0 auto"><path d="M14 12 C14 30 26 34 26 40 C26 46 14 50 14 68 L46 68 C46 50 34 46 34 40 C34 34 46 30 46 12 Z" fill="#eaf5ff" stroke="#4a2b16" stroke-width="3" stroke-linejoin="round"/><path d="M19 17 C22 27 28 31 30 35 C32 31 38 27 41 17 Z" fill="#ffc98a"/><path d="M17 66 C20 57 27 55 30 53 C33 55 40 57 43 66 Z" fill="#ffad5c"/><path d="M30 37 V53" stroke="#ffad5c" stroke-width="2.4"/><rect x="7" y="4" width="46" height="9" rx="4.5" fill="#c47a3d" stroke="#4a2b16" stroke-width="3"/><rect x="7" y="67" width="46" height="9" rx="4.5" fill="#c47a3d" stroke="#4a2b16" stroke-width="3"/></svg>`;
+
+// ---- Laiko sustabdymas: grįžus po 2+ nepažymėtų dienų (Mesti) ----
+function freeMissed() {
+  const y = addDays(today(), -1), out = [];
+  // nepažymėtos dienos per paskutines 14 d. (po paskutinio paslydimo), bent viena senesnė už vakar – takas jau nuslinktų į 0
+  for (const s of freeData().subs.filter(s => s.mode === 'quit')) {
+    const from = [addDays(y, -14), s.start, freeW().tsFrom || '', ...Object.keys(s.days).filter(d => s.days[d] === 'slip').map(d => addDays(d, 1))].sort().pop(), miss = [];
+    for (let d = from; d < y; d = addDays(d, 1)) if (!s.days[d]) miss.push(d);
+    if (miss.length) { if (!s.days[y] && y >= s.start) miss.push(y); out.push({s, miss}); }
+  }
+  return out;
+}
+function freeTsAsk() {
+  const w = freeW(), M = freeMissed(); if (!M.length || !w.ts) return false;
+  const key = M.map(m => m.s.id + m.miss[0]).join(); if (w.tsNo === key) return false;
+  const n = Math.max(...M.map(m => m.miss.length));
+  lvSheet(`<div style="display:flex;gap:12px;align-items:center;text-align:left">${hourglass(46)}<span><h3 style="margin:0 0 4px">${n === 1 ? '1 diena' : n + ' dienos'} be žymos</h3><p class="lead" style="margin:0">Turi Laiko sustabdymą. Pažymėk praleistas dienas – takas liks, kur buvo.</p></span></div>
+    <button class="btn primary big" data-a="freeTsDays">Pažymėti dienas</button><button class="btn big t" data-a="freeTsNo" data-k="${esc(key)}">Ne, pradėti nuo 0</button>`);
+  return true;
+}
+A.freeTsNo = d => { const w = freeW(); w.tsNo = d.k; w.tsFrom = addDays(today(), -1); A.closeSheet(); commit(); };   // atsisakius – senesnių dienų nebesiūlom
+A.freeTsDays = () => { const M = freeMissed(); UI.lvTs = {days: [...new Set(M.flatMap(m => m.miss))].sort(), v: {}}; freeTsRender(); };
+function freeTsRender() {
+  const T = UI.lvTs, dn = ['Sekmadienis', 'Pirmadienis', 'Antradienis', 'Trečiadienis', 'Ketvirtadienis', 'Penktadienis', 'Šeštadienis'];
+  const all = T.days.every(d => T.v[d]);
+  lvSheet(`<h3 style="margin-top:2px">Praleistos dienos</h3><p class="lead">Kaip sekėsi kiekvieną dieną?</p>
+    ${T.days.map(d => `<div class="mday"><span><b>${dn[parseD(d).getDay()]}</b><small>${fmtDate(d)}</small></span><button class="${T.v[d] === 'ok' ? 'on' : ''}" data-a="freeTsSet" data-d="${d}" data-v="ok">Pavyko</button><button class="no ${T.v[d] === 'slip' ? 'on' : ''}" data-a="freeTsSet" data-d="${d}" data-v="slip">Nepavyko</button></div>`).join('')}
+    <p class="hint2">Bent viena „Nepavyko“ – kaip paslydimas.</p><button class="btn primary big" data-a="freeTsSave" ${all ? '' : 'disabled'}>Išsaugoti · liks ${freeW().ts - 1} iš 2</button>`, 'lv-tsd');
+}
+A.freeTsSet = d => { UI.lvTs.v[d.d] = d.v; freeTsRender(); };
+A.freeTsSave = () => {
+  const T = UI.lvTs, w = freeW(); if (!T || !w.ts || !T.days.every(d => T.v[d])) return;
+  for (const s of freeData().subs.filter(s => s.mode === 'quit')) for (const d of T.days) if (d >= s.start && !s.days[d]) s.days[d] = T.v[d];
+  w.ts--; UI.lvTs = null; A.closeSheet(); commit(); toast('Takas liko, kur buvo', 'good');
+};
+
+// ---- pranešimai grįžus: naujas takas, takas nuslinko, naujas kraštas, naujas draugas ----
+function freeNotice() {
+  const w = freeW(), L = freeLandId(); if (!L) return false;
+  const prev = w.cur, pn = w.seen.n ?? L.P.n, sub = L.sub;
+  if (!w.lands[L.id]) w.lands[L.id] = {li: L.li, sub: sub.id, from: today(), look: 0};
+  if (prev && w.lands[prev]) w.lands[prev].n = Math.max(w.lands[prev].n || 0, pn);
+  w.cur = L.id; w.seen.n = L.P.n;
+  // gyvūnai, kurie jau atėjo pagal gerų dienų skaičių
+  const tot = freeGoodTotal(), pet = Object.keys(FREE_PETS).find(k => tot >= FREE_PETS[k] && !w.items[k] && !(FREE_GIFT.on && (k === 'haskis' || k === 'cihuahua')));
+  if (pet) { w.items[pet] = {at: null, t: 0};
+    lvSheet(`<div class="chestw open r-l"><i class="rays"></i><span class="won solo">${LVW.petImg(pet, 13, 104)}</span></div><h3>Naujas draugas!</h3><p class="lead">${FREE_PETS[pet]} gerų dienų – ${esc(itemName(pet).toLowerCase())} nori gyventi tavo pasaulyje</p><button class="btn primary big" data-a="freePut" data-k="${pet}">Įleisti į pasaulį</button><button class="btn big t" data-a="closeSheet">Vėliau</button>`); return true; }
+  if (!prev || prev === L.id) { if (sub.mode === 'reduce' && L.P.n < pn) { lvSheet(`<h3>Takas nuslinko ${pn - L.P.n} d.</h3><p class="lead">Nepažymėtos dienos: ${pn} → ${L.P.n}. Pasiektas kraštas lieka.</p><button class="btn primary big" data-a="closeSheet">Gerai</button>`); return true; } return false; }
+  const [ps, pr] = prev.split('.');
+  if (ps === sub.id && +pr !== (sub.mode === 'quit' ? L.P.resets : 0)) {
+    const best = Math.max(...Object.values(w.lands).filter(x => x.sub === sub.id).map(x => x.n || 0));
+    lvSheet(`<h3>Naujas takas</h3><p class="lead">Metant skaičiuojama kasdien, todėl takas prasideda nuo 0. Rekordas – ${fmtFree(best)} – lieka, o tavo daiktai laukia senajame krašte (žemėlapyje).</p><button class="btn primary big" data-a="closeSheet">Pradėti naują taką</button>`); return true; }
+  lvSheet(`<div class="chestw open r-l"><i class="rays"></i><span class="won solo">${daigelis(5)}</span></div><h3>${sub.mode === 'track' ? 'Naujas mėnuo – ' : ''}${LVW.LANDS[L.li].n}!</h3><p class="lead">${sub.mode === 'track' ? 'Stebint kraštas keičiasi kas mėnesį. Nepažymėta diena nieko neatima.' : 'Naujas kraštas atrakintas. Seni daiktai liko ankstesniame – juos rasi žemėlapyje.'}</p><button class="btn primary big" data-a="closeSheet">Puiku</button>`);
+  return true;
+}
+
+// ---- Mano pasaulis ----
+const MP_TABS = [['pets', 'Gyvūnai'], ['pet', 'Jiems'], ['thing', 'Daiktai'], ['tree', 'Medžiai'], ['land', 'Kraštų'], ['sea', 'Sezono']];
+function freeMp() {
+  const M = UI.lvMp, w = freeW(), L = freeLandId(), tab = M.tab || 'pets', tot = freeGoodTotal();
+  const tile = k => { const it = w.items[k], gift = FREE_GIFT.on && (k === 'haskis' || k === 'cihuahua'), on = !!it || gift, here = gift || it?.at === L.id;
+    const st = gift ? 'visada su tavim' : here ? (isPet(k) ? 'pasaulyje' : 'pastatyta') : it?.at ? 'kitame krašte' : it ? (it.empty ? 'tuščias' : 'turi') : FREE_PETS[k] ? `${FREE_PETS[k]} d. (${Math.min(tot, FREE_PETS[k])}/${FREE_PETS[k]})` : 'iš dėžės';
+    return `<button class="atile ${on ? 'on' : ''} ${here ? 'placed' : ''}" data-a="freeItem" data-k="${k}"><span class="ai">${itemImg(k, isPet(k) ? 48 : 44)}</span><b>${esc(itemName(k))}</b><small>${st}</small></button>`; };
+  const grid = ks => `<div class="agrid">${ks.map(tile).join('')}</div>`, C = Object.values(LVW.CAT);
+  let body = '';
+  if (tab === 'pets') body = `<div class="sec">Šunys</div>${grid(['haskis', 'cihuahua', 'spicas', 'retriveris', 'labradoras', 'biglis', 'korgis'])}<div class="sec">Katės</div>${grid(['ruda', 'trispalve', 'pilka', 'smokingas'])}`;
+  else if (tab === 'pet') body = `${grid(['bowl', 'water', 'bed', 'cushion', 'kennel', 'sofa', 'ball', 'frisbee', 'bone', 'rope', 'mouse', 'yarn', 'tower', 'scratch'])}<p class="anote">Maisto: ${w.food} · vandens: ${w.drink}. Dubenėlis tuštėja kas parą, tuščias po paros grįžta čia.</p>`;
+  else if (tab === 'thing') body = grid(C.filter(c => c.grp === 'thing').map(c => c.k));
+  else if (tab === 'tree') body = `${grid(C.filter(c => c.grp === 'tree').map(c => c.k))}<p class="anote">Kas parą nuo pasodinimo valandos – nauja fazė. Nepažymėjus dienos medis nuvysta, kitą gerą dieną atsigauna.</p>`;
+  else if (tab === 'land') body = LVW.LANDS.map((x, li) => `<div class="sec">${x.n}${li !== L.li ? '<small>gaunami tik būnant šiame krašte</small>' : '<small>dabar čia</small>'}</div>${grid(C.filter(c => c.grp === 'land' + li).map(c => c.k))}`).join('');
+  else body = [['winter', 'Žiema'], ['spring', 'Pavasaris'], ['summer', 'Vasara'], ['autumn', 'Ruduo']].map(([g, n]) => `<div class="sec">${n}${(freeSeason() || 'summer') === g ? '<small>dabar</small>' : ''}</div>${grid(C.filter(c => c.grp === g).map(c => c.k))}`).join('');
+  return `<div class="lv-mp">${spBackLike('Mano pasaulis')}<div class="cap"><span>${LVW.LANDS[L.li].n} · ${freeCount(L.id)} / ${FREE_LIMIT} vietų</span><span>Laiko sustabdymas: ${w.ts} iš 2</span></div>
+    <div class="apills">${MP_TABS.map(([k, n]) => `<button class="${tab === k ? 'on' : ''}" data-a="freeMpTab" data-k="${k}">${n}</button>`).join('')}</div>${body}</div>`;
+}
+const spBackLike = t => `<div class="lv-ob-h" style="margin:4px 0 6px"><button class="lv-ib" style="position:static;background:var(--card);color:var(--text)" data-a="freeMpBack" aria-label="Atgal">${ic('back')}</button><b>${t}</b></div>`;
+A.freeMpOpen = () => { A.closeSheet(); UI.lvMp = {tab: 'pets'}; UI.lvOld = null; render(); window.scrollTo(0, 0); };
+A.freeMpTab = d => { UI.lvMp.tab = d.k; render(); };
+A.freeMpBack = () => { UI.lvMp = null; UI.lvOld = null; render(); window.scrollTo(0, 0); };
+A.freeItem = d => {
+  const k = d.k, w = freeW(), it = w.items[k], L = freeLandId(), gift = FREE_GIFT.on && (k === 'haskis' || k === 'cihuahua');
+  const big = `<div class="chestw"><span class="won solo" style="animation:none">${itemImg(k, isPet(k) ? 104 : 90)}</span></div><h3>${esc(itemName(k))}</h3>${FREE_RAR[k] ? rarTag(FREE_RAR[k]) : ''}`;
+  if (gift) return lvSheet(`${big}<p class="lead" style="margin-top:6px">Dovana tik tau. Visada šalia – kiekviename krašte, nereikia statyti ir neužima vietos.</p><button class="btn primary big" data-a="freeGiftOpen">Perskaityti dar kartą</button><button class="btn big t" data-a="closeSheet">Gerai</button>`);
+  if (!it) return lvSheet(`${big}<p class="lead" style="margin-top:6px">${FREE_PETS[k] ? `Ateis pats po ${FREE_PETS[k]} gerų dienų` : LVW.CAT[k]?.grp?.startsWith('land') ? 'Iškrenta iš dėžių, kai esi šiame krašte' : 'Iškrenta iš dėžių'}</p><button class="btn big t" data-a="closeSheet">Gerai</button>`);
+  let extra = '';
+  if ((k === 'bowl' || k === 'water') && it.at) { const lv = bowlLv(it, k);
+    extra = k === 'bowl' ? `<div class="astages">${['Pilnas', '2/3', '1/3', 'Tuščias'].map((n, i) => `<div class="${Math.round((1 - lv) * 3) === i ? 'now' : ''}">${LVW.aImg(LVW.spr(LVW.SH.pet, i + 1), 36)}<b>${n}</b></div>`).join('')}</div><p class="lead">Kas parą maisto mažėja. Tuščias po paros grįžta į Mano pasaulį.</p>` : `<p class="lead">Po ~7 parų išgaruoja – papildai taip pat.</p>`;
+    extra += `<button class="btn primary big" data-a="freeRefill" data-k="${k}" ${w[k === 'bowl' ? 'food' : 'drink'] ? '' : 'disabled'}>Papildyti · turi ${w[k === 'bowl' ? 'food' : 'drink']}</button>`; }
+  if (LVW.CAT[k]?.stages && it.at) { const st = treeSt(it); extra = `<p class="lead">${st === 'bare' ? 'Nuvytęs – kitą gerą dieną vėl sužaliuos.' : st >= 4 ? 'Užaugęs.' : `Fazė ${st + 1} iš 5 – kas parą nuo pasodinimo nauja.`}</p>`; }
+  const here = it.at === L.id, other = it.at && !here;
+  lvSheet(`${big}${extra || `<p class="lead" style="margin-top:6px">${here ? 'Stovi šiame krašte' : other ? 'Stovi kitame krašte' : 'Mano pasaulyje'}</p>`}
+    ${here ? `<button class="btn ${extra ? '' : 'primary'} big" data-a="freeMove" data-k="${k}">Perkelti</button><button class="btn big t" data-a="freeTake" data-k="${k}">Išimti iš pasaulio</button>` : `<button class="btn primary big" data-a="freePut" data-k="${k}">${other ? 'Perkelti į šį kraštą' : isPet(k) ? 'Įleisti į pasaulį' : 'Pastatyti pasaulyje'}</button>`}`);
+};
+A.freeMove = d => { const it = freeW().items[d.k], id = it?.at; if (!it) return; it.at = null; const e = it.empty; freePlace(d.k, id); it.empty = e; A.closeSheet(); commit(); };
+A.freeTake = d => { const it = freeW().items[d.k]; if (it) it.at = null; A.closeSheet(); commit(); };
+
+// ---- seni kraštai (žemėlapis) ----
+function freeMapSheet() {
+  const w = freeW(), L = freeLandId(), old = Object.entries(w.lands).filter(([id]) => id !== L.id).map(([id, x]) => ({id, ...x, cnt: Object.values(w.items).filter(it => it.at === id).length})).reverse();
+  lvSheet(`<h3 style="margin-top:2px">Mano kraštai</h3>${old.length ? old.map(o => `<button class="lv-box" data-a="freeOld" data-id="${esc(o.id)}"><span class="ci">${daigelis(4)}</span><span class="tx"><b>${LVW.LANDS[o.li].n}</b><small>${fmtFree(o.n || 0)} · ${o.cnt} daiktai</small></span><span class="go1">Nueiti</span></button>`).join('<div style="height:8px"></div>') : '<p class="lead">Kol kas esi pirmame krašte. Kai pereisi į kitą ar pradėsi naują taką, seni kraštai su visais tavo daiktais liks čia.</p>'}<button class="btn big t" data-a="closeSheet">Uždaryti</button>`);
+}
+A.freeMap = () => freeMapSheet();
+A.freeOld = d => { A.closeSheet(); UI.lvOld = d.id; UI.lvMp = null; render(); window.scrollTo(0, 0); };
+A.freeOldTake = d => { const w = freeW(); for (const [k, it] of Object.entries(w.items)) if (it.at === UI.lvOld && (!d.k || d.k === k)) it.at = null; commit(); };
+function freeOldView(W) {
+  const w = freeW(), id = UI.lvOld, meta = w.lands[id]; if (!meta) { UI.lvOld = null; return ''; }
+  const things = [], pets = []; for (const [k, it] of Object.entries(w.items)) if (it.at === id) (isPet(k) ? pets : things).push(isPet(k) ? [k, it.x, it.y] : [k, it.x, it.y, LVW.CAT[k]?.stages ? 4 : undefined]);
+  const n = meta.n || 0, hud = `<div class="lv-hud"><b class="lv-t">Senas kraštas</b><button class="lv-ib" data-a="freeMpBack" aria-label="Atgal">${ic('back')}</button><div class="lv-big"><span class="n">${fmtFree(n).replace(' d.', '')}</span><span class="u">${n < 365 ? 'dienų' : ''}<small>${LVW.LANDS[meta.li].n} · ${things.length + pets.length} daiktai</small></span></div></div>`;
+  const o = {W, h: 440, cut: false, bio: meta.li, look: meta.look || 0, season: freeSeason(), tod: 'day', t: .95, pins: [], things, pets, noRefill: 1, nudgeAll: 1, say: ''};
+  const key = JSON.stringify(['old', id, things, pets, W]);
+  return `<div class="lvw lv-page"><div class="lv-world" data-key="${esc(key)}">${LVW.world({...o, hud})}</div><div class="lv-sheet">
+    <div class="lv-chk"><span class="tx"><b>Tavo daiktai lieka čia</b><small>Paspausk daiktą – išimk į Mano pasaulį</small></span>${things.length + pets.length ? '<button class="btn sm primary" data-a="freeOldTake">Išimti visus</button>' : ''}</div>
+    <div class="lv-mp"><div class="agrid">${[...things, ...pets].map(([k]) => `<button class="atile on" data-a="freeOldTake" data-k="${k}"><span class="ai">${itemImg(k, 44)}</span><b>${esc(itemName(k))}</b><small>išimti</small></button>`).join('')}</div></div></div></div>`;
+}
+
+// ---- dovana vienai paskyrai (užšifruota: atrakina tik tos paskyros el. paštas) ----
+const FREE_GIFT = {on: false, done: false, names: {}, pages: []};
+const FREE_GIFT_BOX = {"s": "f7KQL+ASGTV/9sjR1wrszg==", "i": "Fk2Zzkq7WMSHWphh", "d": "XNPVUmz+dQdORiBlZY80b0mC15s9R+OJVLsTuKVADsxjH82dUfuntzbU2FO1Ua1VfQbGm3ZZtWIh0n9QK+WMmXFRllfAZ3gplK+Fl6O8IjWNevRePiI/nrwoSANFiC6zm0+sXrA+ytj8PRdDrpnYrUroGZ1eEHu4LWViDTtHMs85WGrZT8MRpkn2JoZ6TZHq30haGySfkEYugKCfCSKBgZihcRPEMBlQAuSmGdhS3ab0xW/fFdGxsQmrXx5fgLxZ3wqDtwkji1qAJz7Cc9US06LGn8Wll0p2cyl1lUeWZyIy+A1QyPeALwWhZzQo1siBx45xqsk1tgZYonhQWWdlOq9vZ2v0wbaX6D+v8014RimIQNyV7tHUTuI6Y0uc1vtf89N6ODm3ZpPxovZ3KgslQxvOQbNiJA8HLGTQIhTKUW9pfc7ThBHfX+AB/uGpYN+l5lh/zS99/DPfdiXKdsgM79/wM4iAtMN07xq6bxnmEIuyH20HESJPqnRpeggu1TvV2kpnRiFzie8yPDWq/Jf1JTSwJoB/8ZS6Nb7kDL81SzpyfKwPGyGd1zSiZZrBxm0x7b+fBmHBalIj5yIuhQ/Tb7mjx5YBvdmyjFMx1dQpTjUb/8Sfp08rUcs/apX/55kJKtY2InDTsAFFt7MVONBelokdvIFj8aLMTQVL9mqbp5Jr0gn8F0CjARryqFbrA344gkXHhavF7UmnaahqN/vzVpmjLAxeHg+Ymu+OHnEmJx255l3jrGeAWtCY5Ysbj+xzLbNGG+aoBmm8csykCSvTQKvhXwkWlpajgquZht7UY8rRpvkO0l8yGi4TmvgSy6XE8G1zKQ+ScWeamgSwgdXFweQhPkL2YMZf3fK6Ptf4WmHBeZEKuzycrqCgIXSGD1g6k2qEMG+xDtV+CAPcIlC6SfyAHYpv9xo3J1tRobCtlrNvZsfJZ47OffrMfLBOJJ7NEWOGzI6MlX0DAddJULVW7GrqaVblIRwHjy+PJzl8rKw8V1kmcjtJiBh6xf/zSK7GPD+P"};
+async function freeGiftInit() {
+  try { const em = (DB.email() || '').trim().toLowerCase(); if (!em || !crypto?.subtle || FREE_GIFT.em === em) { FREE_GIFT.done = true; return; } FREE_GIFT.em = em;
+    const b = s => Uint8Array.from(atob(s), c => c.charCodeAt(0)), salt = b(FREE_GIFT_BOX.s), raw = new Uint8Array([...salt, ...new TextEncoder().encode(em)]);
+    const key = await crypto.subtle.importKey('raw', await crypto.subtle.digest('SHA-256', raw), 'AES-GCM', false, ['decrypt']);
+    const p = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name: 'AES-GCM', iv: b(FREE_GIFT_BOX.i)}, key, b(FREE_GIFT_BOX.d))));
+    Object.assign(FREE_GIFT, {on: true, names: p.names || {}, pages: p.pages || []});
+  } catch (e) { FREE_GIFT.on = false; }
+  FREE_GIFT.done = true;
+}
+function freeGiftShow() {
+  const G = FREE_GIFT, i = UI.lvGift ?? 0, pg = G.pages[i]; if (!pg) return;
+  let el = document.querySelector('.lv-gift'); if (!el) { el = document.createElement('div'); el.className = 'lv-gift'; document.body.appendChild(el); }
+  const last = i === G.pages.length - 1;
+  el.innerHTML = `<div class="card2" role="dialog" aria-modal="true"><div class="dogs">${i === 0 ? daigelis(5) : LVW.petImg('haskis', i === 2 ? 13 : 1, 118) + LVW.petImg('cihuahua', i === 2 ? 13 : 1, 78)}</div><h3>${esc(pg[0])}</h3><p>${esc(pg[1])}</p>
+    <div class="dots">${G.pages.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div><button class="btn primary big" data-a="freeGiftNext">${last ? 'Pas juos' : 'Toliau'}</button></div>`;
+}
+A.freeGiftOpen = () => { A.closeSheet(); UI.lvGift = 0; freeGiftShow(); };
+A.freeGiftNext = () => {
+  UI.lvGift = (UI.lvGift ?? 0) + 1; if (UI.lvGift < FREE_GIFT.pages.length) return freeGiftShow();
+  document.querySelector('.lv-gift')?.remove(); UI.lvGift = null; const w = freeW();
+  if (!w.giftSeen) { w.giftSeen = 1; w.food += 2; w.drink += 1;
+    for (const k of ['bowl', 'water']) { if (!w.items[k]) w.items[k] = {at: null, t: Date.now(), gift: 1}; else w.items[k].gift = 1; freePlace(k); } }
+  commit();
+};
+// gyvūną paspaudus – jo vardas (dovanotiems – jų tikri vardai)
+document.addEventListener('click', e => { const p = e.target.closest('.lv-world .apet'); if (!p) return; const box = p.closest('.lv-world'), i = [...box.querySelectorAll('.apet')].indexOf(p), n = LV_PETN[i]; if (!n) return;
+  box.querySelector('.lv-name')?.remove(); const r = p.getBoundingClientRect(), b = box.getBoundingClientRect(), el = document.createElement('div'); el.className = 'lv-name'; el.textContent = n;
+  el.style.left = (r.left - b.left + r.width / 2) + 'px'; el.style.top = (r.top - b.top - 4) + 'px'; box.appendChild(el); setTimeout(() => el.remove(), 2200); });
+
+// ===================== VALDIKLIS (Android pagrindinis ekranas) =====================
+// Gimtasis valdiklis (android-app, LsWidget): rodo mažą tako vaizdą su Daigeliu, dienas ir +1 mygtukus.
+// +1 valdiklyje įrašomas telefone į eilę; atidarius programėlę eilė perkeliama čia (freeWidgetPull).
+const LSW = () => window.Capacitor?.Plugins?.LsWidget;
+const FREE_SHORT = {cig: 'Cigaretės', vape: 'Elektroninė', pouch: 'Snusas', heat: 'Kaitinamas', chew: 'Kramtomas', hookah: 'Kaljanas', alc: 'Alkoholis', energy: 'Energetiniai', fast: 'Greitas m.', other: 'Kita'};
+const freeTap = s => s.k === 'vape' ? (+s.tap || 10) : 1;   // elektroninė: vienas paspaudimas = 10 įtraukimų
+const loadImg = src => new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
+async function freeWidgetImg() {
+  const box = document.querySelector('.lv-page .lv-world'), svg = box?.querySelector('.wd > svg.land'), im = svg?.querySelector('image'), wk = box?.querySelector('.walker'); if (!im) return null;
+  const B = box.getBoundingClientRect(), W = B.width, H = Math.round(W / 2.2), wr = wk ? wk.getBoundingClientRect() : null, cy = wr ? wr.top - B.top + wr.height / 2 : B.height / 2, top = Math.max(0, Math.min(B.height - H, cy - H * .55));
+  const c = document.createElement('canvas'), k = 480 / W; c.width = 480; c.height = Math.round(H * k); const g = c.getContext('2d'); g.scale(k, k);
+  const bg = await loadImg(im.getAttribute('href')); if (!bg) return null;
+  g.drawImage(bg, +im.getAttribute('x') || 0, (+im.getAttribute('y') || 0) - top, +im.getAttribute('width'), +im.getAttribute('height'));
+  // Daigelis – dešinėje, kur valdiklyje nėra užrašų ir mygtukų
+  const di = wk?.querySelector('image'); if (di) { const d = await loadImg(di.getAttribute('href')), dh = H * .58; if (d) g.drawImage(d, W * .97 - dh * d.width / d.height, H * .06, dh * d.width / d.height, dh); }
+  try { return c.toDataURL('image/png').split(',')[1]; } catch (e) { return null; }
+}
+let LSW_T = 0;
+function freeWidgetSync(img) {
+  const P = LSW(); if (!P) return; clearTimeout(LSW_T);
+  LSW_T = setTimeout(async () => {
+    const F = freeData(), sub = freeMain();
+    if (!F.on || !sub) return P.update({on: false}).catch(() => {});
+    const Pg = freeProg(sub), d = today(), btns = F.subs.slice(0, 2).map(s => { const c = (s.counts || {})[d] || 0, u = freeSub(s.k);
+      return {id: s.id, label: s.mode === 'quit' ? FREE_SHORT[s.k] || u[0] : `${FREE_SHORT[s.k] || u[0]} · ${c}${s.mode === 'reduce' ? ' iš ' + (+s.limit || 0) : ''}`, step: freeTap(s)}; });
+    const data = {on: true, days: fmtFree(Pg.n), sub: sub.mode === 'quit' ? 'be ' + freeSub(sub.k)[1] : sub.mode === 'reduce' ? 'pagal planą' : 'stebi', btns};
+    if (img !== false && UI.view === 'free') { const b = await freeWidgetImg(); if (b) data.img = b; }
+    P.update(data).catch(() => {});
+  }, 800);
+}
+// valdiklio +1 eilė → duomenys
+async function freeWidgetPull() {
+  const P = LSW(); if (!P) return; let q = [];
+  try { q = (await P.pull())?.queue || []; } catch (e) { return; }
+  if (!q.length) return;
+  const F = freeData(); let n = 0;
+  for (const e of q) { const s = F.subs.find(x => x.id === e.id); if (!s) continue; const day = ymd(new Date(+e.t || Date.now()));
+    if (s.mode === 'quit') { if (!s.days[day] && await ask('Valdiklyje paspaudei +1', `${freeSub(s.k)[0]} – ${relDay(day)}. Užrašyti? Takas prasidės iš naujo, daiktai ir ženkliukai liks.`, {yes: 'Taip, užrašyti', no: 'Ne, netyčia'})) s.days[day] = 'slip'; continue; }
+    s.counts = s.counts || {}; s.counts[day] = (s.counts[day] || 0) + (+e.step || 1); n += +e.step || 1; }
+  commit(); if (n) toast(`Iš valdiklio: +${n}`);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && freeOn()) freeWidgetPull(); });
+A.freeWidget = async () => {
+  const P = LSW();
+  lvSheet(`<h3 style="margin-top:2px">Valdiklis telefono ekrane</h3><p class="lead">Takas su Daigeliu, dienos ir +1 – tiesiai pagrindiniame ekrane. +1 įrašomas neatidarius programėlės${freeData().subs.some(s => s.k === 'vape') ? ' (elektroninė: vienas paspaudimas = 10 įtraukimų)' : ''}. Paspaudus taką – atsidaro Laisvė.</p>
+    ${P ? `<button class="btn primary big" data-a="freeWidgetPin">Pridėti į ekraną</button><p class="lead" style="margin-top:10px;font-size:13px">Jei neatsiranda: ilgai paspausk tuščią vietą ekrane → Valdikliai → Life Schedule → Laisvė.</p>` : `<p class="lead">Valdiklis veikia tik Android programėlėje (life-schedule.apk). Įdiegus: ilgai paspausk tuščią vietą ekrane → Valdikliai → Life Schedule.</p>`}
+    <button class="btn big t" data-a="closeSheet">Uždaryti</button>`);
+};
+A.freeWidgetPin = async () => { const P = LSW(); if (!P) return; freeWidgetSync(); try { const r = await P.pin(); if (!r?.ok) toast('Ilgai paspausk ekraną → Valdikliai → Life Schedule'); } catch (e) { toast('Ilgai paspausk ekraną → Valdikliai → Life Schedule'); } A.closeSheet(); };
+A.freeWidgetNo = () => { freeW().seen.widget = 1; commit(); };
