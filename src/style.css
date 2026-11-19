@@ -1088,6 +1088,7 @@ body::before { content:''; position:fixed; top:0; left:0; right:0; height:max(en
 .lv-page { margin:0; } .lv-world { border-radius:30px; overflow:hidden; }
 .lv-world .wd .sheetcut { background:var(--bg); }
 .lv-hud { position:relative; }
+.lvw .say2.dn::after { bottom:auto; top:-6px; }
 .lv-hud .lv-t { font:900 22px Nunito; } .lv-ib { position:absolute; right:0; top:-4px; width:38px; height:38px; border:0; border-radius:50%; background:rgba(255,255,255,.6); color:#2b1a10; display:grid; place-items:center; cursor:pointer; pointer-events:auto; }
 .lv-big { display:flex; align-items:flex-end; gap:10px; margin-top:14px; } .lv-big .n { font:900 58px Nunito; line-height:.9; } .lv-big .u { font:900 16px/1.15 Nunito; padding-bottom:4px; } .lv-big .u small { display:block; font:800 13px Nunito; opacity:.7; }
 .lv-lvl { display:flex; align-items:center; gap:8px; margin-top:10px; max-width:220px; } .lv-lvl b { font:900 12.5px Nunito; white-space:nowrap; background:#2b1a10; color:#ffd9b8; border-radius:99px; padding:3px 9px; }

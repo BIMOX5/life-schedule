@@ -6,6 +6,7 @@ const FREE_SUBS = {
   cig: ['Cigaretės', 'cigarečių', 'cig', 'cigaretės'], vape: ['Elektroninė cigaretė', 'elektroninės', 'vape', 'įtraukimai'], pouch: ['Snusas, maišeliai', 'snuso', 'pouch', 'maišeliai'],
   heat: ['Kaitinamas tabakas', 'kaitinamo tabako', 'heat', 'lazdelės'], chew: ['Kramtomas tabakas', 'kramtomo tabako', 'pouch', 'porcijos'], hookah: ['Kaljanas', 'kaljano', 'wind', 'kartai'],
   alc: ['Alkoholis', 'alkoholio', 'glass', 'vnt.'], energy: ['Energetiniai', 'energetinių', 'can', 'skardinės'], fast: ['Greitas maistas', 'greito maisto', 'burger', 'kartai'], other: ['Kita', 'to, ką keiti', 'star', 'kartai']};
+const freeSub = k => FREE_SUBS[k] || FREE_SUBS.other;
 const FREE_MODES = {quit: 'Mesti', reduce: 'Mažinti', track: 'Stebėti'};
 // kraštai pagal dienas (Stebėti – pagal mėnesius); ženkliukai – maketo MS eilė
 const FREE_LANDS = [0, 14, 60, 180, 365, 730, 1825, Infinity];
@@ -96,6 +97,15 @@ function freeUnstack(box) {
     pins.forEach((p, k) => { if (busy.some(q => hit(p, q)) || pins.slice(0, k).some(q => hit(p, q))) { p.dataset.wt = Math.min(.97, +p.dataset.wt + .02); moved = true; } });
     if (!moved) break; LVW.placeWorld(box);
   }
+  // burbulas neužlipa ant viršutinio užrašo (dienos, lygis): kita pusė, o jei vis tiek – po Daigeliu
+  const say = box.querySelector('.say2'), hud = [...box.querySelectorAll('.lv-big, .lv-lvl, .lv-t, .lv-ib')], w = box.querySelector('.walker');
+  if (say) say.classList.remove('dn');
+  if (!say || !hud.some(h => hit(say, h))) return;
+  const was = say.classList.contains('l'); say.classList.toggle('l', !was); say.classList.toggle('r', was); LVW.placeWorld(box);
+  if (!hud.some(h => hit(say, h)) || !w) return;
+  const b = box.getBoundingClientRect(), r = w.getBoundingClientRect(), wd = say.offsetParent || box, o = wd.getBoundingClientRect();
+  say.classList.add('dn'); say.style.top = (r.bottom - o.top + 4) + 'px';
+  say.style.left = Math.max(8, Math.min(b.width - say.offsetWidth - 8, r.left - o.left + r.width / 2 - say.offsetWidth / 2)) + 'px';
 }
 
 // dienos žymėjimas: šiandien ir (jei nepažymėta) vakar
@@ -104,7 +114,7 @@ function freeChecks() {
   const ask = (day, label) => {
     for (const mode of ['quit', 'reduce']) {
       const subs = F.subs.filter(s => s.start <= day && !s.days[day] && s.mode === mode); if (!subs.length) continue;
-      const names = subs.map(s => FREE_SUBS[s.k][1]), list = names.length > 1 ? names.slice(0, -1).join(', ') + ' ir ' + names.at(-1) : names[0];
+      const names = subs.map(s => freeSub(s.k)[1]), list = names.length > 1 ? names.slice(0, -1).join(', ') + ' ir ' + names.at(-1) : names[0];
       const q = mode === 'reduce' ? `${label} ${list} – pagal planą?` : `${label} be ${list}?`;
       out.push(`<div class="lv-chk"><span class="tx"><b>${q}</b>${day === y ? '<small>Vakar dar galima pažymėti</small>' : ''}</span><button class="btn sm ghost" data-a="freeMark" data-d="${day}" data-m="${mode}" data-v="slip">${mode === 'reduce' ? 'Viršijau' : 'Nepavyko'}</button><button class="btn sm primary" data-a="freeMark" data-d="${day}" data-m="${mode}" data-v="ok">Taip</button></div>`);
     }
@@ -116,7 +126,7 @@ function freeChecks() {
 // eilutės: kiekviena priklausomybė su +1 (atšaukimas toje pačioje eilutėje)
 function freeRows() {
   const F = freeData(), d = today();
-  return `<div class="lv-rows">${F.subs.map(s => { const [n, , icn, unit] = FREE_SUBS[s.k], P = freeProg(s), c = (s.counts || {})[d] || 0, und = UI.lvUndo?.id === s.id;
+  return `<div class="lv-rows">${F.subs.map(s => { const [n, , icn, unit] = freeSub(s.k), P = freeProg(s), c = (s.counts || {})[d] || 0, und = UI.lvUndo?.id === s.id;
     const main = s.mode === 'quit' ? `${fmtFree(P.n)} be` : s.mode === 'reduce' ? `${c} iš ${+s.limit || 0}` : `${c} šiandien`;
     const sub2 = und ? `Įrašyta <a data-a="freeUndo">Atšaukti</a>` : s.mode === 'quit' ? FREE_MODES.quit : s.mode === 'reduce' ? `${unit} šiandien · ${fmtFree(P.n)} pagal planą` : `${unit} · ${fmtFree(P.n)} stebi`;
     const ln = s.mode === 'reduce' && +s.limit ? `<div class="ln"><i style="width:${Math.min(100, c / s.limit * 100)}%"></i></div>` : '';
@@ -167,4 +177,4 @@ A.freeObDone = () => {
 document.addEventListener('input', e => { const c = e.target.dataset?.c, O = UI.lvOb; if (!c || !c.startsWith('freeOb') || !O) return; const k = e.target.dataset.k, v = e.target.value;
   if (c === 'freeObWhy') O.why = v; else { const f = {freeObLim: 'lim', freeObAmt: 'amt', freeObPrice: 'price'}[c]; O[f] = {...O[f], [k]: v}; } });
 // Daigelį paspaudus – kitas sakinys
-document.addEventListener('click', e => { const w = e.target.closest('.lv-world .walker'); if (!w) return; const s = document.querySelector('.lv-world .say2'); if (s) { s.textContent = freeLine(true); s.classList.remove('l', 'r'); s.classList.add('l'); LVW.placeWorld(w.closest('.lv-world')); storeLocal(); } });
+document.addEventListener('click', e => { const w = e.target.closest('.lv-world .walker'); if (!w) return; const s = document.querySelector('.lv-world .say2'); if (s) { s.textContent = freeLine(true); s.classList.remove('l', 'r', 'dn'); s.classList.add('l'); const bx = w.closest('.lv-world'); LVW.placeWorld(bx); freeUnstack(bx); storeLocal(); } });

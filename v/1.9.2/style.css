@@ -870,6 +870,11 @@ input.bignum { font-size:26px; font-weight:900; text-align:center; }
 .st-row.col { flex-direction:column; align-items:stretch; cursor:default; } .st-row.col > span small { display:block; text-align:left; }
 .st-row.sw .switch { margin:0; padding:0; background:none; box-shadow:none; }
 .st-chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.st-slots { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:8px; }
+.st-slots span { display:flex; align-items:center; gap:6px; min-width:0; background:var(--card2); border-radius:14px; padding:8px 10px; font-weight:800; font-size:13px; }
+.st-slots span.on { box-shadow:inset 0 0 0 2px var(--br); } .st-slots em { font-style:normal; color:var(--mu); font-size:12.5px; line-height:1.2; min-width:0; } .st-slots em small { display:block; font-size:11.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.st-slots i, .st-chips button i { flex:none; width:18px; height:18px; border-radius:50%; display:inline-grid; place-items:center; font:900 11px Nunito; font-style:normal; background:var(--br); color:var(--on-br); }
+.st-chips button i { background:var(--on-br); color:var(--br); margin-right:6px; vertical-align:-3px; }
 .st-chips button { border:0; background:var(--card2); color:var(--text); border-radius:99px; padding:7px 12px; font-weight:800; font-size:13px; cursor:pointer; } .st-chips button.on { background:var(--br); color:var(--on-br); }
 .st-pal { display:flex; gap:10px; flex-wrap:wrap; } .st-pal button { width:36px; height:36px; border-radius:50%; border:3px solid transparent; cursor:pointer; } .st-pal button.on { border-color:var(--text); }
 .st-dev { margin-top:8px; } .modec { border:2px solid transparent; border-radius:20px; } .modec.on { border-color:var(--br); background:var(--tint); }
@@ -1058,3 +1063,51 @@ input.bignum { font-size:26px; font-weight:900; text-align:center; }
 .sp-next.c { text-align:center; } .sp5-appic { width:72px; height:72px; border-radius:20px; display:block; margin:6px auto 8px; }
 a.btn.sp-go { display:flex; text-decoration:none; } .hint.c { text-align:center; }
 .sp-mins label { position:relative; }
+
+/* patraukti žemyn – perkrauti (Android programėlėje) */
+#ptr { position:fixed; top:calc(-48px + max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px))); left:50%; margin-left:-22px; width:44px; height:44px; border-radius:50%; background:var(--card); box-shadow:0 4px 16px rgba(0,0,0,.25); display:grid; place-items:center; opacity:0; z-index:90; pointer-events:none; transition:opacity .15s; }
+#ptr .dg { width:34px; height:34px; } #ptr.go { background:var(--tint); box-shadow:0 0 0 2px var(--br), 0 4px 16px rgba(0,0,0,.25); } #ptr.spin { animation:ptrspin .6s linear infinite; }
+@keyframes ptrspin { to { transform:translateY(84px) rotate(360deg); } }
+
+/* Android programėlė: po telefono būsenos juosta – vientisas fonas, kad slenkamas turinys nelįstų po laikrodžiu ir baterija */
+body::before { content:''; position:fixed; top:0; left:0; right:0; height:max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px)); background:var(--bg); z-index:95; pointer-events:none; }
+
+/* tarpai tarp kortelių telefone: dviejų stulpelių išdėstymas virsta vienu – antro stulpelio pirma kortelė neturi prilipti */
+@media (max-width:899px) { .sp-cols > div + div > *:first-child, .mf-cols > div + div > *:first-child { margin-top:12px; } }
+.banner { margin-top:12px; }
+.td-hero { margin-bottom:12px; }
+.sp-rhead { gap:10px; margin-bottom:10px; } .sp-rhead b { flex:1; } .sp-rhead .gps { position:static; display:flex; align-items:center; gap:6px; background:var(--card); border-radius:99px; padding:5px 10px; font-weight:900; font-size:12px; } .sp-rhead .gps i { width:8px; height:8px; border-radius:50%; background:var(--br); }
+/* veiklos juosta per visą plotį (design/sportas-v4/v5 „Treniruotė vyksta“) */
+.sp-pill.actbar { width:100%; border:0; font:900 13.5px Nunito, sans-serif; text-align:left; margin:0 0 12px; }
+.sp-pill.actbar span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .sp-pill.actbar b { font-variant-numeric:tabular-nums; }
+/* antraštė telefone: jei dešinėje netelpa (pvz. laiko laikmatis), dešinė dalis nukeliama žemiau, o ne suspaudžia datą */
+@media (max-width:700px) { header { flex-wrap:wrap; row-gap:6px; } header .hd { flex:1 1 55%; } header .hd small { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; } header .tr { margin-left:auto; } }
+.banner .bn-t { flex:1; min-width:0; } .banner .bn-t b { display:block; font-weight:900; } .banner .bn-t small { display:block; color:var(--muted); font-weight:700; font-size:13px; }
+
+/* ===== Laisvė ===== */
+.lv-page { margin:0; } .lv-world { border-radius:30px; overflow:hidden; }
+.lv-world .wd .sheetcut { background:var(--bg); }
+.lv-hud { position:relative; }
+.lvw .say2.dn::after { bottom:auto; top:-6px; }
+.lv-hud .lv-t { font:900 22px Nunito; } .lv-ib { position:absolute; right:0; top:-4px; width:38px; height:38px; border:0; border-radius:50%; background:rgba(255,255,255,.6); color:#2b1a10; display:grid; place-items:center; cursor:pointer; pointer-events:auto; }
+.lv-big { display:flex; align-items:flex-end; gap:10px; margin-top:14px; } .lv-big .n { font:900 58px Nunito; line-height:.9; } .lv-big .u { font:900 16px/1.15 Nunito; padding-bottom:4px; } .lv-big .u small { display:block; font:800 13px Nunito; opacity:.7; }
+.lv-lvl { display:flex; align-items:center; gap:8px; margin-top:10px; max-width:220px; } .lv-lvl b { font:900 12.5px Nunito; white-space:nowrap; background:#2b1a10; color:#ffd9b8; border-radius:99px; padding:3px 9px; }
+.lv-lvl span { flex:1; height:8px; border-radius:8px; background:rgba(43,26,16,.18); overflow:hidden; } .lv-lvl span i { display:block; height:100%; background:linear-gradient(90deg, #ff8040, #ffc14a); } .lv-lvl small { font:800 11.5px Nunito; opacity:.7; white-space:nowrap; }
+.lvw .wd .hud { pointer-events:none; } .lvw .wd .walker { cursor:pointer; }
+.lv-sheet { display:flex; flex-direction:column; gap:10px; margin-top:-6px; }
+.lv-chk { display:flex; align-items:center; gap:8px; background:var(--card); border-radius:22px; padding:12px 14px; box-shadow:var(--shadow); }
+.lv-chk .tx { flex:1; min-width:0; } .lv-chk b { display:block; font-weight:900; font-size:15px; } .lv-chk small { color:var(--mu); font-weight:700; font-size:12px; } .lv-chk.done { color:var(--br); } .lv-chk.done b { color:var(--text); }
+.lv-rows { background:var(--card); border-radius:22px; padding:4px 14px; box-shadow:var(--shadow); }
+.lv-row { display:flex; align-items:center; gap:12px; padding:10px 0; } .lv-row + .lv-row { border-top:1px solid var(--line); }
+.lv-row .ic { width:40px; height:40px; border-radius:14px; background:var(--card2); color:var(--br); display:grid; place-items:center; flex:none; }
+.lv-row .tx { flex:1; min-width:0; } .lv-row b { display:block; font:900 16px Nunito; } .lv-row small { color:var(--mu); font-weight:700; font-size:12.5px; } .lv-row small a { color:var(--br); font-weight:900; margin-left:6px; cursor:pointer; }
+.lv-row .ln { height:6px; border-radius:6px; background:var(--card2); margin-top:6px; overflow:hidden; } .lv-row .ln i { display:block; height:100%; background:var(--br); }
+.lv-p1 { width:48px; height:48px; border-radius:50%; border:0; background:var(--br); color:var(--on-br); font:900 16px Nunito; cursor:pointer; flex:none; display:grid; place-items:center; } .lv-p1.u { background:var(--tint); color:var(--br); }
+.lv-ob { display:flex; flex-direction:column; gap:14px; padding:8px 4px 20px; max-width:560px; }
+.lv-ob-h { display:flex; align-items:center; gap:12px; } .lv-ob-h svg { width:64px; height:64px; flex:none; } .lv-ob-h b { display:block; font:900 24px Nunito; } .lv-ob-h small { color:var(--mu); font-weight:800; }
+.lv-lead { margin:0; color:var(--mu); font-weight:700; font-size:15px; line-height:1.45; }
+.lv-ob-s { background:var(--card); border-radius:22px; padding:12px 14px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:8px; } .lv-ob-s > b { font:900 17px Nunito; } .lv-ob-s small { color:var(--mu); font-weight:700; }
+.lv-in { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-weight:800; } .lv-in input { width:80px; }
+.lv-two { display:grid; grid-template-columns:1fr 1fr; gap:8px; } .lv-two label { display:flex; flex-direction:column; gap:4px; font-weight:800; font-size:12.5px; color:var(--mu); }
+.lv-ob textarea { width:100%; }
+.lv-wait { display:grid; place-items:center; height:300px; } .lv-wait svg { width:70px; animation:dgHop 1.2s ease-in-out infinite; }

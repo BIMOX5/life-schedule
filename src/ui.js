@@ -1572,7 +1572,7 @@ A.delFood = d => { S.foods = S.foods.filter(f => f.id !== d.id); commit(); };
 
 // ================= SPORTAS =================
 // ================= SPORTAS (1.8 – „programa programoje“, design/sportas-v4.html) =================
-const EQ_LT = {'body only': 'be įrangos', dumbbell: 'hanteliai', barbell: 'štanga', kettlebells: 'svarstis', bands: 'gumos', cable: 'lynų treniruoklis', machine: 'treniruoklis', 'medicine ball': 'medicininis kamuolys', 'exercise ball': 'gimnastikos kamuolys', 'foam roll': 'masažo volas', 'e-z curl bar': 'EZ grifas', other: 'kita'};
+const EQ_LT = {'body only': 'be įrangos', dumbbell: 'hanteliai', barbell: 'štanga', kettlebells: 'svarstis', bands: 'gumos', cable: 'lynų treniruoklis', machine: 'treniruoklis', 'medicine ball': 'medicininis kamuolys', 'exercise ball': 'gimnastikos kamuolys', 'foam roll': 'masažo volas', 'e-z curl bar': 'EZ grifas', bar: 'skersinis', bench: 'suoliukas', other: 'kita'};
 const LVL_LT = ['', 'pradedančiajam', 'vidutinis lygis', 'pažengusiems'];
 const G_SHORT = {kru: 'Krūtinė', nug: 'Nugara', pec: 'Pečiai', tra: 'Trapecija', kak: 'Kaklas', bic: 'Bicepsas', tri: 'Tricepsas', dil: 'Dilbiai', pre: 'Pilvas', son: 'Įstrižiniai', apn: 'Nugaros apačia', sed: 'Sėdmenys', ket: 'Keturgalvis', uzp: 'Užpakalinė šlaunis', pri: 'Šlaunies vidus', bla: 'Blauzdos', kar: 'Kardio'};
 const G_SLUG = {kru: ['chest'], nug: ['upper-back'], pec: ['deltoids'], tra: ['trapezius'], kak: ['neck'], bic: ['biceps'], tri: ['triceps'], dil: ['forearm'], pre: ['abs'], son: ['obliques'], apn: ['lower-back'], sed: ['gluteal'], ket: ['quadriceps'], uzp: ['hamstring'], pri: ['adductors'], bla: ['calves', 'tibialis']};
@@ -1885,7 +1885,8 @@ A.spSwapSheet = d => {
 };
 A.spSwapMore = d => { UI.swapMore = +d.i; A.spSwapSheet(d); };
 A.spSwapPick = d => { const e = exercise(d.id); UI.draft.exercises[+d.i] = {id: e.id, sets: targetSets(e), kg: targetKg(e)}; A.closeSheet(); render(); };
-A.spAddEx = () => { UI.exPickFor = 'draft'; spGo('lib', {back: 'draft'}); };
+const libPlace = (p = sportSet().place) => ['home', 'gym'].includes(p) ? p : '';
+A.spAddEx = () => { UI.exPickFor = 'draft'; UI.lib = {q: '', g: '', place: libPlace(UI.draft?.place), n: 40}; spGo('lib', {back: 'draft'}); };
 A.spDraftStart = async () => {
   const D = UI.draft; if (!D || !D.exercises.length) return toast('Pridėk bent vieną pratimą');
   if (S.active && !await ask('Pradėti naują treniruotę?', 'Jau vyksta kita treniruotė – ji bus nutraukta.', {yes: 'Pradėti naują'})) return;
@@ -2204,7 +2205,7 @@ A.spLogSheet = (d = {}) => {
 };
 A.spLogF = d => { UI.logF[d.k] = d.v; A.spLogSheet(); };
 A.spLogMore = () => { spSheet(`<h3>Kas?</h3>${SPORTS.map(([c, , l]) => `<div class="sp-grp">${c}</div><div class="sp-chips">${l.map(s => `<button data-a="spLogF" data-k="type" data-v="${s[0]}">${s[1]}</button>`).join('')}</div>`).join('')}`, 'tall'); };
-A.spLogAddEx = () => { UI.exPickFor = 'log'; A.closeSheet(); spGo('lib', {back: 'home'}); };
+A.spLogAddEx = () => { UI.exPickFor = 'log'; UI.lib = {q: '', g: '', place: libPlace(), n: 40}; A.closeSheet(); spGo('lib', {back: 'home'}); };
 A.spLogDel = d => { UI.logF.ex.splice(+d.i, 1); A.spLogSheet(); };
 A.spLogSave = () => {
   const o = UI.logF, f = $('#spLogForm'); if (f) { o.date = f.date.value; o.start = f.start.value; o.min = +f.min.value || o.min; if (f.km) o.km = f.km.value; }
@@ -2330,7 +2331,7 @@ A.spSetPick = async d => {
   spSheet(`<h3>${d.k === 'place' ? 'Kur dažniausiai sportuoji?' : 'Tavo lygis'}</h3>${o.map(([v, l]) => `<button class="sp-opt ${String(sportSet()[d.k]) === String(v) ? 'on' : ''}" data-a="spSetVal" data-k="${d.k}" data-v="${v}"><span><b>${l}</b></span></button>`).join('')}`);
 };
 A.spSetVal = d => { S.sportSet = {...sportSet(), [d.k]: isNaN(+d.v) ? d.v : +d.v}; A.closeSheet(); commit(); };
-A.spSetEq = () => { const cur = sportSet().homeEq || []; spSheet(`<h3>Įranga namie</h3><div class="sp-chips">${['dumbbell', 'bands', 'kettlebells', 'exercise ball', 'medicine ball', 'foam roll', 'barbell'].map(k => `<button class="${cur.includes(k) ? 'on' : ''}" data-a="spEqT" data-k="${k}">${cap(EQ_LT[k])}</button>`).join('')}</div>`); };
+A.spSetEq = () => { const cur = sportSet().homeEq || []; spSheet(`<h3>Įranga namie</h3><div class="sp-chips">${['dumbbell', 'bands', 'kettlebells', 'bar', 'bench', 'exercise ball', 'medicine ball', 'foam roll', 'barbell'].map(k => `<button class="${cur.includes(k) ? 'on' : ''}" data-a="spEqT" data-k="${k}">${cap(EQ_LT[k])}</button>`).join('')}</div>`); };
 A.spEqT = d => { const cur = sportSet().homeEq || []; S.sportSet = {...sportSet(), homeEq: cur.includes(d.k) ? cur.filter(x => x !== d.k) : [...cur, d.k]}; commit({noRender: true}); render(); A.spSetEq(); };
 A.spSetNum = async d => { const isRest = d.k === 'rest', cur = isRest ? sportSet().rest || 90 : S.profile[d.k];
   const v = await askText({workoutsPerWeek: 'Treniruočių per savaitę', workoutMin: 'Treniruotės trukmė (min)', showerMin: 'Dušas ir susitvarkymas (min)', travelMin: 'Kelionė į sportą (min)', rest: 'Poilsis tarp serijų (s)'}[d.k], '', String(cur ?? ''));

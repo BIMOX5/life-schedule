@@ -2,6 +2,11 @@
   "stable": "1.8.5",
   "versions": [
     {
+      "v": "1.9.2",
+      "date": "2026-11-19",
+      "notes": "Sportas: namie nebesiūlo pratimų su skersiniu, suolu ar lynais; galima pažymėti, kad namie turi skersinį ar suoliuką. Pagrindinis ekranas: žinutė pirmiau atsižvelgia į savijautą, ėjimai nebeskaičiuojami kaip treniruotės. Laisvė: Daigelio burbulas neužlipa ant dienų skaičiaus."
+    },
+    {
       "v": "1.9.1",
       "date": "2026-11-18",
       "notes": "Smulkūs pataisymai"
@@ -35,11 +40,6 @@
       "v": "1.8.2",
       "date": "2026-11-13",
       "notes": "Telefono mygtukas Atgal grąžina programos viduje, patraukus žemyn – perkrovimas, viršutinė juosta nebelenda ant turinio"
-    },
-    {
-      "v": "1.8.1",
-      "date": "2026-11-13",
-      "notes": "Sportas: žingsniai ir ėjimas pirmame plane, dideli mygtukai pradėti, telefono ir laikrodžio prijungimas; telefono mygtukas Atgal veikia programos viduje"
     }
   ]
 }
