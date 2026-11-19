@@ -2,6 +2,11 @@
   "stable": "1.8.5",
   "versions": [
     {
+      "v": "1.10.2",
+      "date": "2026-11-20",
+      "notes": "Laisvė: labradoras vaikšto tikrais žingsniais; dovanos šunų dubenėlis pilnas pirmą savaitę, paskui tuštėja kaip visų; šunys pasirodo tik po dovanos turo. Mityba: dvigubas Valgau nebeįrašo dviejų valgių."
+    },
+    {
       "v": "1.10.1",
       "date": "2026-11-19",
       "notes": "Laikmačio mygtukas viršuje vėl smulkus, vienos eilutės; ilgas pavadinimas sutrumpinamas."
@@ -35,11 +40,6 @@
       "v": "1.8.5",
       "date": "2026-11-14",
       "notes": "Telefono žingsniai rodomi teisingai dienai, maistas nebeįsirašo kelis kartus"
-    },
-    {
-      "v": "1.8.4",
-      "date": "2026-11-13",
-      "notes": "Juosta „Ėjimas vyksta“ – per visą plotį po antrašte visuose skirtukuose; antraštė nebesuspaudžiama"
     }
   ]
 }

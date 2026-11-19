@@ -222,7 +222,9 @@ const freeGoodTotal = () => Math.max(0, ...freeData().subs.map(s => Object.keys(
 const freeMarkedToday = () => freeData().subs.some(s => freeGood(s, today()));
 
 // ---- dubenėliai ir medžiai laike ----
-function bowlLv(it, k) { if (it.gift) return 1; const days = Math.floor((Date.now() - (it.t || 0)) / DAY_MS); return k === 'water' ? (days >= 7 ? -1 : 1) : days >= 4 ? -1 : Math.max(0, 1 - days / 3); }
+// dovanos dubenėliai pirmą savaitę neištuštėja, paskui – kaip visi
+const giftFull = it => it.gift && Date.now() - (freeW().giftAt || 0) < 7 * DAY_MS;
+function bowlLv(it, k) { if (giftFull(it)) return 1; const days = Math.floor((Date.now() - Math.max(it.t || 0, it.gift ? (freeW().giftAt || 0) + 7 * DAY_MS : 0)) / DAY_MS); return k === 'water' ? (days >= 7 ? -1 : 1) : days >= 4 ? -1 : Math.max(0, 1 - days / 3); }
 function treeSt(it) {
   const sub = freeMain(); if (!sub) return 4; const d = today(), y = addDays(d, -1);
   const wilt = sub.days[d] === 'slip' || sub.days[d] === 'over' || (!freeGood(sub, d) && !freeGood(sub, y) && sub.start < y);
@@ -242,7 +244,7 @@ function freeHere(id) {
   for (const [k, it] of Object.entries(w.items)) { if (it.at !== id) continue;
     if (isPet(k)) { pets.push([k, it.x, it.y]); names.push(itemName(k)); }
     else things.push([k, it.x, it.y, LVW.CAT[k]?.stages ? treeSt(it) : undefined]); }
-  if (FREE_GIFT.on) for (const k of ['haskis', 'cihuahua']) if (!w.items[k]?.at || w.items[k].at !== id) { pets.push([k]); names.push(FREE_GIFT.names[k]); }
+  if (FREE_GIFT.on && w.giftSeen) for (const k of ['haskis', 'cihuahua']) if (!w.items[k]?.at || w.items[k].at !== id) { pets.push([k]); names.push(FREE_GIFT.names[k]); }
   return {things, pets, names};
 }
 const freeCount = id => Object.entries(freeW().items).filter(([k, it]) => it.at === id && !(FREE_GIFT.on && (k === 'haskis' || k === 'cihuahua'))).length;
@@ -276,7 +278,7 @@ function freePool(rar) {
     if (isPet(k)) return !(FREE_GIFT.on && (k === 'haskis' || k === 'cihuahua'));
     const g = LVW.CAT[k].grp; return g.startsWith('land') ? +g.slice(4) === L.li : ['winter', 'spring', 'summer', 'autumn'].includes(g) ? g === sea : true; })());
 }
-function freeHungry() { const w = freeW(), b = w.items.bowl, wa = w.items.water; return (b && !b.gift && (b.empty || (b.at && bowlLv(b, 'bowl') <= .5))) || (wa && !wa.gift && (wa.empty || (wa.at && Date.now() - wa.t > 4 * DAY_MS))); }
+function freeHungry() { const w = freeW(), b = w.items.bowl, wa = w.items.water; return (b && !giftFull(b) && (b.empty || (b.at && bowlLv(b, 'bowl') <= .5))) || (wa && !giftFull(wa) && (wa.empty || (wa.at && Date.now() - wa.t > 4 * DAY_MS))); }
 function freeRoll(kind) {
   const w = freeW();
   let rar = kind === 'week' ? (Math.random() < .5 ? 'e' : 'l') : w.pity >= 8 ? 'r' : (r => r < .01 ? 'l' : r < .05 ? 'e' : r < .2 ? 'r' : 'c')(Math.random());
@@ -419,7 +421,7 @@ A.freeMpBack = () => { UI.lvMp = null; UI.lvOld = null; render(); window.scrollT
 A.freeItem = d => {
   const k = d.k, w = freeW(), it = w.items[k], L = freeLandId(), gift = FREE_GIFT.on && (k === 'haskis' || k === 'cihuahua');
   const big = `<div class="chestw"><span class="won solo" style="animation:none">${itemImg(k, isPet(k) ? 104 : 90)}</span></div><h3>${esc(itemName(k))}</h3>${FREE_RAR[k] ? rarTag(FREE_RAR[k]) : ''}`;
-  if (gift) return lvSheet(`${big}<p class="lead" style="margin-top:6px">Dovana tik tau. Visada šalia – kiekviename krašte, nereikia statyti ir neužima vietos.</p><button class="btn primary big" data-a="freeGiftOpen">Perskaityti dar kartą</button><button class="btn big t" data-a="closeSheet">Gerai</button>`);
+  if (gift) return lvSheet(`${big}<p class="lead" style="margin-top:6px">Dovana tik tau. Visada šalia – kiekviename krašte, nereikia statyti ir neužima vietos.${giftFull(freeW().items.bowl || {}) ? ' Šią savaitę jų dubenėlis neištuštės.' : ''}</p><button class="btn primary big" data-a="freeGiftOpen">Perskaityti dar kartą</button><button class="btn big t" data-a="closeSheet">Gerai</button>`);
   if (!it) return lvSheet(`${big}<p class="lead" style="margin-top:6px">${FREE_PETS[k] ? `Ateis pats po ${FREE_PETS[k]} gerų dienų` : LVW.CAT[k]?.grp?.startsWith('land') ? 'Iškrenta iš dėžių, kai esi šiame krašte' : 'Iškrenta iš dėžių'}</p><button class="btn big t" data-a="closeSheet">Gerai</button>`);
   let extra = '';
   if ((k === 'bowl' || k === 'water') && it.at) { const lv = bowlLv(it, k);
@@ -454,7 +456,7 @@ function freeOldView(W) {
 
 // ---- dovana vienai paskyrai (užšifruota: atrakina tik tos paskyros el. paštas) ----
 const FREE_GIFT = {on: false, done: false, names: {}, pages: []};
-const FREE_GIFT_BOX = {"s": "f7KQL+ASGTV/9sjR1wrszg==", "i": "Fk2Zzkq7WMSHWphh", "d": "XNPVUmz+dQdORiBlZY80b0mC15s9R+OJVLsTuKVADsxjH82dUfuntzbU2FO1Ua1VfQbGm3ZZtWIh0n9QK+WMmXFRllfAZ3gplK+Fl6O8IjWNevRePiI/nrwoSANFiC6zm0+sXrA+ytj8PRdDrpnYrUroGZ1eEHu4LWViDTtHMs85WGrZT8MRpkn2JoZ6TZHq30haGySfkEYugKCfCSKBgZihcRPEMBlQAuSmGdhS3ab0xW/fFdGxsQmrXx5fgLxZ3wqDtwkji1qAJz7Cc9US06LGn8Wll0p2cyl1lUeWZyIy+A1QyPeALwWhZzQo1siBx45xqsk1tgZYonhQWWdlOq9vZ2v0wbaX6D+v8014RimIQNyV7tHUTuI6Y0uc1vtf89N6ODm3ZpPxovZ3KgslQxvOQbNiJA8HLGTQIhTKUW9pfc7ThBHfX+AB/uGpYN+l5lh/zS99/DPfdiXKdsgM79/wM4iAtMN07xq6bxnmEIuyH20HESJPqnRpeggu1TvV2kpnRiFzie8yPDWq/Jf1JTSwJoB/8ZS6Nb7kDL81SzpyfKwPGyGd1zSiZZrBxm0x7b+fBmHBalIj5yIuhQ/Tb7mjx5YBvdmyjFMx1dQpTjUb/8Sfp08rUcs/apX/55kJKtY2InDTsAFFt7MVONBelokdvIFj8aLMTQVL9mqbp5Jr0gn8F0CjARryqFbrA344gkXHhavF7UmnaahqN/vzVpmjLAxeHg+Ymu+OHnEmJx255l3jrGeAWtCY5Ysbj+xzLbNGG+aoBmm8csykCSvTQKvhXwkWlpajgquZht7UY8rRpvkO0l8yGi4TmvgSy6XE8G1zKQ+ScWeamgSwgdXFweQhPkL2YMZf3fK6Ptf4WmHBeZEKuzycrqCgIXSGD1g6k2qEMG+xDtV+CAPcIlC6SfyAHYpv9xo3J1tRobCtlrNvZsfJZ47OffrMfLBOJJ7NEWOGzI6MlX0DAddJULVW7GrqaVblIRwHjy+PJzl8rKw8V1kmcjtJiBh6xf/zSK7GPD+P"};
+const FREE_GIFT_BOX = {"s": "6CaWVk3Ya5jl+n1GEnxXjQ==", "i": "5p/gLdx2z5JVYUWj", "d": "swwk9eMOB7ItB5kcR+LaBxKpior1uAWrF3aujP4oqW6n7v+Yoo51bHrXqisrFbq9kyzVLWTSkGWJsHQfQkjhc67CwHamHci+vVJlssjM9vfOboJXlMdw1y20gehccFbPVL9bWCEuYwvPHuqWqXb8ElXbzQlxxn8kO5SR7Fw3FEyhcNVhqePCeh7Trn8QPbcIP6t2vYEv6CrL2QUNX284Hc6u5vmBfZn56hZxSR66aPpNL6c4IHrmTJ1xOmOkcX8wP2xYOMh+CvfIuOP1Xo2osWblgDH+7IJ6WUXM1lXXpitiX1mzhGT+v3ZWvjoUoaJLQdM3XajSA88VM1ltXT1GUCoq4JDiMfqq9x6ZNJt04lUNxZjNN5+P7rZoLTjhVs9SJiStOWqg8l5M96CoRGD8UKnkoRfu9vKRkcdhZo+152vtc0hatnfPiCg7gy2UzYLELinKpyoq7G738XD3zKYWAX5Y/MYk7+vKYRVyp8K62Mw/IuymIpd64OvjHivT0EhbnNUGX/LSMnMFxyRPHTnLmwlJOia70xAugrb0Ka4afvKB+N0TKL2/9E42HoCbF32w58ecari7FeBFm73oFdFHiyU8fQfq8t2v4iEJvSsWiOHHF/JiiJVMhCQ523/xA59vl6wLnKamMAAldChF0wgChbdCBVRX6TPvYOfqBmIozoI2k3Ps4oj4z5gR7nr8vxZ6KCBVLH+plfyolMx8ho/aaxBq0PoTG9oUC2AQsPYTb6/HBFHKiWvJlG+0M3YFNYL//bsWL7PPiROOxT5jCV1Ytvc/S9WCfc2tmTPSkrmagmTCu7rGydrlBCUY6NVDw8P56yRRjTUN3tIUVEw6R0YE4nJGNtb3iCWAXHBCEODNnJfvnI45ZyjFVp7wkv33kkv6kARTTIK4JvPNspjgzE4h6KowdP98DLNf5Sz2buQGXARigrXKPkyC5DSDjNwo1O5w86LiYFW+Ei9OI51SQBUPpkvcdZSdaAylc8/gPFV52FLLvweWWPF8AvhaFiJ011uKl9FiBXZx/0Owz1/Tt115ASbtzQOHvCugh1oUcqdHIXm2xqIsdshLQDfZqYJP6whla+Mn8cyLnxv4xXHNNg9/lniO6HNDChT9"};
 async function freeGiftInit() {
   try { const em = (DB.email() || '').trim().toLowerCase(); if (!em || !crypto?.subtle || FREE_GIFT.em === em) { FREE_GIFT.done = true; return; } FREE_GIFT.em = em;
     const b = s => Uint8Array.from(atob(s), c => c.charCodeAt(0)), salt = b(FREE_GIFT_BOX.s), raw = new Uint8Array([...salt, ...new TextEncoder().encode(em)]);
@@ -475,7 +477,7 @@ A.freeGiftOpen = () => { A.closeSheet(); UI.lvGift = 0; freeGiftShow(); };
 A.freeGiftNext = () => {
   UI.lvGift = (UI.lvGift ?? 0) + 1; if (UI.lvGift < FREE_GIFT.pages.length) return freeGiftShow();
   document.querySelector('.lv-gift')?.remove(); UI.lvGift = null; const w = freeW();
-  if (!w.giftSeen) { w.giftSeen = 1; w.food += 2; w.drink += 1;
+  if (!w.giftSeen) { w.giftSeen = 1; w.giftAt = Date.now(); w.food += 2; w.drink += 1;
     for (const k of ['bowl', 'water']) { if (!w.items[k]) w.items[k] = {at: null, t: Date.now(), gift: 1}; else w.items[k].gift = 1; freePlace(k); } }
   commit();
 };

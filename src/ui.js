@@ -506,7 +506,7 @@ function mealSuggestCard(d, times, sportSlot) {
   return card('Ką valgyti šiandien', body + `<div class="choice row">${btn('Įdėti į dienos planą', 'planMeals', {d}, 'sm')}${btn('Išjungti pasiūlymus', 'mealSuggestOff', {}, 'sm ghost')}</div>`);
 }
 A.eatSuggested = d => {
-  const {mealTimes, sportSlot} = recommendations(d.d), x = mealSuggestions(d.d, mealTimes, sportSlot)[+d.i]; if (!x || !x.r) return;
+  const {mealTimes, sportSlot} = recommendations(d.d), x = mealSuggestions(d.d, mealTimes, sportSlot)[+d.i]; if (!x || !x.r || !tapOnce('eat:' + x.r.id, 1500)) return;
   const st = recipeStats(x.r), it = x.item || storageItems().find(s => s.recipeId === x.r.id);
   S.meals.push({id: uid(), date: today(), time: nowHM(), name: x.r.name, recipeId: x.r.id, portions: 1, ...nutrOf(st, 1)});
   if (it) takePortion(it.id, 1);
