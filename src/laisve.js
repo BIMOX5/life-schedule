@@ -180,7 +180,7 @@ A.freeMenu = () => {
   $('#sheet').innerHTML = `<div class="dim" data-a="closeSheet"></div><div class="sh more2"><h3>Laisvė</h3><div class="mgrid">
     <button data-a="freeMpOpen" data-sheet="1"><i>${ic('leaf')}</i>Mano pasaulis</button><button data-a="freeMap" data-sheet="1"><i>${ic('cal')}</i>Mano kraštai</button><button data-a="freeBadgesOpen" data-sheet="1"><i>${ic('spark')}</i>Ženkliukai</button><button data-a="freeWidget" data-sheet="1"><i>${ic('plus')}</i>Valdiklis ekrane</button><button data-a="freeTourAgain" data-sheet="1"><i>${ic('bulb')}</i>Kaip veikia</button><button data-a="freeEdit" data-sheet="1"><i>${ic('pen')}</i>Ką keičiu</button><button data-a="freeHide" data-sheet="1"><i>${ic('eyeoff')}</i>Paslėpti Laisvę</button></div></div>`;
 };
-A.freeHide = async () => { if (!await ask('Paslėpti Laisvę?', 'Niekur nebesimatys. Atidaryti vėl – ilgai paspausk Savijautą.', {yes: 'Paslėpti'})) return; freeData().on = false; if (UI.view === 'free') UI.view = 'wellbeing'; commit(); };
+A.freeHide = async () => { if (!await ask('Paslėpti Laisvę?', 'Niekur nebesimatys. Atidaryti vėl – ilgai paspausk Savijautą.', {yes: 'Paslėpti'})) return; freeData().on = false; freeWidgetSync(false); if (UI.view === 'free') UI.view = 'wellbeing'; commit(); };
 A.freeEdit = () => { UI.lvOb = {step: 1, sel: freeData().subs.map(s => s.k), edit: true}; render(); };
 
 // ---- pradžia: ką keisti → ko sieki → kiek → kodėl ----
@@ -520,7 +520,8 @@ function freeWidgetSync(img) {
   const P = LSW(); if (!P) return; clearTimeout(LSW_T);
   LSW_T = setTimeout(async () => {
     const F = freeData(), sub = freeMain();
-    if (!F.on || !sub) return P.update({on: false}).catch(() => {});
+    if (!F.on || !sub) return P.update({on: false, days: 'Laisvė', sub: 'Atidaryk programėlę'}).catch(() => {});
+    if (F.widgetOff) return P.update({on: false, days: 'Valdiklis išjungtas', sub: 'Įjungti: Laisvė → ⋯ → Valdiklis'}).catch(() => {});
     const Pg = freeProg(sub), d = today(), btns = F.subs.slice(0, 2).map(s => { const c = (s.counts || {})[d] || 0, u = freeSub(s.k);
       return {id: s.id, label: s.mode === 'quit' ? FREE_SHORT[s.k] || u[0] : `${FREE_SHORT[s.k] || u[0]} · ${c}${s.mode === 'reduce' ? ' iš ' + (+s.limit || 0) : ''}`, step: freeTap(s)}; });
     const data = {on: true, days: fmtFree(Pg.n), sub: sub.mode === 'quit' ? 'be ' + freeSub(sub.k)[1] : sub.mode === 'reduce' ? 'pagal planą' : 'stebi', btns};
@@ -543,7 +544,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && fr
 A.freeWidget = async () => {
   const P = LSW();
   lvSheet(`<h3 style="margin-top:2px">Valdiklis telefono ekrane</h3><p class="lead">Takas su Daigeliu, dienos ir +1 – tiesiai pagrindiniame ekrane. +1 įrašomas neatidarius programėlės${freeData().subs.some(s => s.k === 'vape') ? ' (elektroninė: vienas paspaudimas = 10 įtraukimų)' : ''}. Paspaudus taką – atsidaro Laisvė.</p>
-    ${P ? `<button class="btn primary big" data-a="freeWidgetPin">Pridėti į ekraną</button><p class="lead" style="margin-top:10px;font-size:13px">Jei neatsiranda: ilgai paspausk tuščią vietą ekrane → Valdikliai → Life Schedule → Laisvė.</p>` : `<p class="lead">Valdiklis veikia tik Android programėlėje (life-schedule.apk). Įdiegus: ilgai paspausk tuščią vietą ekrane → Valdikliai → Life Schedule.</p>`}
+    ${P ? `<div class="lv-lim" style="background:var(--card2);border-radius:18px;margin:8px 0"><span class="tx"><b>Valdiklis</b><small>${freeData().widgetOff ? 'išjungtas – rodo tik užrašą' : 'įjungtas – rodo taką ir +1'}</small></span><button class="lv-sw ${freeData().widgetOff ? '' : 'on'}" data-a="freeWidgetToggle" aria-label="Įjungti ar išjungti valdiklį"><i></i></button></div>
+      <button class="btn primary big" data-a="freeWidgetPin">Pridėti į ekraną</button><p class="lead" style="margin-top:10px;font-size:13px;text-align:left">Pridėti ranka: ilgai paspausk tuščią vietą ekrane → Valdikliai → Life Schedule → Laisvė.<br>Nuimti iš ekrano: ilgai paspausk valdiklį → Pašalinti.</p>` : `<p class="lead">Valdiklis veikia tik Android programėlėje (life-schedule.apk). Įdiegus: ilgai paspausk tuščią vietą ekrane → Valdikliai → Life Schedule.</p>`}
     <button class="btn big t" data-a="closeSheet">Uždaryti</button>`);
 };
 A.freeWidgetPin = async () => { const P = LSW(); if (!P) return; freeWidgetSync(); try { const r = await P.pin(); if (!r?.ok) toast('Ilgai paspausk ekraną → Valdikliai → Life Schedule'); } catch (e) { toast('Ilgai paspausk ekraną → Valdikliai → Life Schedule'); } A.closeSheet(); };
@@ -720,9 +722,11 @@ const LV_TOUR = [
   ['.lv-rows', 'smile', '+1 – kai paslydai ar skaičiuoji.', 'Metant +1 reiškia naują pradžią, mažinant – skaičiuoja, kiek šiandien.'],
   ['.lv-sos', 'soft', 'Kai labai norisi – „Sunku?“', 'Pakvėpuosim, pasikalbėsim, prisiminsi, kodėl pradėjai.'],
   ['.lv-world .lv-ib', 'proud', 'Daugiau – čia.', 'Mano pasaulis, ženkliukai, kraštai ir valdiklis telefono ekrane. Čia gali ir paslėpti Laisvę – vėl atidarysi ilgai paspaudęs Savijautą apačioje.'],
+  ['.lv-world .lv-ib', 'wink', 'Valdiklis telefono ekrane.', 'Takas ir +1 pagrindiniame ekrane – užsirašai neatidaręs programėlės. Įjungti ar išjungti: ⋯ → Valdiklis ekrane. Nuimti iš ekrano – ilgai paspausk valdiklį.', 'w'],
   [null, 'joy', 'Na, ką – pradedam?', 'Visada galėsi sustoti ar paslėpti Laisvę.']];
 function freeTourShow() {
-  const i = UI.lvTour ?? 0, st = LV_TOUR[i]; if (!st) return freeTourEnd();
+  let i = UI.lvTour ?? 0; while (LV_TOUR[i]?.[4] === 'w' && !LSW()) i = UI.lvTour = i + 1;   // valdiklio žingsnis – tik Android programėlėje
+  const st = LV_TOUR[i]; if (!st) return freeTourEnd();
   let el = document.querySelector('.lv-tour'); if (!el) { el = document.createElement('div'); el.className = 'lv-tour'; document.body.appendChild(el); }
   const t = st[0] && document.querySelector(st[0]);
   if (t) t.scrollIntoView({block: t.getBoundingClientRect().height > innerHeight * .5 ? 'start' : 'center'});
@@ -962,3 +966,4 @@ function freeInsights(sub) {
   const held = freeData().held || 0; if (held >= 5) out.push(`Jau ${held} kartus atlaikei norą – tai ir yra tavo stiprybė.`);
   return out;
 }
+A.freeWidgetToggle = () => { const F = freeData(); F.widgetOff = !F.widgetOff; commit({noRender: true}); freeWidgetSync(false); A.freeWidget(); toast(F.widgetOff ? 'Valdiklis išjungtas' : 'Valdiklis įjungtas'); };
