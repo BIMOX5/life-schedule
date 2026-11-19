@@ -609,7 +609,7 @@ header h1 { font-size:26px; font-weight:900; } header small { color:var(--muted)
 .tpill .rec { width:9px; height:9px; border-radius:50%; background:var(--br); }
 .tpill .stop { width:26px; height:26px; border-radius:50%; background:var(--br); display:grid; place-items:center; }
 .tpill .stop i { width:9px; height:9px; background:var(--on-br); border-radius:2px; }
-.tpill.wk .rec { background:var(--leaf); }
+.tpill.wk .rec { background:var(--leaf); } .tpill .tn { white-space:nowrap; } .tpill .rec, .tpill .stop { flex:none; }
 main { padding:12px 24px 40px; }
 
 /* ---------- Telefonas: apatinė juosta (prilipusi) ---------- */
@@ -1165,4 +1165,4 @@ body::before { content:''; position:fixed; top:0; left:0; right:0; height:max(en
 .lv-gift .dogs > svg { width:110px; height:110px; } .lv-gift .dogs .aimg, .lv-gift .dogs img { flex:none; }
 .lv-page .lv-world .wd.art .apet { pointer-events:auto; cursor:pointer; }
 .x[data-a="closeModal"] { min-width:40px; min-height:40px; display:inline-grid; place-items:center; margin:-8px -8px -8px 0; font-size:16px; }
-@media (max-width:700px) { header .tr { flex-shrink:1; min-width:0; max-width:100%; } header .tr .tpill { min-width:0; max-width:56vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block; } header .tr .lvchip { white-space:nowrap; flex:none; } }
+@media (max-width:700px) { header .tr { flex-shrink:1; min-width:0; max-width:100%; } header .tr .tpill { min-width:0; max-width:58vw; } header .tr .tpill .tn { min-width:0; overflow:hidden; text-overflow:ellipsis; } header .tr .lvchip { white-space:nowrap; flex:none; } }

@@ -312,7 +312,7 @@ A.levelInfo = () => {
 function timerWidget() {
   if (!S.timer) return '';
   const c = cat(S.timer.cat);
-  return `<button class="tpill" data-a="timerStop" title="Sustabdyti"><span class="rec" style="background:${c.color}"></span>${esc(c.name)} · <span id="tElapsed">${timerElapsed()}</span><span class="stop"><i></i></span></button>`;
+  return `<button class="tpill" data-a="timerStop" title="Sustabdyti"><span class="rec" style="background:${c.color}"></span><span class="tn">${esc(c.name)}</span>· <span id="tElapsed">${timerElapsed()}</span><span class="stop"><i></i></span></button>`;
 }
 const clock = ts => { const s = Math.max(0, Math.floor((Date.now() - ts) / 1000)), h = Math.floor(s / 3600); return `${h ? h + ':' : ''}${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}`; };
 function timerElapsed() { return S.timer ? clock(S.timer.ts) : ''; }
