@@ -79,11 +79,11 @@ function vFree() {
   if (UI.lvOld) { const v = freeOldView(W); if (v) return v; }
   const {sub, P, o} = freeWorldCfg(W), L = freeLevel(), land = LVW.LANDS[Math.min(6, P.land)]?.n || '', here = freeHere(freeLandId().id), bw = freeW().items.bowl;
   Object.assign(o, {things: here.things, pets: here.pets, nudgeAll: 1, noRefill: 1, bowlLv: bw ? Math.max(0, bowlLv(bw, 'bowl')) : null}); LV_PETN = here.names;
-  const key = JSON.stringify([o.bio, o.look, o.season, o.tod, o.t.toFixed(3), o.ex, o.say, o.pins, W, here.things, here.pets, o.bowlLv, UI.lvRedraw || 0]); UI.lvRedraw = 0;
+  const key = JSON.stringify([o.bio, o.look, o.season, o.tod, o.t.toFixed(3), o.ex, o.say, o.pins, W, here.things, here.pets, o.bowlLv, UI.lvRedraw || 0, UI.lvDrag || '']); UI.lvRedraw = 0;
   const hud = `<div class="lv-hud"><b class="lv-t">Laisvė</b><button class="lv-ib" data-a="freeMenu" aria-label="Daugiau">${ic('more')}</button>
     <div class="lv-big"><span class="n">${fmtFree(P.n).replace(' d.', '')}</span><span class="u">${P.n < 365 ? 'dienų laisvės' : 'laisvės'}<small>${land}</small></span></div>
     <div class="lv-lvl"><b>${L.lv} lygis</b><span><i style="width:${L.p}%"></i></span><small>${L.p} / 100 XP</small></div></div>`;
-  return `<div class="lvw lv-page"><div class="lv-world" data-key="${esc(key)}">${LVW.world({...o, hud})}</div><div class="lv-sheet">${freeChecks()}${freeBoxes()}${freeRows()}${LSW() && !freeW().seen.widget ? `<div class="lv-chk"><span class="tx"><b>Valdiklis telefono ekrane</b><small>Takas, dienos ir +1 – neatidarius programėlės</small></span><button class="btn sm ghost" data-a="freeWidgetNo">Vėliau</button><button class="btn sm primary" data-a="freeWidget">Kaip?</button></div>` : ''}</div></div>`;
+  return `<div class="lvw lv-page"><div class="lv-world" data-key="${esc(key)}">${LVW.world({...o, hud})}</div><div class="lv-sheet">${UI.lvDrag ? `<div class="lv-chk"><span class="tx"><b>Tempi: ${esc(itemName(UI.lvDrag))}</b><small>Toliau – mažesnis, arčiau – didesnis. Ant tako nepastatysi.</small></span><button class="btn sm primary" data-a="freeDragDone">Baigti</button></div>` : `<button class="lv-sos" data-a="freeHard"><span>${daigelis(4)}</span><span class="tx"><b>Sunku?</b><small>Esu čia – pakvėpuokim, pasikalbėkim</small></span>${ic('arrow', 'sm')}</button>${freeChecks()}${freeBoxes()}`}${freeRows()}${LSW() && !freeW().seen.widget ? `<div class="lv-chk"><span class="tx"><b>Valdiklis telefono ekrane</b><small>Takas, dienos ir +1 – neatidarius programėlės</small></span><button class="btn sm ghost" data-a="freeWidgetNo">Vėliau</button><button class="btn sm primary" data-a="freeWidget">Kaip?</button></div>` : ''}</div></div>`;
 }
 // po render: gyvas pasaulis (jei niekas nepasikeitė – paliekam seną, kad gyvūnai neprasidėtų iš naujo)
 let LV_KEEP = null;
@@ -92,13 +92,14 @@ function freeMount() {
   if (LV_KEEP && LV_KEEP.dataset.key === box.dataset.key) { box.replaceWith(LV_KEEP); freeAfter(); freeWidgetTick(); return; }
   LVW.WORLDS.splice(0, LVW.WORLDS.length, ...LVW.WORLDS.filter(w => w.el.isConnected));
   LVW.artInit(box); requestAnimationFrame(() => { LVW.placeWorld(box); freeUnstack(box); }); LV_KEEP = box;
-  if (!LV_LOOP) { LV_LOOP = 1; requestAnimationFrame(LVW.artLoop); }  freeAfter(); freeWidgetTick();
+  if (!LV_LOOP) { LV_LOOP = 1; requestAnimationFrame(LVW.artLoop); }  if (UI.lvDrag) requestAnimationFrame(() => requestAnimationFrame(() => freeDragMount(box)));
+  freeAfter(); freeWidgetTick();
 }
 function freeWidgetTick() { if (!LSW()) return; if (!UI.lvPulled) { UI.lvPulled = 1; freeWidgetPull(); } setTimeout(() => freeWidgetSync(), 1200); }
 let LV_PETN = [];
 // po pasaulio: dovana (pirmą kartą), Laiko sustabdymas, naujas takas / kraštas / draugas
 function freeAfter() {
-  if (UI.lvMp || UI.lvOld || document.querySelector('.lv-gift') || $('#sheet')?.innerHTML.trim()) return;
+  if (UI.lvMp || UI.lvOld || UI.lvDrag || UI.lvFull || document.querySelector('.lv-gift') || $('#sheet')?.innerHTML.trim()) return;
   if (cloudOn() && !FREE_GIFT.done) return;   // dar tikrinama dovana – po to perpiešiama
   const w = freeW();
   if (FREE_GIFT.on && !w.giftSeen) { UI.lvGift = 0; return freeGiftShow(); }
@@ -430,7 +431,7 @@ A.freeItem = d => {
   if (LVW.CAT[k]?.stages && it.at) { const st = treeSt(it); extra = `<p class="lead">${st === 'bare' ? 'Nuvytęs – kitą gerą dieną vėl sužaliuos.' : st >= 4 ? 'Užaugęs.' : `Fazė ${st + 1} iš 5 – kas parą nuo pasodinimo nauja.`}</p>`; }
   const here = it.at === L.id, other = it.at && !here;
   lvSheet(`${big}${extra || `<p class="lead" style="margin-top:6px">${here ? 'Stovi šiame krašte' : other ? 'Stovi kitame krašte' : 'Mano pasaulyje'}</p>`}
-    ${here ? `<button class="btn ${extra ? '' : 'primary'} big" data-a="freeMove" data-k="${k}">Perkelti</button><button class="btn big t" data-a="freeTake" data-k="${k}">Išimti iš pasaulio</button>` : `<button class="btn primary big" data-a="freePut" data-k="${k}">${other ? 'Perkelti į šį kraštą' : isPet(k) ? 'Įleisti į pasaulį' : 'Pastatyti pasaulyje'}</button>`}`);
+    ${here ? `<button class="btn ${extra ? '' : 'primary'} big" data-a="${isPet(k) ? 'freeMove' : 'freeDrag'}" data-k="${k}">${isPet(k) ? 'Kita vieta' : 'Perkelti'}</button><button class="btn big t" data-a="freeTake" data-k="${k}">Išimti iš pasaulio</button>` : `<button class="btn primary big" data-a="freePut" data-k="${k}">${other ? 'Perkelti į šį kraštą' : isPet(k) ? 'Įleisti į pasaulį' : 'Pastatyti pasaulyje'}</button>`}`);
 };
 A.freeMove = d => { const it = freeW().items[d.k], id = it?.at; if (!it) return; it.at = null; const e = it.empty; freePlace(d.k, id); it.empty = e; A.closeSheet(); commit(); };
 A.freeTake = d => { const it = freeW().items[d.k]; if (it) it.at = null; A.closeSheet(); commit(); };
@@ -536,3 +537,127 @@ A.freeWidget = async () => {
 };
 A.freeWidgetPin = async () => { const P = LSW(); if (!P) return; freeWidgetSync(); try { const r = await P.pin(); if (!r?.ok) toast('Ilgai paspausk ekraną → Valdikliai → Life Schedule'); } catch (e) { toast('Ilgai paspausk ekraną → Valdikliai → Life Schedule'); } A.closeSheet(); };
 A.freeWidgetNo = () => { freeW().seen.widget = 1; commit(); };
+
+// ===================== „SUNKU?“ – Esu čia, kvėpavimas, Kodėl pradėjau, Užimk rankas, pokalbis (docs/laisve-technika.md 8–9) =====================
+const HELP_NUMS = [['116 123', 'Vilties linija', 'suaugusiems, visą parą', '116123'], ['8 800 28888', 'Jaunimo linija', 'jauniems žmonėms', '880028888'], ['1819', 'Metimo rūkyti linija', 'padeda mesti rūkyti', '1819', 'tob']];
+const TOBACCO = ['cig', 'vape', 'pouch', 'heat', 'chew', 'hookah'];
+const helpRows = (danger) => (danger ? [['112', 'Skubi pagalba', 'kai gresia pavojus', '112'], ...HELP_NUMS] : HELP_NUMS).filter(n => n[4] !== 'tob' || freeData().subs.some(s => TOBACCO.includes(s.k)))
+  .map(([n, t, s, tel]) => `<a class="lv-help" href="tel:${tel}"><span class="tx"><b>${t}</b><small>${s}</small></span><span class="num">${n}</span></a>`).join('');
+A.freeHard = () => {
+  lvSheet(`<div style="display:flex;gap:14px;align-items:center;text-align:left">${daigelis(4)}<div><h3 style="margin:0">Esu čia</h3><p class="lead" style="margin:2px 0 0">Noras praeina per kelias minutes. Pabūkim kartu.</p></div></div>
+    <div class="lv-hard">${[['freeBreath', 'Pakvėpuokim kartu', '2–3 min · uždegsim žvaigždyną'], ['freeWhy', 'Kodėl pradėjau', 'tavo žodžiai ir ką jau atgavai'], ['freeHands', 'Užimk rankas', 'pienių pūtimas'], ['freeChat', 'Pasikalbėk su Daigeliu', 'parašyk, kaip jautiesi'], ['freeHuman', 'Pasikalbėti su žmogumi', 'nemokamos linijos']].map(([a, t, s]) => `<button data-a="${a}"><span class="tx"><b>${t}</b><small>${s}</small></span>${ic('arrow', 'sm')}</button>`).join('')}</div>
+    <button class="btn primary big" data-a="freeHeld">Atlaikiau · +5 XP</button>`, 'lv-hardsh');
+};
+A.freeHuman = () => lvSheet(`<h3 style="margin-top:2px">Pasikalbėti su žmogumi</h3><p class="lead">Žmonės, kurie tam ruošti. Nemokamai, galima ir anonimiškai.</p>${helpRows(UI.lvDanger)}<button class="btn big t" data-a="freeHard">Atgal</button>`);
+A.freeHeld = () => {
+  const F = freeData(); F.held = (F.held || 0) + 1; F.xp = (F.xp || 0) + 5; commit({noRender: true}); lvFull(null); render();
+  const left = 25 - F.held % 25;
+  lvSheet(`<div class="chestw open r-l"><i class="rays"></i><span class="won solo">${daigelis(5)}</span></div><h3>Atlaikei!</h3><p class="lead">${F.held}-as kartas · +5 XP${F.held < 25 ? ` · iki ženkliuko „25 atlaikyti“ – dar ${left}` : ''}</p><button class="btn primary big" data-a="closeSheet">Ačiū</button>`);
+};
+// pilno ekrano Laisvės vaizdai (kvėpavimas, rankos, pokalbis, kodėl): UI.lvFull
+function lvFull(kind) { UI.lvFull = kind; clearInterval(UI.lvT); UI.lvT = 0; lvAudioStop(); if (!kind) { document.querySelector('.lv-full')?.remove(); return; } A.closeSheet(); let el = document.querySelector('.lv-full'); if (!el) { el = document.createElement('div'); el.className = 'lv-full'; document.body.appendChild(el); } return el; }
+A.freeFullClose = () => { lvFull(null); };
+
+// ---- kvėpavimas: įkvėpk 4, iškvėpk 6; kas iškvėpimą – žvaigždė; 14 žvaigždžių = žvaigždynas ----
+const LV_CP = [[60, 40], [104, 70], [150, 54], [190, 96], [236, 74], [282, 104], [300, 160], [256, 196], [212, 160], [176, 196], [140, 236], [96, 214], [64, 170], [110, 140]];
+const LV_CL = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 3], [3, 9], [9, 10], [10, 11], [11, 12], [12, 13], [13, 3]];
+let LV_AC = null, LV_OSC = null;
+function lvTone(up) {   // vos girdimas švelnus tonas: įkvepiant kyla, iškvepiant leidžiasi
+  if (freeData().quiet === 'off') return; try {
+    LV_AC = LV_AC || new (window.AudioContext || window.webkitAudioContext)(); const t = LV_AC.currentTime, o = LV_AC.createOscillator(), g = LV_AC.createGain(), d = up ? 4 : 6;
+    o.type = 'sine'; o.frequency.setValueAtTime(up ? 196 : 262, t); o.frequency.linearRampToValueAtTime(up ? 262 : 196, t + d);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.025, t + .8); g.gain.linearRampToValueAtTime(.018, t + d - 1); g.gain.linearRampToValueAtTime(0, t + d);
+    o.connect(g); g.connect(LV_AC.destination); o.start(t); o.stop(t + d + .05); LV_OSC = o;
+  } catch (e) {}
+}
+function lvAudioStop() { try { LV_OSC?.stop(); } catch (e) {} LV_OSC = null; }
+A.freeBreath = () => { const el = lvFull('breath'); UI.lvB = {n: 0, ph: 'in', sec: 4, t0: Date.now()}; lvBreathDraw(); lvTone(true);
+  UI.lvT = setInterval(() => { const B = UI.lvB; if (!B || UI.lvFull !== 'breath') return; B.sec--; if (B.sec <= 0) { if (B.ph === 'in') { B.ph = 'out'; B.sec = 6; lvTone(false); } else { B.n++; if (B.n >= 14) { B.ph = 'done'; clearInterval(UI.lvT); } else { B.ph = 'in'; B.sec = 4; lvTone(true); } } } lvBreathDraw(); }, 1000); };
+function lvBreathDraw() {
+  const B = UI.lvB, el = document.querySelector('.lv-full'); if (!el || !B) return; const s = Math.round((Date.now() - B.t0) / 1000), q = freeData().quiet === 'off';
+  // ta pati fazė ir žvaigždžių skaičius – keičiam tik skaičius ir klases (kad ratas ir Daigelis plėstųsi sklandžiai)
+  const ring = el.querySelector('.ring2'); if (ring && B.ph !== 'done' && el.dataset.n === String(B.n)) {
+    ring.className = 'ring2 ' + B.ph; ring.querySelector('b').firstChild.textContent = B.ph === 'in' ? 'Įkvėpk' : 'Iškvėpk'; ring.querySelector('small').textContent = B.sec;
+    el.querySelector('.dgb').className = 'dgb ' + B.ph; el.querySelector('.bot p').textContent = B.ph === 'out' ? 'Lėtai pro burną' : 'Pro nosį, ramiai';
+    el.querySelector('.hint span:last-child').textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; el.querySelector('.snd').textContent = q ? 'Be garso' : 'Tyliai'; return; }
+  el.dataset.n = B.n;
+  const cons = `<svg class="cons" viewBox="0 0 348 280">${LV_CL.filter(([a, b]) => a < B.n && b < B.n).map(([a, b]) => `<line x1="${LV_CP[a][0]}" y1="${LV_CP[a][1]}" x2="${LV_CP[b][0]}" y2="${LV_CP[b][1]}" stroke="#ffd9a8" stroke-width="1.6" opacity=".7"/>`).join('')}${LV_CP.map(([x, y], i) => i < B.n ? `<circle cx="${x}" cy="${y}" r="4.5" fill="#fff6d8"/><circle cx="${x}" cy="${y}" r="10" fill="#ffd9a8" opacity=".25"/>` : i === B.n && B.ph !== 'done' ? `<circle cx="${x}" cy="${y}" r="7" fill="#ffc29a"><animate attributeName="r" values="5;11;5" dur="1.6s" repeatCount="indefinite"/></circle>` : `<circle cx="${x}" cy="${y}" r="2.5" fill="#fff" opacity=".3"/>`).join('')}</svg>`;
+  el.innerHTML = `<div class="brz">${Array.from({length: 30}, (_, i) => `<span class="star" style="left:${(i * 71) % 96 + 2}%;top:${(i * 43) % 90 + 3}%;animation-delay:${i % 7 * .4}s"></span>`).join('')}
+    <div class="hint"><span>Žvaigždynas ${B.n} / 14</span><button class="snd" data-a="freeQuiet">${q ? 'Be garso' : 'Tyliai'}</button><span>${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}</span></div>${cons}
+    ${B.ph === 'done' ? '' : `<div class="ring2 ${B.ph}"><b>${B.ph === 'in' ? 'Įkvėpk' : 'Iškvėpk'}<small>${B.sec}</small></b></div>`}
+    <div class="dgb ${B.ph}">${daigelis(5)}</div>
+    <div class="bot">${B.ph === 'done' ? `<h2>Žvaigždynas uždegtas</h2><p>${Math.max(1, Math.round(s / 60))} min. Tu ir Daigelis.</p><button class="btn primary big" data-a="freeChat">Toliau</button>` : `<p>${B.ph === 'out' ? 'Lėtai pro burną' : 'Pro nosį, ramiai'}</p><button class="btn big t" data-a="freeFullClose">Baigti</button>`}</div></div>`;
+  if (B.ph === 'in') { const r = el.querySelector('.ring2'), g = el.querySelector('.dgb'); r.className = 'ring2 out'; g.className = 'dgb out'; requestAnimationFrame(() => requestAnimationFrame(() => { r.className = 'ring2 in'; g.className = 'dgb in'; })); }
+}
+A.freeQuiet = () => { const F = freeData(); F.quiet = F.quiet === 'off' ? '' : 'off'; if (F.quiet === 'off') lvAudioStop(); storeLocal(); lvBreathDraw(); };
+
+// ---- Užimk rankas: paliesk pienę – nupūsk ----
+A.freeHands = () => { const el = lvFull('hands'); UI.lvH = {n: 0, t0: Date.now(), d: Array.from({length: 8}, (_, i) => ({x: 6 + (i % 4) * 23 + Math.random() * 8, y: 44 + Math.floor(i / 4) * 22 + Math.random() * 8, s: 1.2 + Math.random() * .6, b: 0}))}; lvHandsDraw(); UI.lvT = setInterval(() => { const t = document.querySelector('.dand .tm'); if (t && UI.lvH) { const s = Math.round((Date.now() - UI.lvH.t0) / 1000); t.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; } }, 1000); };
+const lvDand = (blown) => `<svg viewBox="0 0 40 90"><path d="M20 90 Q18 60 20 30" stroke="#4f8a4a" stroke-width="2.5" fill="none"/>${blown ? '<circle cx="20" cy="28" r="4" fill="#c9b27a"/>' : Array.from({length: 16}, (_, i) => { const a = i / 16 * Math.PI * 2; return `<line x1="20" y1="28" x2="${20 + 14 * Math.cos(a)}" y2="${28 + 14 * Math.sin(a)}" stroke="#fff" stroke-width="1.4"/><circle cx="${20 + 14 * Math.cos(a)}" cy="${28 + 14 * Math.sin(a)}" r="2.2" fill="#fff"/>`; }).join('') + '<circle cx="20" cy="28" r="3" fill="#e9dcc0"/>'}</svg>`;
+function lvHandsDraw() {
+  const H = UI.lvH, el = document.querySelector('.lv-full'); if (!el || !H) return;
+  el.innerHTML = `<div class="dand"><div class="top"><span>${H.n} ${H.n % 10 === 1 && H.n % 100 !== 11 ? 'pienė' : 'pienės'}</span><span class="tm">0:00</span></div><div class="dg">${daigelis(5)}</div>
+    ${H.d.map((p, i) => `<button class="pn ${p.b ? 'b' : ''}" style="left:${p.x}%;top:${p.y}%;width:${40 * p.s}px" data-a="freeBlow" data-i="${i}" aria-label="Pienė">${lvDand(p.b)}</button>`).join('')}
+    <div class="bot">Paliesk pienę – nupūsk<button class="btn big t" data-a="freeHandsEnd">Baigti</button></div></div>`;
+}
+A.freeBlow = d => { const H = UI.lvH, p = H?.d[+d.i]; if (!p || p.b) return; p.b = 1; H.n++;
+  const el = document.querySelector(`.dand .pn[data-i="${d.i}"]`); if (el) { const r = el.getBoundingClientRect(); for (let k = 0; k < 10; k++) { const s = document.createElement('span'); s.className = 'seed'; s.style.left = (r.left + r.width / 2) + 'px'; s.style.top = (r.top + r.width * .7) + 'px'; s.style.setProperty('--dx', (Math.random() * 160 - 40) + 'px'); s.style.setProperty('--dy', (-80 - Math.random() * 160) + 'px'); document.body.appendChild(s); setTimeout(() => s.remove(), 2200); } }
+  setTimeout(() => { if (UI.lvH === H) { p.b = 0; p.x = 6 + Math.random() * 80; p.y = 44 + Math.random() * 34; lvHandsDraw(); } }, 2600); lvHandsDraw(); };
+A.freeHandsEnd = () => A.freeChat();
+
+// ---- Kodėl pradėjau ----
+A.freeWhy = () => {
+  const el = lvFull('why'), F = freeData(), sub = freeMain(), P = sub ? freeProg(sub) : {n: 0}, start = F.subs.map(s => s.start).sort()[0];
+  const best = F.subs.map(s => [s, freeProg(s)]).filter(([s]) => s.mode !== 'track');
+  el.innerHTML = `<div class="why5"><div class="lv-ob-h" style="margin-bottom:6px"><button class="lv-ib" style="position:static;background:var(--card);color:var(--text)" data-a="freeFullClose" aria-label="Atgal">${ic('back')}</button><b>Kodėl pradėjau</b></div>
+    ${F.why ? `<p class="q">${esc(F.why)}</p><div class="when">Parašei ${start ? fmtDate(start) : ''}, pirmą dieną</div>` : `<p class="lead">Dar neparašei, kodėl. Parašyk sau – parodysim, kai bus sunku.</p><button class="btn" data-a="freeEdit">Parašyti</button>`}
+    <div class="sec">Ką jau atgavai</div><div class="gained">${best.map(([s, p]) => `<div><b>${fmtFree(p.n)}</b><small>${s.mode === 'quit' ? 'be ' + freeSub(s.k)[1] : freeSub(s.k)[0] + ' pagal planą'}</small></div>`).join('')}<div><b>${F.held || 0}</b><small>atlaikyti norai</small></div><div><b>${freeLevel().lv} lygis</b><small>${F.xp || 0} XP</small></div></div></div>
+    <div class="dockw"><button class="btn" data-a="freeBreath">Pakvėpuokim</button><button class="btn primary" data-a="freeHeld">Atlaikiau</button></div>`;
+};
+
+// ---- pokalbis: mygtukai → rašai → Daigelis atsako (Claude); „Ar jau geriau?“, 40 žinučių riba, ~150 per dieną ----
+const LV_CHIPS = ['Geriau', 'Vis dar noriu', 'Pykstu', 'Liūdna', 'Pavargau'];
+const LV_LOCAL = ['Girdžiu. Pabandyk išgerti stiklinę vandens ir lėtai iškvėpti – noras po kelių minučių nuslūgsta.', 'Suprantu. Kas būtų mažas dalykas, kurį galėtum padaryti dabar vietoj to?', 'Tu jau čia ir kalbi su manim – tai jau stiprus žingsnis. Pabūkim dar minutę.', 'Pabandyk paimti ką nors į rankas ar trumpai išeiti į lauką. Aš šalia.'];
+A.freeChat = () => { lvFull('chat'); const F = freeData(), d = today(); if (F.chatDay?.d !== d) F.chatDay = {d, n: 0}; UI.lvC = {msgs: [], ask: 0, no: 0, busy: false, done: false}; lvChatDraw(); };
+function lvChatDraw(focus) {
+  const C = UI.lvC, el = document.querySelector('.lv-full'); if (!el || !C) return; const F = freeData(), limit = C.msgs.filter(m => m.me).length >= 40 || (F.chatDay?.n || 0) >= 150;
+  const prev = el.querySelector('textarea')?.value || '';
+  el.innerHTML = `<div class="lv-chat"><div class="chhead"><button class="lv-ib back" data-a="freeHard" aria-label="Atgal">${ic('back')}</button><span class="who2">${daigelis(4)}Daigelis</span><button class="hum" data-a="freeHuman">Žmogus</button><button class="end" data-a="freeChatEnd">Baigti</button></div>
+    <div class="chat">${!C.msgs.length ? `<div class="hello">${daigelis(4)}<h3>Kaip jautiesi dabar?</h3></div><div class="chips">${LV_CHIPS.map(x => `<button data-a="freeChatSay" data-t="${x}">${x}</button>`).join('')}</div>` : ''}
+      ${C.msgs.map(m => `<div class="${m.me ? 'lv-me' : 'lv-dg'}">${esc(m.t)}</div>`).join('')}${C.danger ? `<div class="limcard">${helpRows(true)}</div>` : ''}
+      ${C.busy ? '<div class="lv-dg typing"><i></i><i></i><i></i></div>' : ''}
+      ${C.ask && !C.busy && !limit && !C.done ? `<div class="askb"><span>Ar jau geriau?</span><button data-a="freeChatBetter" data-v="1">Taip</button><button data-a="freeChatBetter" data-v="0">Dar ne</button></div>` : ''}
+      ${limit || C.done ? `<div class="lv-dg">${limit ? 'Šiandien daugiau pakalbėti nebegalėsim, bet matau, kad jau tvirčiau stovi. Pakvėpuokim dar kartą?' : 'Ačiū, kad pasikalbėjai. Ar dar reikia ramybės?'}</div><div class="limcard"><button class="btn primary big" data-a="freeBreath">Pakvėpuokim</button><button class="btn big t" data-a="${limit ? 'freeHard' : 'freeChatEnd'}">${limit ? 'Grįžti į „Esu čia“' : 'Ne, jau gerai'}</button></div>` : ''}</div>
+    <div class="micbar ${limit ? 'off' : ''}"><textarea rows="1" maxlength="600" placeholder="${limit ? 'Šiandien pokalbis baigtas' : 'Parašyk, kaip jautiesi…'}" ${limit ? 'disabled' : ''}></textarea><button class="send" data-a="freeChatSend" aria-label="Siųsti" ${limit || C.busy ? 'disabled' : ''}>${ic('arrow')}</button></div></div>`;
+  const ta = el.querySelector('textarea'); if (ta) { ta.value = prev; if (focus) ta.focus(); }
+  const ch = el.querySelector('.chat'); if (ch) ch.scrollTop = ch.scrollHeight;
+}
+A.freeChatSend = () => { const ta = document.querySelector('.lv-full textarea'), t = (ta?.value || '').trim(); if (!t) return; ta.value = ''; A.freeChatSay({t}); };
+A.freeChatSay = async d => {
+  const C = UI.lvC, F = freeData(), t = String(d.t || '').trim().slice(0, 600); if (!C || !t || C.busy || C.done) return;
+  if (C.msgs.filter(m => m.me).length >= 40 || (F.chatDay?.n || 0) >= 150) return lvChatDraw();
+  C.msgs.push({me: 1, t}); C.busy = true; F.chatDay.n++; storeLocal(); lvChatDraw();
+  const sub = freeMain(), ctx = `${F.subs.map(s => `${freeSub(s.k)[0]} (${FREE_MODES[s.mode]})`).join(', ')}; ${sub ? fmtFree(freeProg(sub).n) : ''}; atlaikyta ${F.held || 0}`;
+  let r = null; if (cloudOn()) r = await DB.fn('free_chat', {msgs: C.msgs.slice(-16), ctx}).catch(() => null);
+  if (UI.lvC !== C) return;
+  C.busy = false; C.msgs.push({t: r?.ok && r.reply ? r.reply : LV_LOCAL[C.msgs.length % LV_LOCAL.length]}); if (r?.danger) { C.danger = true; UI.lvDanger = true; }
+  const mine = C.msgs.filter(m => m.me).length; if (C.no < 2 && mine >= 3 && mine % 3 === 0) C.ask = 1;
+  lvChatDraw(true);
+};
+A.freeChatBetter = d => { const C = UI.lvC; if (!C) return; C.ask = 0; if (+d.v) C.done = true; else C.no++; lvChatDraw(); };
+A.freeChatEnd = () => { lvFull(null); A.freeHard(); };
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && e.target.closest?.('.lv-chat textarea')) { e.preventDefault(); A.freeChatSend(); } });
+
+// ---- daikto tempimas pirštu: Mano pasaulis → Perkelti → tempi daiktą pasaulyje ----
+A.freeDrag = d => { A.closeSheet(); UI.lvMp = null; UI.lvOld = null; UI.lvDrag = d.k; render(); window.scrollTo(0, 0); };
+A.freeDragDone = () => { UI.lvDrag = null; render(); };
+function freeDragMount(box) {
+  const k = UI.lvDrag, Wd = LVW.WORLDS.find(w => box.contains(w.el)), th = Wd && (Wd.things?.[k] || Wd.pets?.find(p => p.key === k)); if (!th) return;
+  const el = th.d; el.classList.add('lv-drag'); box.classList.add('dragging'); const B = () => box.querySelector('.wd').getBoundingClientRect();
+  let on = false;
+  const move = e => { if (!on) return; e.preventDefault(); const b = B(), x = Math.max(10, Math.min(b.width - 10, e.clientX - b.left)), y = Math.max(b.height * .3, Math.min(b.height - 8, e.clientY - b.top));
+    th.x = x; th.y = y; if (th.draw) th.draw(); else { el.style.left = x + 'px'; el.style.top = y + 'px'; } if (th.tx != null) { th.tx = x; th.ty = y; } };
+  const up = () => { if (!on) return; on = false; const b = B(), it = freeW().items[k]; if (it) { it.x = +(th.x / b.width).toFixed(3); it.y = +(th.y / b.height).toFixed(3); } commit({noRender: true}); UI.lvRedraw = (UI.lvRedraw || 0) + 1; render(); };
+  box.addEventListener('pointerdown', e => { const r = el.getBoundingClientRect(); if (e.clientX < r.left - 24 || e.clientX > r.right + 24 || e.clientY < r.top - 24 || e.clientY > r.bottom + 24) return; on = true; box.setPointerCapture?.(e.pointerId); move(e); });
+  box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+}
