@@ -1,6 +1,11 @@
 // ===================== LAISVĖ =====================
 // Taisyklės: docs/laisve-technika.md. Pasaulio variklis: laisve-world.js (sugeneruotas iš maketo).
 // Duomenys: S.free = {on, subs: [{id, k, mode, start, limit, unit, price, days: {data: 'ok'|'slip'|'over'}, counts: {data: n}}], xp, why, seen}
+// Skyriai: progresas (freeProg) → pasaulio vieta (freeWorldCfg) → ekranas (vFree, freeMount, freeAfter, freeUnstack) → dienos žymėjimas
+// → DAIKTAI/DĖŽĖS/MANO PASAULIS → Laiko sustabdymas → pranešimai (naujas takas, kraštas, draugas) → seni kraštai → DOVANA (šifruota)
+// → VALDIKLIS → SUNKU? (kvėpavimas, rankos, kodėl, pokalbis) → tempimas → ŽENKLIUKAI → TURAS → balsas/nuotrauka → PROGRESAS/PINIGAI/KŪNAS/
+// ŽINIOS/VAKARĖLIS/SKANĖSTŲ DIENA → PAŽINTIS (pavyzdinis pasaulis UI.lvDemo) → kompiuteris, „Kas nutiko?“, laisvas režimas.
+// S.free.w – pasaulis: {items, lands, cur, day, pity, wk, ts, food, drink, tour, giftSeen, ms, best, seen}. Plačiau – docs/laisve-technika.md.
 
 const FREE_SUBS = {
   cig: ['Cigaretės', 'cigarečių', 'cig', 'cigaretės'], vape: ['Elektroninė cigaretė', 'elektroninės', 'vape', 'įtraukimai'], pouch: ['Snusas, maišeliai', 'snuso', 'pouch', 'maišeliai'],

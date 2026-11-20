@@ -1,4 +1,8 @@
 // ===== Pagalbinės funkcijos, būsena, sinchronizacija, skaičiavimai, grafikai =====
+// Žemėlapis: datos ir laiko juosta (today, addDays) → defaultData / migrate (S struktūra) → commit / push (localStorage + Supabase,
+// rev konfliktai, kūrėjo „smėlio dėžė“) → targets (normos) → dayTime / eventSegs (kalendorius) → pratimų parinkimas (placeOk, buildWorkout)
+// → dayScore (dienos balas) → motivation (Šiandien žinutė, pirma savijauta) → gamification (XP) → SVG grafikai.
+// Principas: išvestiniai dydžiai visada perskaičiuojami iš įrašų, nesaugomi. Plačiau – ARCHITECTURE.md.
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);

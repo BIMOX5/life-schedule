@@ -1,4 +1,8 @@
 // ===== Sąsaja =====
+// Kiekviena skiltis – funkcija v<Skiltis>() grąžina HTML eilutę; render() perpiešia aktyvią. Veiksmai: data-a="x" → A.x(dataset).
+// Skyriai (ieškok „// ====“): Atgal, Kūrėjo režimas, REKOMENDACIJOS, KĄ VALGYTI KADA, ŠIANDIEN, KALENDORIUS, UŽDUOTYS, MITYBA,
+// SPORTAS, LAIKAS, PROGRESAS, UŽRAŠAI, PROFILIS, Režimai (rekomendacijos / tik sekti), VERSIJOS, ATSILIEPIMAI, PRIVATUMAS,
+// PRIMINIMAI, PALEIDIMAS, SAVIJAUTA, PRANEŠIMAI (Web Push), ŽINGSNIAI. Laisvė – atskirame laisve.js.
 const UI = { view: 'today', cal: {mode: 'week', date: today()}, food: 'log', foodDate: today(), time: {mode: 'week', date: today()},
   sport: 'overview', taskFilter: 'open', noteId: null, recipeQ: '', foodQ: '', mealTab: 'ai' };
 const VIEWS = [
