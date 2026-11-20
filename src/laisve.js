@@ -117,7 +117,7 @@ function freeWidgetTick() { if (!LSW() || UI.lvDemo) return; if (!UI.lvPulled) {
 let LV_PETN = [];
 // po pasaulio: dovana (pirmą kartą), Laiko sustabdymas, naujas takas / kraštas / draugas
 function freeAfter() {
-  if (UI.lvDemo || !freeData().subs.length || UI.lvMp || UI.lvOld || UI.lvDrag || UI.lvFull || document.querySelector('.lv-gift') || $('#sheet')?.innerHTML.trim()) return;
+  if (UI.lvDemo || !freeData().subs.length || UI.lvMp || UI.lvOld || UI.lvDrag || document.querySelector('.lv-full, .lv-gift') || $('#sheet')?.innerHTML.trim()) return;
   if (cloudOn() && !FREE_GIFT.done) return;   // dar tikrinama dovana – po to perpiešiama
   if (UI.lvWhat) return freeWhat();
   const w = freeW();
@@ -182,7 +182,7 @@ function freeRows() {
   const F = freeData(), d = today();
   return `<div class="lv-rows">${F.subs.map(s => { const [n, , icn, unit] = freeSub(s.k), P = freeProg(s), c = (s.counts || {})[d] || 0, und = UI.lvUndo?.id === s.id;
     const main = s.mode === 'quit' ? `${fmtFree(P.n)} be` : s.mode === 'reduce' ? `${c} iš ${+s.limit || 0}` : `${c} šiandien`;
-    const sub2 = und ? `Įrašyta <a data-a="freeUndo">Atšaukti</a>` : s.mode === 'quit' ? FREE_MODES.quit : s.mode === 'reduce' ? `${unit} šiandien · ${fmtFree(P.n)} pagal planą` : `${unit} · ${fmtFree(P.n)} stebi`;
+    const sub2 = und ? `Įrašyta <a data-a="freeUndo">Atšaukti</a>` : s.mode === 'quit' ? (s.free ? 'Laisvas režimas · +1 jei paslydai' : 'Mesti · +1 jei paslydai') : s.mode === 'reduce' ? `${unit} šiandien · ${fmtFree(P.n)} pagal planą` : `${unit} · ${fmtFree(P.n)} stebi`;
     const ln = s.mode === 'reduce' && +s.limit ? `<div class="ln"><i style="width:${Math.min(100, c / s.limit * 100)}%"></i></div>` : '';
     return `<div class="lv-row"><span class="ic">${lvIc(icn)}</span><span class="tx"><b>${main}</b><small>${n} · ${sub2}</small>${ln}</span><button class="lv-p1 ${und ? 'u' : ''}" data-a="freePlus" data-id="${s.id}" aria-label="+1">${und ? ic('check') : '+1'}</button></div>`; }).join('')}</div>`;
 }
@@ -199,28 +199,36 @@ A.freeMark = async d => {
 };
 A.freePlus = async d => {
   const F = freeData(), s = F.subs.find(x => x.id === d.id); if (!s || !tapOnce('free:' + s.id, 600)) return;
-  if (s.mode === 'quit' && !(s.k === 'fast' && treatOn())) return A.freeMark({d: today(), m: 'quit', v: 'slip'});
+  // Mesti: +1 = paslydau. Veikia ir tada, kai šiandien jau pažymėta „Taip“ (paslysti galima ir vėliau dieną).
+  if (s.mode === 'quit' && !(s.k === 'fast' && treatOn())) {
+    if (s.days[today()] === 'slip') return toast('Šiandien jau užrašyta');
+    if (!await ask('Paslydai?', `${freeSub(s.k)[0]} – šiandien. Nieko tokio: takas prasidės iš naujo, o tavo daiktai ir ženkliukai liks.`, {yes: 'Taip, užrašyti', no: 'Atšaukti'})) return;
+    s.days[today()] = 'slip'; UI.lvWhat = {d: today(), ids: [s.id]}; return commit();
+  }
   s.counts = s.counts || {}; s.counts[today()] = (s.counts[today()] || 0) + 1;
   clearTimeout(UI.lvUndoT); UI.lvUndo = {id: s.id, d: today()}; UI.lvUndoT = setTimeout(() => { UI.lvUndo = null; if (UI.view === 'free') render(); }, 5000); commit();
 };
 A.freeUndo = () => { const u = UI.lvUndo, s = u && freeData().subs.find(x => x.id === u.id); if (s && s.counts?.[u.d] > 0) s.counts[u.d]--; UI.lvUndo = null; commit(); };
 A.freeMenu = () => {
   $('#sheet').innerHTML = `<div class="dim" data-a="closeSheet"></div><div class="sh more2"><h3>Laisvė</h3><div class="mgrid">
-    <button data-a="freeMpOpen" data-sheet="1"><i>${ic('leaf')}</i>Mano pasaulis</button><button data-a="freeMap" data-sheet="1"><i>${ic('cal')}</i>Mano kraštai</button><button data-a="freeBadgesOpen" data-sheet="1"><i>${ic('spark')}</i>Ženkliukai</button><button data-a="freeWidget" data-sheet="1"><i>${ic('plus')}</i>Valdiklis ekrane</button><button data-a="freeTourAgain" data-sheet="1"><i>${ic('bulb')}</i>Kaip veikia</button><button data-a="freeEdit" data-sheet="1"><i>${ic('pen')}</i>Ką keičiu</button><button data-a="freeHide" data-sheet="1"><i>${ic('eyeoff')}</i>Paslėpti Laisvę</button></div></div>`;
+    <button data-a="freeMpOpen" data-sheet="1"><i>${ic('leaf')}</i>Mano pasaulis</button><button data-a="freeMap" data-sheet="1"><i>${ic('cal')}</i>Mano kraštai</button><button data-a="freeBadgesOpen" data-sheet="1"><i>${ic('spark')}</i>Ženkliukai</button><button data-a="freeWidget" data-sheet="1"><i>${ic('plus')}</i>Valdiklis ekrane</button><button data-a="freeTourAgain" data-sheet="1"><i>${ic('bulb')}</i>Kaip veikia</button><button data-a="freeEdit" data-sheet="1"><i>${ic('pen')}</i>Ką ir kaip keičiu</button><button data-a="freeHide" data-sheet="1"><i>${ic('eyeoff')}</i>Paslėpti Laisvę</button></div></div>`;
 };
 A.freeHide = async () => { if (!await ask('Paslėpti Laisvę?', 'Skirtukuose nebesimatys, duomenys liks. Vėl rodyti – Nustatymai → apatinė juosta arba ilgai paspausk Savijautą.', {yes: 'Paslėpti'})) return; freeData().hidden = true; freeWidgetSync(false); if (UI.view === 'free') UI.view = 'wellbeing'; commit(); };
-A.freeEdit = () => { UI.lvOb = {step: 1, sel: freeData().subs.map(s => s.k), edit: true}; render(); };
+// „Ką ir kaip keičiu“: rodom ESAMUS pasirinkimus (režimą, ribą, kiekį, kainą), kad būtų aišku, ką keiti
+A.freeEdit = () => { const subs = freeData().subs, m = f => Object.fromEntries(subs.map(x => [x.k, f(x)]));
+  UI.lvOb = {step: 1, sel: subs.map(x => x.k), edit: true, mode: m(x => x.mode), lim: m(x => x.limit || ''), amt: m(x => x.perDay || ''), price: m(x => x.price || ''), why: freeData().why || ''}; render(); window.scrollTo(0, 0); };
+A.freeEditCancel = () => { UI.lvOb = null; render(); window.scrollTo(0, 0); };
 
 // ---- pradžia: ką keisti → ko sieki → kiek → kodėl ----
 function freeStart() {
   const F = freeData(), O = UI.lvOb = UI.lvOb || {step: 0, sel: []};
-  const head = (t, n) => `<div class="lv-ob-h">${daigelis(n ? 4 : 5)}<div><b>${t}</b>${n ? `<small>${n}/4</small>` : ''}</div></div>`;
+  const head = (t, n) => `<div class="lv-ob-h">${daigelis(n ? 4 : 5)}<div style="flex:1"><b>${t}</b>${n ? `<small>${n}/4</small>` : ''}</div>${O.edit ? '<button class="btn sm ghost" data-a="freeEditCancel">Atšaukti</button>' : ''}</div>`;
   if (O.step === 0) return `<div class="lvw lv-ob">${head('Laisvė')}<p class="lv-lead">Mesti, mažinti ar tiesiog stebėti – cigaretes, elektroninę, alkoholį ar ką kita. Kiekviena gera diena – žingsnis tavo take.</p><button class="btn primary big" data-a="freeOb" data-s="1">Pradėti</button></div>`;
   if (O.step === 1) return `<div class="lvw lv-ob">${head('Ką nori keisti?', 1)}<p class="lv-lead">Gali pasirinkti kelis</p><div class="st-chips">${Object.entries(FREE_SUBS).map(([k, [n]]) => `<button class="${O.sel.includes(k) ? 'on' : ''}" data-a="freeObSel" data-k="${k}">${n}</button>`).join('')}</div><button class="btn primary big" data-a="freeOb" data-s="2" ${O.sel.length ? '' : 'disabled'}>Toliau</button></div>`;
-  if (O.step === 2) return `<div class="lvw lv-ob">${head('Ko sieki?', 2)}${O.sel.map(k => { const m = (O.mode || {})[k] || 'quit'; return `<div class="lv-ob-s"><b>${FREE_SUBS[k][0]}</b><div class="seg">${Object.entries(FREE_MODES).map(([v, l]) => `<button class="${m === v ? 'on' : ''}" data-a="freeObMode" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>
+  if (O.step === 2) return `<div class="lvw lv-ob">${head('Ko sieki?', 2)}${O.edit ? '<p class="lv-lead">Čia gali pakeisti režimą: Mesti, Mažinti ar Stebėti. Pažymėtos dienos ir daiktai lieka.</p>' : ''}${O.sel.map(k => { const m = (O.mode || {})[k] || 'quit'; return `<div class="lv-ob-s"><b>${FREE_SUBS[k][0]}</b><div class="seg">${Object.entries(FREE_MODES).map(([v, l]) => `<button class="${m === v ? 'on' : ''}" data-a="freeObMode" data-k="${k}" data-v="${v}">${l}</button>`).join('')}</div>
     ${m === 'reduce' ? `<label class="lv-in">Ne daugiau kaip <input type="number" min="0" inputmode="numeric" data-c="freeObLim" data-k="${k}" value="${(O.lim || {})[k] ?? ''}"> ${FREE_SUBS[k][3]} per dieną</label>` : `<small>${m === 'quit' ? 'Kiekviena pažymėta diena – žingsnis. Nepavykus – nauja pradžia.' : 'Užsirašai, kiek – takas eina lėtai, be bausmių.'}</small>`}</div>`; }).join('')}<button class="btn primary big" data-a="freeOb" data-s="3">Toliau</button></div>`;
   if (O.step === 3) return `<div class="lvw lv-ob">${head('Kiek ir už kiek?', 3)}<p class="lv-lead">Nebūtina – pagal tai skaičiuosim sutaupytus pinigus</p>${O.sel.map(k => `<div class="lv-ob-s"><b>${FREE_SUBS[k][0]}</b><div class="lv-two"><label>Kiek per dieną<input type="number" min="0" step="any" inputmode="decimal" data-c="freeObAmt" data-k="${k}" value="${(O.amt || {})[k] ?? ''}"></label><label>Išleidi per dieną (€)<input type="number" min="0" step="0.01" inputmode="decimal" data-c="freeObPrice" data-k="${k}" value="${(O.price || {})[k] ?? ''}"></label></div></div>`).join('')}<button class="btn primary big" data-a="freeOb" data-s="4">Toliau</button></div>`;
-  return `<div class="lvw lv-ob">${head('Kodėl?', 4)}<p class="lv-lead">Parašyk sau – parodysim, kai bus sunku</p><textarea rows="4" data-c="freeObWhy" placeholder="Pvz. noriu laisviau kvėpuoti ir daugiau laiko su vaikais">${esc(O.why ?? F.why ?? '')}</textarea><div class="why5 lv-obm"><div class="media lv-media"></div></div>${(setTimeout(freeWhyMedia, 0), '')}<button class="btn primary big" data-a="freeObDone">Kelias prasideda</button></div>`;
+  return `<div class="lvw lv-ob">${head('Kodėl?', 4)}<p class="lv-lead">Parašyk sau – parodysim, kai bus sunku</p><textarea rows="4" data-c="freeObWhy" placeholder="Pvz. noriu laisviau kvėpuoti ir daugiau laiko su vaikais">${esc(O.why ?? F.why ?? '')}</textarea><div class="why5 lv-obm"><div class="media lv-media"></div></div>${(setTimeout(freeWhyMedia, 0), '')}<button class="btn primary big" data-a="freeObDone">${O.edit ? 'Išsaugoti' : 'Kelias prasideda'}</button></div>`;
 }
 A.freeOb = d => { UI.lvOb.step = +d.s; render(); window.scrollTo(0, 0); };
 A.freeObSel = d => { const O = UI.lvOb; O.sel = O.sel.includes(d.k) ? O.sel.filter(x => x !== d.k) : [...O.sel, d.k]; render(); };
@@ -229,7 +237,7 @@ A.freeObDone = () => {
   const F = freeData(), O = UI.lvOb, keep = Object.fromEntries(F.subs.map(s => [s.k, s]));
   F.subs = O.sel.map(k => { const old = keep[k], mode = (O.mode || {})[k] || old?.mode || 'quit';
     return {...(old || {id: 'f' + uid(), k, start: today(), days: {}, counts: {}}), mode, limit: +((O.lim || {})[k] ?? old?.limit ?? 0) || 0, perDay: +((O.amt || {})[k] ?? old?.perDay ?? 0) || 0, price: +((O.price || {})[k] ?? old?.price ?? 0) || 0}; });
-  if (O.why != null) F.why = O.why; F.on = true; F.hidden = false; freeW().tour = 1; UI.lvOb = null; commit(); window.scrollTo(0, 0);
+  if (O.why != null) F.why = O.why; F.on = true; F.hidden = false; freeW().tour = 1; if (O.edit) { freeW().cur = null; LV_KEEP = null; toast('Išsaugota', 'good'); } UI.lvOb = null; commit(); window.scrollTo(0, 0);
 };
 // įvedimai be perpiešimo (kad klaviatūra neužsidarytų)
 document.addEventListener('input', e => { const c = e.target.dataset?.c, O = UI.lvOb; if (!c || !c.startsWith('freeOb') || !O) return; const k = e.target.dataset.k, v = e.target.value;

@@ -1,6 +1,11 @@
 {
-  "stable": "1.15.2",
+  "stable": "1.15.3",
   "versions": [
+    {
+      "v": "1.15.4",
+      "date": "2026-11-20",
+      "notes": "Laisvė: +1 metant veikia ir pažymėjus „Taip“ (užrašo paslydimą), „Ką ir kaip keičiu“ rodo esamus režimus, yra Atšaukti; naudotojo vadovas."
+    },
     {
       "v": "1.15.3",
       "date": "2026-11-20",
@@ -35,11 +40,6 @@
       "v": "1.14.0",
       "date": "2026-11-20",
       "notes": "Laisvė: kompiuteryje pasaulis per visą plotį ir du stulpeliai; Kas nutiko? po paslydimo; Pastebėjimai progrese; laisvas režimas po metų."
-    },
-    {
-      "v": "1.13.0",
-      "date": "2026-11-20",
-      "notes": "Laisvė: Progresas (grafikai, kūnas atsistato), Pinigai su tikslu, Žinios su patikrintomis istorijomis, Vakarėlio planas, Skanėstų diena. Kalendorius: datos pasirinkimas vėl tvarkingas."
     }
   ]
 }
