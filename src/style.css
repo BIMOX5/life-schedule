@@ -1094,7 +1094,7 @@ body::before { content:''; position:fixed; top:0; left:0; right:0; height:max(en
 .lv-lvl { display:flex; align-items:center; gap:8px; margin-top:10px; max-width:220px; } .lv-lvl b { font:900 12.5px Nunito; white-space:nowrap; background:#2b1a10; color:#ffd9b8; border-radius:99px; padding:3px 9px; }
 .lv-lvl span { flex:1; height:8px; border-radius:8px; background:rgba(43,26,16,.18); overflow:hidden; } .lv-lvl span i { display:block; height:100%; background:linear-gradient(90deg, #ff8040, #ffc14a); } .lv-lvl small { font:800 11.5px Nunito; opacity:.7; white-space:nowrap; }
 .lvw .wd .hud { pointer-events:none; } .lvw .wd .walker { cursor:pointer; }
-.lv-sheet { display:flex; flex-direction:column; gap:10px; margin-top:-6px; }
+.lv-sheet { display:flex; flex-direction:column; gap:10px; margin-top:12px; }
 .lv-chk { display:flex; align-items:center; gap:8px; background:var(--card); border-radius:22px; padding:12px 14px; box-shadow:var(--shadow); }
 .lv-chk .tx { flex:1; min-width:0; } .lv-chk b { display:block; font-weight:900; font-size:15px; } .lv-chk small { color:var(--mu); font-weight:700; font-size:12px; } .lv-chk.done { color:var(--br); } .lv-chk.done b { color:var(--text); }
 .lv-rows { background:var(--card); border-radius:22px; padding:4px 14px; box-shadow:var(--shadow); }

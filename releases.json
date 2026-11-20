@@ -1,6 +1,11 @@
 {
-  "stable": "1.14.2",
+  "stable": "1.15.0",
   "versions": [
+    {
+      "v": "1.15.1",
+      "date": "2026-11-20",
+      "notes": "Laisvė: Stebėti režime vėl matomas Daigelis ir takas, galima pažymėti „Šiandien nieko“; Sunku? kortelė nebelenda po pasauliu; viršuje rodo „dienų užrašyta“ / „pagal planą“ pagal režimą."
+    },
     {
       "v": "1.15.0",
       "date": "2026-11-20",
@@ -35,11 +40,6 @@
       "v": "1.11.0",
       "date": "2026-11-20",
       "notes": "Laisvė: Sunku? – kvėpavimas su žvaigždynu ir tyliais garsais, Kodėl pradėjau, pienių pūtimas, pokalbis su Daigeliu, pagalbos linijos, Atlaikiau. Daiktus galima tempti pirštu. Pataisyti grįžimo mygtukai Laisvės antraštėse."
-    },
-    {
-      "v": "1.10.2",
-      "date": "2026-11-20",
-      "notes": "Laisvė: labradoras vaikšto tikrais žingsniais; dovanos šunų dubenėlis pilnas pirmą savaitę, paskui tuštėja kaip visų; šunys pasirodo tik po dovanos turo. Mityba: dvigubas Valgau nebeįrašo dviejų valgių."
     }
   ]
 }

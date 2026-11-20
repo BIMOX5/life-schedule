@@ -56,9 +56,11 @@ function freeLine(next) {
 
 // ---- pasaulio vieta: kraštas, išvaizda, padėtis take ----
 function freeWorldCfg(W) {
-  const sub = freeMain(), P = freeProg(sub), span = isFinite(P.to) ? P.to - P.from : 3650, k = Math.min(1, (P.n - P.from) / span);
+  const sub = freeMain(), P = freeProg(sub), track = sub.mode === 'track', span = track ? 30 : isFinite(P.to) && P.to > P.from ? P.to - P.from : 3650;
+  // Stebėti: takas eina per mėnesį (kraštas keičiasi kas mėnesį), ženkliukų nėra
+  const k = Math.max(0, Math.min(1, track ? (diffDays(sub.start, today()) % 30) / 30 : (P.n - P.from) / span)) || 0;
   const look = sub.mode === 'track' ? (P.land * 7 + (+sub.start.slice(8, 10))) % 3 : P.resets % 3, t = FREE_T0 + FREE_TS * k;
-  const pins = FREE_MS.map((d, i) => [d, i]).filter(([d]) => d >= P.from && d < P.to).map(([d, i]) => {
+  const pins = track ? [] : FREE_MS.map((d, i) => [d, i]).filter(([d]) => d >= P.from && d < P.to).map(([d, i]) => {
     const kk = Math.min(1, (d - P.from) / span), label = LVW.MS[i][0]; return [FREE_T0 + FREE_TS * kk, P.n >= d ? 'ok' : 'nxt', P.n >= d ? label : `<em>${label}</em>`, '', i]; });
   // ženkliukas neužlipa ant Daigelio: per arti – pastumiam toliau taku
   pins.forEach(p => { if (Math.abs(p[0] - t) < .08) p[0] = Math.min(.95, t + .08); });
@@ -86,7 +88,7 @@ function vFree() {
   Object.assign(o, {things: here.things, pets: here.pets, nudgeAll: 1, noRefill: 1, bowlLv: bw ? Math.max(0, bowlLv(bw, 'bowl')) : null}); LV_PETN = here.names;
   const key = JSON.stringify([o.bio, o.look, o.season, o.tod, o.t.toFixed(3), o.ex, o.say, o.pins, W, here.things, here.pets, o.bowlLv, UI.lvRedraw || 0, UI.lvDrag || '']); UI.lvRedraw = 0;
   const hud = `<div class="lv-hud"><b class="lv-t">Laisvė</b><button class="lv-ib" data-a="freeMenu" aria-label="Daugiau">${ic('more')}</button>
-    <div class="lv-big"><span class="n">${fmtFree(P.n).replace(' d.', '')}</span><span class="u">${P.n < 365 ? 'dienų laisvės' : 'laisvės'}<small>${land}</small></span></div>
+    <div class="lv-big"><span class="n">${fmtFree(P.n).replace(' d.', '')}</span><span class="u">${sub.mode === 'track' ? (P.n < 365 ? 'dienų užrašyta' : 'užrašyta') : sub.mode === 'reduce' ? (P.n < 365 ? 'dienų pagal planą' : 'pagal planą') : P.n < 365 ? 'dienų laisvės' : 'laisvės'}<small>${land}</small></span></div>
     <div class="lv-lvl"><b>${L.lv} lygis</b><span><i style="width:${L.p}%"></i></span><small>${L.p} / 100 XP</small></div></div>`;
   const left = `${UI.lvDrag ? `<div class="lv-chk"><span class="tx"><b>Tempi: ${esc(itemName(UI.lvDrag))}</b><small>Toliau – mažesnis, arčiau – didesnis. Ant tako nepastatysi.</small></span><button class="btn sm primary" data-a="freeDragDone">Baigti</button></div>` : `<button class="lv-sos" data-a="freeHard"><span>${daigelis(4)}</span><span class="tx"><b>Sunku?</b><small>Esu čia – pakvėpuokim, pasikalbėkim</small></span>${ic('arrow', 'sm')}</button>${freeChecks()}${freeBoxes()}`}`, right = `${freeRows()}${UI.lvDrag ? '' : freeTiles()}${LSW() && !freeW().seen.widget ? `<div class="lv-chk"><span class="tx"><b>Valdiklis telefono ekrane</b><small>Takas, dienos ir +1 – neatidarius programėlės</small></span><button class="btn sm ghost" data-a="freeWidgetNo">Vėliau</button><button class="btn sm primary" data-a="freeWidget">Kaip?</button></div>` : ''}`;
   return `<div class="lvw lv-page ${wide ? 'wide' : ''}"><div class="lv-world" data-key="${esc(key)}">${LVW.world({...o, hud})}</div>${wide ? `<div class="lv-sheet two"><div class="col">${left}</div><div class="col">${right}</div></div>` : `<div class="lv-sheet">${left}${right}</div>`}</div>`;
@@ -129,7 +131,7 @@ function freeUnstack(box) {
     if (!moved) break; LVW.placeWorld(box);
   }
   // burbulas: pirmiausia virš Daigelio (dešinėje, kairėje, centre), po juo – tik jei telpa; niekada už pasaulio krašto, ant užrašų ar ženkliukų
-  const say = box.querySelector('.say2'), w = box.querySelector('.walker'); if (!say || !w) return;
+  const say = box.querySelector('.say2'), w = box.querySelector('.walker'); if (!say) return; if (!w || !w.getBoundingClientRect().width || !isFinite(w.getBoundingClientRect().top)) { say.style.display = 'none'; return; }
   const wd = say.offsetParent || box, o = wd.getBoundingClientRect(), r = w.getBoundingClientRect(), bw = say.offsetWidth, bh = say.offsetHeight, W = o.width, H = o.height;
   const block = [...box.querySelectorAll('.lv-big, .lv-lvl, .lv-t, .lv-ib, .pin')].map(e => e.getBoundingClientRect()).filter(q => q.width).map(q => ({l: q.left - o.left, t: q.top - o.top, r: q.right - o.left, b: q.bottom - o.top}));
   const cx = r.left - o.left + r.width / 2, top = r.top - o.top + r.height * .08, bot = r.bottom - o.top;
@@ -156,6 +158,12 @@ function freeChecks() {
   };
   ask(y, 'Vakar'); ask(d, 'Šiandien');
   for (const s of F.subs.filter(s => s.free && (!s.wk || diffDays(s.wk, d) >= 7))) out.push(`<div class="lv-chk"><span class="tx"><b>Praėjusi savaitė be ${freeSub(s.k)[1]}?</b><small>Laisvas režimas – žymi kartą per savaitę</small></span><button class="btn sm ghost" data-a="freeWeekMark" data-k="${s.id}" data-v="0">Buvo</button><button class="btn sm primary" data-a="freeWeekMark" data-k="${s.id}" data-v="1">Taip</button></div>`);
+  // Stebėti: diena skaičiuojasi, kai užsirašai; jei nieko nebuvo – vienas paspaudimas
+  for (const s of F.subs.filter(s => s.mode === 'track' && s.start <= d)) {
+    const c = (s.counts || {})[d];
+    out.push(c == null ? `<div class="lv-chk"><span class="tx"><b>Šiandien – ${freeSub(s.k)[1]}?</b><small>Užsirašyk +1 arba pažymėk, kad nieko</small></span><button class="btn sm primary" data-a="freeTrackNone" data-k="${s.id}">Šiandien nieko</button></div>`
+      : `<div class="lv-chk done">${ic('check')}<span class="tx"><b>Šiandien užrašyta</b><small>${freeSub(s.k)[0]}: ${c} · stebi</small></span></div>`);
+  }
   if (!out.length && F.subs.some(s => s.days[d] === 'ok')) out.push(`<div class="lv-chk done">${ic('check')}<span class="tx"><b>Šiandien pažymėta</b><small>+10 XP</small></span></div>`);
   return out.join('');
 }
@@ -1004,3 +1012,4 @@ async function freeOwnerReset() {
     delete S.free; S.freeReset1 = 1; LV_KEEP = null; commit({noRender: true}); toast('Laisvė nunulinta – pradedam iš naujo');
   } catch (e) {}
 }
+A.freeTrackNone = d => { const s = freeData().subs.find(x => x.id === d.k); if (!s) return; s.counts = s.counts || {}; if (s.counts[today()] == null) { s.counts[today()] = 0; freeData().xp = (freeData().xp || 0) + 10; toast(freeLine(true), 'good'); } commit(); };
