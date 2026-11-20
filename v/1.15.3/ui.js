@@ -1,4 +1,8 @@
 // ===== Sąsaja =====
+// Kiekviena skiltis – funkcija v<Skiltis>() grąžina HTML eilutę; render() perpiešia aktyvią. Veiksmai: data-a="x" → A.x(dataset).
+// Skyriai (ieškok „// ====“): Atgal, Kūrėjo režimas, REKOMENDACIJOS, KĄ VALGYTI KADA, ŠIANDIEN, KALENDORIUS, UŽDUOTYS, MITYBA,
+// SPORTAS, LAIKAS, PROGRESAS, UŽRAŠAI, PROFILIS, Režimai (rekomendacijos / tik sekti), VERSIJOS, ATSILIEPIMAI, PRIVATUMAS,
+// PRIMINIMAI, PALEIDIMAS, SAVIJAUTA, PRANEŠIMAI (Web Push), ŽINGSNIAI. Laisvė – atskirame laisve.js.
 const UI = { view: 'today', cal: {mode: 'week', date: today()}, food: 'log', foodDate: today(), time: {mode: 'week', date: today()},
   sport: 'overview', taskFilter: 'open', noteId: null, recipeQ: '', foodQ: '', mealTab: 'ai' };
 const VIEWS = [
@@ -2698,7 +2702,7 @@ A.profileEdit = () => openProfileModal(false);
 function barSettings(bt) {
   const s = barSlots(), name = v => VIEWS.find(x => x[0] === v)?.[2] || '';
   return `<div class="st-slots">${s.map((v, i) => `<span class="${v ? 'on' : ''}"><i>${i + 1}</i>${v ? name(v) : `<em><small>laisva</small>${name(bt[i])}</em>`}</span>`).join('')}</div>
-    <div class="st-chips">${VIEWS.filter(v => v[0] !== 'settings' && viewOn(v[0])).map(([id, , l]) => { const i = s.indexOf(id); return `<button class="${i >= 0 ? 'on' : ''}" data-a="barTab" data-v="${id}">${i >= 0 ? `<i>${i + 1}</i>` : ''}${l}</button>`; }).join('')}</div>`;
+    <div class="st-chips">${VIEWS.filter(v => v[0] !== 'settings' && viewOn(v[0])).map(([id, , l]) => { const i = s.indexOf(id); return `<button class="${i >= 0 ? 'on' : ''}" data-a="barTab" data-v="${id}">${i >= 0 ? `<i>${i + 1}</i>` : ''}${l}</button>`; }).join('')}</div>${typeof freeOn === 'function' && !freeOn() ? `<div class="st-row" style="display:flex;align-items:center;gap:10px;margin-top:10px"><span style="flex:1;color:var(--muted);font-weight:700;font-size:13px">Laisvė paslėpta</span><button class="btn sm" data-a="freeUnhide">Rodyti Laisvę</button></div>` : ''}`;
 }
 A.barTab = d => { const s = barSlots(), i = s.indexOf(d.v);
   if (i >= 0) { s[i] = null; S.settings.tabGone = d.v; } else { const e = s.indexOf(null); if (e < 0) return toast('Pirma išjunk skirtuką, kurio vietą nori užimti'); s[e] = d.v; }
@@ -3278,7 +3282,7 @@ const loadFreeCode = () => typeof vFree === 'function' ? Promise.resolve() : new
 // Laisvė paslėpta: atidaroma ilgai paspaudus Savijautą (skirtuką ar meniu)
 (() => { let t = null; const stop = () => clearTimeout(t);
   document.addEventListener('pointerdown', e => { const b = e.target.closest('[data-v="wellbeing"]'); if (!b || typeof freeData !== 'function') return; t = setTimeout(async () => { LP_AT = Date.now(); if (freeOn()) return A.go({v: 'free'});
-    if (await ask('Atidaryti Laisvę?', 'Mesti, mažinti ar stebėti – cigaretes, alkoholį ir kt. Paslėpti galėsi bet kada.', {yes: 'Atidaryti'})) { freeData().on = true; commit(); A.go({v: 'free'}); } }, 650); });
+    if (await ask('Rodyti Laisvę?', 'Mesti, mažinti ar stebėti – cigaretes, alkoholį ir kt. Paslėpti galėsi bet kada.', {yes: 'Rodyti'})) A.freeUnhide(); }, 650); });
   ['pointerup', 'pointercancel', 'pointerleave', 'scroll'].forEach(ev => document.addEventListener(ev, stop, true));
   document.addEventListener('click', e => { if (Date.now() - LP_AT < 1500 && e.target.closest('[data-v="wellbeing"]')) { e.stopImmediatePropagation(); e.preventDefault(); } }, true); })();
 let LP_AT = 0;

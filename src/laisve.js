@@ -32,13 +32,18 @@ function fmtFree(n) { n = Math.max(0, Math.floor(n)); if (n < 365) return `${n} 
 
 // ---- progresas iš dienų sąrašo (perskaičiuojamas kaskart) ----
 function freeProg(sub, upTo = today()) {
-  const y = addDays(upTo, -1), F0 = freeData(), pa = F0.party, tr = F0.treat; let n = 0, resets = 0, run = 0;
+  const y = addDays(upTo, -1), F0 = freeData(), pa = F0.party, tr = F0.treat; let n = 0, resets = 0, run = 0, miss = 0;
   for (let d = sub.start; d <= upTo; d = addDays(d, 1)) {
     const c = (sub.counts || {})[d], lim = pa && pa.d === d && pa.lim?.[sub.id] != null ? +pa.lim[sub.id] : +sub.limit || 0, treat = sub.k === 'fast' && tr && tr.d === d;
     const st = sub.days[d] || (treat && d < upTo ? 'ok' : null) || (sub.mode === 'reduce' && c > lim ? 'over' : sub.mode === 'track' && c != null ? 'ok' : null);
     if (sub.mode === 'quit' && sub.free && d >= sub.free) { if (st !== 'slip') n++; }   // laisvas režimas: kasdien žingsnis, paslydimas nebenuneša į pradžią
     else if (sub.mode === 'quit') {
-      if (st === 'ok') n++; else if (st === 'slip') { if (n || run) resets++; n = 0; } else if (d < y) { if (n) resets++; n = 0; }   // užvakar ir senesnė nepažymėta – iš naujo
+      // Mesti: pažymėta +1; „Nepavyko“ – iš naujo; nepažymėtos dienos skaičiuojamos IŠ EILĖS.
+      // Vakar ir šiandien dar „gyvos“ (galima pažymėti) – jos seriją nei didina, nei nutraukia.
+      // 1 praleista diena takų nenumeta (tik žingsnio nėra); 2+ iš eilės (senesnės už vakar) – nuo 0, vieną kartą serijai.
+      if (st === 'ok') { n++; miss = 0; }
+      else if (st === 'slip') { if (n || run) resets++; n = 0; miss = 0; }
+      else if (d < y) { miss++; if (miss === 2) { if (n) resets++; n = 0; } }
     } else if (sub.mode === 'reduce') { if (st === 'ok') n++; else if (st !== 'over' && d < y) n = Math.max(freeLandFloor(n), n - 1); }
     else if (st === 'ok') n++;
     run++;
@@ -182,7 +187,10 @@ function freeRows() {
     return `<div class="lv-row"><span class="ic">${lvIc(icn)}</span><span class="tx"><b>${main}</b><small>${n} · ${sub2}</small>${ln}</span><button class="lv-p1 ${und ? 'u' : ''}" data-a="freePlus" data-id="${s.id}" aria-label="+1">${und ? ic('check') : '+1'}</button></div>`; }).join('')}</div>`;
 }
 A.freeMark = async d => {
+  // apsauga: greitas dvigubas paspaudimas nežymi dienos ir nepriduoda XP du kartus
+  if (!tapOnce('mark:' + d.d + ':' + (d.m || 'quit'), 1500)) return;
   const F = freeData(), subs = F.subs.filter(s => s.start <= d.d && !s.days[d.d] && s.mode === (d.m || 'quit'));
+  if (!subs.length) return;   // jau pažymėta – nieko nekeičiam (ir XP neduodam)
   if (d.v === 'slip' && subs.some(s => s.mode === 'quit') && !await ask('Nepavyko?', 'Nieko tokio. Takas prasidės iš naujo, o tavo daiktai ir ženkliukai liks.', {yes: 'Taip, nepavyko', no: 'Atšaukti'})) return;
   for (const s of subs) s.days[d.d] = d.v === 'ok' ? 'ok' : s.mode === 'reduce' ? 'over' : 'slip';
   if (d.v !== 'ok' && subs.length) UI.lvWhat = {d: d.d, ids: subs.map(s => s.id)};
@@ -375,11 +383,15 @@ const hourglass = (s = 80) => `<svg viewBox="0 0 60 80" width="${s * .75}" heigh
 // ---- Laiko sustabdymas: grįžus po 2+ nepažymėtų dienų (Mesti) ----
 function freeMissed() {
   const y = addDays(today(), -1), out = [];
-  // nepažymėtos dienos per paskutines 14 d. (po paskutinio paslydimo), bent viena senesnė už vakar – takas jau nuslinktų į 0
-  for (const s of freeData().subs.filter(s => s.mode === 'quit' && !s.free)) {
-    const from = [addDays(y, -14), s.start, freeW().tsFrom || '', ...Object.keys(s.days).filter(d => s.days[d] === 'slip').map(d => addDays(d, 1))].sort().pop(), miss = [];
-    for (let d = from; d < y; d = addDays(d, 1)) if (!s.days[d] && !(s.k === 'fast' && treatOn(d))) miss.push(d);
-    if (miss.length) { if (!s.days[y] && y >= s.start) miss.push(y); out.push({s, miss}); }
+  // Nepažymėtos dienos per paskutines 14 d. (po paskutinio paslydimo), senesnės už vakar.
+  // Mesti: siūlom tik kai yra 2+ iš eilės (tik tada takas numetamas). Mažinti: kai yra bent viena (kiekviena atima žingsnį).
+  // Stebėti ir laisvas režimas – nereikia (niekas neatimama).
+  for (const s of freeData().subs.filter(s => (s.mode === 'quit' || s.mode === 'reduce') && !s.free)) {
+    const from = [addDays(y, -14), s.start, freeW().tsFrom || '', ...Object.keys(s.days).filter(d => s.days[d] === 'slip' || (s.mode === 'reduce' && s.days[d] === 'over')).map(d => addDays(d, 1))].sort().pop(), miss = [];
+    const gone = d => !s.days[d] && !(s.k === 'fast' && treatOn(d)) && !(s.mode === 'reduce' && (s.counts || {})[d] > (+s.limit || 0));
+    let runNow = 0, run2 = false;
+    for (let d = from; d < y; d = addDays(d, 1)) { if (gone(d)) { miss.push(d); runNow++; if (runNow >= 2) run2 = true; } else runNow = 0; }
+    if (miss.length && (s.mode === 'reduce' || run2)) { if (!s.days[y] && y >= s.start) miss.push(y); out.push({s, miss}); }
   }
   return out;
 }
@@ -398,12 +410,13 @@ function freeTsRender() {
   const all = T.days.every(d => T.v[d]);
   lvSheet(`<h3 style="margin-top:2px">Praleistos dienos</h3><p class="lead">Kaip sekėsi kiekvieną dieną?</p>
     ${T.days.map(d => `<div class="mday"><span><b>${dn[parseD(d).getDay()]}</b><small>${fmtDate(d)}</small></span><button class="${T.v[d] === 'ok' ? 'on' : ''}" data-a="freeTsSet" data-d="${d}" data-v="ok">Pavyko</button><button class="no ${T.v[d] === 'slip' ? 'on' : ''}" data-a="freeTsSet" data-d="${d}" data-v="slip">Nepavyko</button></div>`).join('')}
-    <p class="hint2">Bent viena „Nepavyko“ – kaip paslydimas.</p><button class="btn primary big" data-a="freeTsSave" ${all ? '' : 'disabled'}>Išsaugoti · liks ${freeW().ts - 1} iš 2</button>`, 'lv-tsd');
+    <p class="hint2">${freeData().subs.some(s => s.mode === 'quit' && !s.free) ? 'Metant: bent viena „Nepavyko“ – kaip paslydimas. ' : ''}${freeData().subs.some(s => s.mode === 'reduce') ? 'Mažinant: „Nepavyko“ – diena be žingsnio.' : ''}</p><button class="btn primary big" data-a="freeTsSave" ${all ? '' : 'disabled'}>Išsaugoti · liks ${freeW().ts - 1} iš 2</button>`, 'lv-tsd');
 }
 A.freeTsSet = d => { UI.lvTs.v[d.d] = d.v; freeTsRender(); };
 A.freeTsSave = () => {
   const T = UI.lvTs, w = freeW(); if (!T || !w.ts || !T.days.every(d => T.v[d])) return;
-  for (const s of freeData().subs.filter(s => s.mode === 'quit')) for (const d of T.days) if (d >= s.start && !s.days[d]) s.days[d] = T.v[d];
+  // Mesti: Nepavyko = paslydimas; Mažinti: Nepavyko = viršijau
+  for (const s of freeData().subs.filter(s => (s.mode === 'quit' || s.mode === 'reduce') && !s.free)) for (const d of T.days) if (d >= s.start && !s.days[d]) s.days[d] = T.v[d] === 'ok' ? 'ok' : s.mode === 'reduce' ? 'over' : 'slip';
   w.ts--; UI.lvTs = null; A.closeSheet(); commit(); toast('Takas liko, kur buvo', 'good');
 };
 
@@ -1018,3 +1031,5 @@ async function freeOwnerReset() {
   } catch (e) {}
 }
 A.freeTrackNone = d => { const s = freeData().subs.find(x => x.id === d.k); if (!s) return; s.counts = s.counts || {}; if (s.counts[today()] == null) { s.counts[today()] = 0; freeData().xp = (freeData().xp || 0) + 10; toast(freeLine(true), 'good'); } commit(); };
+// jei pasaulis buvo nupieštas, kai programa buvo fone (naršyklė tada stabdo kadrus), grįžus – išdėstom ženkliukus ir burbulą iš naujo
+document.addEventListener('visibilitychange', () => { if (document.hidden || !window.LVW) return; const b = document.querySelector('.lv-page .lv-world'); if (b) { LVW.placeWorld(b); freeUnstack(b); } });
