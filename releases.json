@@ -2,6 +2,11 @@
   "stable": "1.15.4",
   "versions": [
     {
+      "v": "1.15.7",
+      "date": "2026-11-22",
+      "notes": "iPhone: valdiklio paaiškinimas be APK nuorodos"
+    },
+    {
       "v": "1.15.6",
       "date": "2026-11-22",
       "notes": "iPhone: tikra programėlės ikona pradžios ekrane, matinis stiklas Safari, suderinamumas su senesniu iOS; profilyje varnelė nebeužlipa ant teksto."
@@ -35,11 +40,6 @@
       "v": "1.14.2",
       "date": "2026-11-20",
       "notes": "Valdiklio jungiklis vėl tvarkingos formos."
-    },
-    {
-      "v": "1.14.1",
-      "date": "2026-11-20",
-      "notes": "Laisvė: valdiklį galima įjungti ir išjungti (⋯ → Valdiklis ekrane), turas paaiškina valdiklį, paslėpus Laisvę valdiklis rodo tik užrašą."
     }
   ]
 }
