@@ -161,7 +161,7 @@ function freeChecks() {
   const ask = (day, label) => {
     for (const mode of ['quit', 'reduce']) {
       const subs = F.subs.filter(s => s.start <= day && !s.days[day] && s.mode === mode && !s.free && !(s.k === 'fast' && treatOn(day))); if (!subs.length) continue;
-      const names = subs.map(s => freeSub(s.k)[1]), list = names.length > 1 ? names.slice(0, -1).join(', ') + ' ir ' + names.at(-1) : names[0];
+      const names = subs.map(s => freeSub(s.k)[1]), list = names.length > 1 ? names.slice(0, -1).join(', ') + ' ir ' + names[names.length - 1] : names[0];
       const q = mode === 'reduce' ? `${label} ${list} – pagal planą?` : `${label} be ${list}?`;
       out.push(`<div class="lv-chk"><span class="tx"><b>${q}</b>${day === y ? '<small>Vakar dar galima pažymėti</small>' : ''}</span><button class="btn sm ghost" data-a="freeMark" data-d="${day}" data-m="${mode}" data-v="slip">${mode === 'reduce' ? 'Viršijau' : 'Nepavyko'}</button><button class="btn sm primary" data-a="freeMark" data-d="${day}" data-m="${mode}" data-v="ok">Taip</button></div>`);
     }

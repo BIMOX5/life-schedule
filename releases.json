@@ -1,6 +1,11 @@
 {
-  "stable": "1.15.3",
+  "stable": "1.15.4",
   "versions": [
+    {
+      "v": "1.15.6",
+      "date": "2026-11-22",
+      "notes": "iPhone: tikra programėlės ikona pradžios ekrane, matinis stiklas Safari, suderinamumas su senesniu iOS; profilyje varnelė nebeužlipa ant teksto."
+    },
     {
       "v": "1.15.4",
       "date": "2026-11-20",
@@ -35,11 +40,6 @@
       "v": "1.14.1",
       "date": "2026-11-20",
       "notes": "Laisvė: valdiklį galima įjungti ir išjungti (⋯ → Valdiklis ekrane), turas paaiškina valdiklį, paslėpus Laisvę valdiklis rodo tik užrašą."
-    },
-    {
-      "v": "1.14.0",
-      "date": "2026-11-20",
-      "notes": "Laisvė: kompiuteryje pasaulis per visą plotį ir du stulpeliai; Kas nutiko? po paslydimo; Pastebėjimai progrese; laisvas režimas po metų."
     }
   ]
 }

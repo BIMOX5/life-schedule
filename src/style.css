@@ -25,7 +25,7 @@ aside { width:210px; flex-shrink:0; background:var(--bg2); border-right:1px soli
 .nav:hover { background:var(--card2); color:var(--text); }
 .nav.on { background:linear-gradient(90deg, rgba(79,140,255,.25), rgba(139,108,255,.12)); color:var(--text); font-weight:600; }
 .content { flex:1; min-width:0; }
-header { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:16px 24px; position:sticky; top:0; z-index:20; background:color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
+header { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:16px 24px; position:sticky; top:0; z-index:20; background:color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
 header h1 { font-size:21px; } header small { color:var(--muted); }
 .tr { display:flex; align-items:center; gap:8px; }
 .lvl { border:1px solid var(--line); background:var(--card); border-radius:99px; padding:6px 12px; cursor:pointer; font-weight:600; font-size:13px; }
@@ -235,7 +235,7 @@ main { padding:20px 24px 90px; max-width:1400px; }
 .nbody { flex:1; min-height:50vh; border:0; background:none; resize:none; outline:none; font-size:15px; line-height:1.6; }
 
 /* Modalas ir formos */
-#modal { position:fixed; inset:0; background:rgba(5,8,20,.6); backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; z-index:100; padding:16px; }
+#modal { position:fixed; inset:0; background:rgba(5,8,20,.6); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; z-index:100; padding:16px; }
 #modal.open { display:flex; animation:fade .15s; }
 @keyframes fade { from { opacity:0; } }
 .mbox { background:var(--bg2); border:1px solid var(--line); border-radius:22px; width:100%; max-width:560px; max-height:92vh; overflow:auto; box-shadow:0 20px 60px rgba(0,0,0,.5); animation:up .2s; }
@@ -438,7 +438,7 @@ pre.mail { white-space:pre-wrap; background:var(--card); border:1px solid var(--
 .banner.update { background:linear-gradient(90deg, rgba(79,140,255,.28), rgba(139,108,255,.15)); border-color:var(--accent); cursor:default; } .banner.update small { color:var(--muted); }
 
 /* Patvirtinimo / pranešimo langas ekrano viduryje */
-.askov { position:fixed; inset:0; z-index:200; background:rgba(5,8,20,.62); backdrop-filter:blur(5px); display:flex; align-items:center; justify-content:center; padding:20px; animation:fade .15s; }
+.askov { position:fixed; inset:0; z-index:200; background:rgba(5,8,20,.62); -webkit-backdrop-filter:blur(5px); backdrop-filter:blur(5px); display:flex; align-items:center; justify-content:center; padding:20px; animation:fade .15s; }
 .askov.out { opacity:0; transition:opacity .15s; }
 .askbox { background:var(--bg2); border:1px solid var(--line); border-radius:24px; width:100%; max-width:400px; padding:26px 22px 20px; text-align:center; box-shadow:0 24px 70px rgba(0,0,0,.55); animation:pop .22s cubic-bezier(.2,1.4,.4,1); }
 .askbox.danger { border-color:rgba(239,68,68,.45); }
@@ -1300,3 +1300,4 @@ body::before { content:''; position:fixed; top:0; left:0; right:0; height:max(en
 .lvw .say2.c::after { left:50%; margin-left:-6px; }
 .lvw .say2.dn::after { left:50%; margin-left:-6px; }
 .lvw .say2.c::after, .lvw .say2.dn::after { left:var(--ax, 50%); margin-left:0; right:auto; }
+@media (max-width:700px) { .modec { padding-right:34px; } }
